@@ -117,6 +117,33 @@ class FilterBar extends StatelessWidget {
               ),
             ],
           ),
+          if (config.statuses.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _Group(
+              label: 'Status',
+              // Statuses are user-defined and can be many; this group gets the
+              // full width so the chips wrap rather than overflow the row.
+              fill: true,
+              child: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final status in config.orderedStatuses)
+                    FilterChip(
+                      label: Text(status.name),
+                      selected: query.statusIds.contains(status.id),
+                      visualDensity: VisualDensity.compact,
+                      onSelected: (selected) => onChanged(
+                        query.copyWith(
+                          statusIds:
+                              _toggle(query.statusIds, status.id, selected),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (config.categories.isNotEmpty || config.tags.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
@@ -213,22 +240,32 @@ class _Group extends StatelessWidget {
   final String label;
   final Widget child;
 
-  const _Group({required this.label, required this.child});
+  /// Take the whole row and let [child] wrap within it, rather than sizing to
+  /// the child. Only usable where the group has a bounded width to fill.
+  final bool fill;
+
+  const _Group({required this.label, required this.child, this.fill = false});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Row(
-      mainAxisSize: MainAxisSize.min,
+      mainAxisSize: fill ? MainAxisSize.max : MainAxisSize.min,
+      crossAxisAlignment:
+          fill ? CrossAxisAlignment.start : CrossAxisAlignment.center,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
+        Padding(
+          // Keeps the label on the first run of chips when the child wraps.
+          padding: EdgeInsets.only(top: fill ? 8 : 0),
+          child: Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         const SizedBox(width: 8),
-        child,
+        if (fill) Expanded(child: child) else child,
       ],
     );
   }

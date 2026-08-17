@@ -159,6 +159,31 @@ void main() {
     expect(find.text('Shipped'), findsOneWidget);
   });
 
+  testWidgets('the status filter narrows the list to one status',
+      (tester) async {
+    late Status inProgress;
+    await tester.runAsync(() async {
+      inProgress = controller.config.statuses
+          .firstWhere((s) => s.name == 'In Progress');
+      final moving = await controller.createTask(summary: 'Renew passport');
+      await controller.moveToStatus(moving, inProgress.id);
+      await controller.createTask(summary: 'Buy milk');
+    });
+
+    await useDesktopWindow(tester);
+    await tester.pumpWidget(harness());
+    await tester.pumpAndSettle();
+    expect(find.text('2 tasks'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Filters'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilterChip, inProgress.name));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Showing 1 of 2 tasks'), findsOneWidget);
+    expect(find.text('Buy milk'), findsNothing);
+  });
+
   testWidgets('switching to the board shows a column per visible status',
       (tester) async {
     await useDesktopWindow(tester);
