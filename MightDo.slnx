@@ -1,9 +1,11 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MightDo.Core/MightDo.Core.csproj" />
+    <Project Path="src/MightDo.Platform/MightDo.Platform.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MightDo.Core.Tests/MightDo.Core.Tests.csproj" />
+    <Project Path="tests/MightDo.Platform.Tests/MightDo.Platform.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/MightDo.FixtureWriter/MightDo.FixtureWriter.csproj" />
