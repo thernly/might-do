@@ -41,7 +41,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private bool _overdueOnly;
 
     [ObservableProperty]
-    private StatusFilterViewModel? _selectedStatus;
+    [NotifyPropertyChangedFor(nameof(PanelFilterCount))]
+    [NotifyPropertyChangedFor(nameof(HasPanelFilters))]
+    private bool _filtersOpen;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
@@ -100,7 +102,16 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<TaskRowViewModel> Tasks { get; } = [];
 
-    public ObservableCollection<StatusFilterViewModel> Statuses { get; } = [];
+    /// <summary>Every filter control that lives inside the panel.</summary>
+    public ObservableCollection<FilterToggle> Statuses { get; } = [];
+
+    public ObservableCollection<FilterToggle> StatusTypes { get; } = [];
+
+    public ObservableCollection<FilterToggle> Categories { get; } = [];
+
+    public ObservableCollection<FilterToggle> TagFilters { get; } = [];
+
+    public ObservableCollection<FilterToggle> Priorities { get; } = [];
 
     public ObservableCollection<DueReminderViewModel> OutstandingReminders { get; } = [];
 
@@ -123,10 +134,39 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         Sort = Sort,
         IncludeCompleted = IncludeCompleted,
         OverdueOnly = OverdueOnly,
-        StatusIds = SelectedStatus?.Id is { } id
-            ? new HashSet<string> { id }
-            : new HashSet<string>(),
+        StatusIds = Selected(Statuses),
+        StatusTypes = new HashSet<StatusType>(
+            StatusTypes.Where(t => t.IsSelected).Select(t => Enum.Parse<StatusType>(t.Id))),
+        CategoryIds = Selected(Categories),
+        TagIds = Selected(TagFilters),
+        Priorities = new HashSet<Priority>(
+            Priorities.Where(p => p.IsSelected).Select(p => Enum.Parse<Priority>(p.Id))),
     };
+
+    private static IReadOnlySet<string> Selected(IEnumerable<FilterToggle> toggles) =>
+        new HashSet<string>(toggles.Where(t => t.IsSelected).Select(t => t.Id));
+
+    /// <summary>
+    /// How many controls inside the filter panel are active.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not <see cref="TaskQuery.IsFiltered"/>, which asks a
+    /// different question — is this view narrowed at all — and so counts the
+    /// search box. This counts only what is hidden behind the panel button,
+    /// because the search box is a visible field outside it whose contents you
+    /// can already see. It is a fact about a UI arrangement, which is why it
+    /// lives here rather than on the query.
+    /// </remarks>
+    public int PanelFilterCount =>
+        (Statuses.Any(t => t.IsSelected) ? 1 : 0)
+        + (StatusTypes.Any(t => t.IsSelected) ? 1 : 0)
+        + (Categories.Any(t => t.IsSelected) ? 1 : 0)
+        + (TagFilters.Any(t => t.IsSelected) ? 1 : 0)
+        + (Priorities.Any(t => t.IsSelected) ? 1 : 0)
+        + (OverdueOnly ? 1 : 0)
+        + (IncludeCompleted ? 1 : 0);
+
+    public bool HasPanelFilters => PanelFilterCount > 0;
 
     partial void OnSearchChanged(string value) => Project();
 
@@ -136,7 +176,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     partial void OnOverdueOnlyChanged(bool value) => Project();
 
-    partial void OnSelectedStatusChanged(StatusFilterViewModel? value) => Project();
+    [RelayCommand]
+    private void ToggleFilters() => FiltersOpen = !FiltersOpen;
+
+    /// <summary>Called by every toggle in the panel when the user changes it.</summary>
+    private void OnFilterToggled() => Project();
 
     public bool IsListView => ViewMode == ViewMode.List;
 
@@ -232,7 +276,14 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         Search = "";
         IncludeCompleted = false;
         OverdueOnly = false;
-        SelectedStatus = null;
+
+        foreach (var toggle in Statuses.Concat(StatusTypes).Concat(Categories)
+                     .Concat(TagFilters).Concat(Priorities))
+        {
+            toggle.ClearWithoutNotifying();
+        }
+
+        Project();
     }
 
     [RelayCommand]
@@ -270,8 +321,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         Replace(Tasks, visible.Select(task => new TaskRowViewModel(task, snapshot.Config)));
 
-        Replace(Statuses, snapshot.Config.Statuses.Select(
-            status => new StatusFilterViewModel(status.Id, status.Name)));
+        // Rebuilt from the config each time, so a status renamed in settings
+        // shows its new name here — carrying the selection across by id.
+        ReplaceToggles(Statuses, snapshot.Config.Statuses
+            .Select(status => (status.Id, status.Name)));
+        ReplaceToggles(StatusTypes, Enum.GetValues<StatusType>()
+            .Select(type => (type.ToString(), type.Label())));
+        ReplaceToggles(Categories, snapshot.Config.Categories
+            .Select(category => (category.Id, category.Name)));
+        ReplaceToggles(TagFilters, snapshot.Config.Tags.Select(tag => (tag.Id, tag.Name)));
+        ReplaceToggles(Priorities, Enum.GetValues<Priority>()
+            .Select(priority => (priority.ToString(), priority.Label())));
 
         Replace(OutstandingReminders, snapshot
             .OutstandingReminders(DateTime.UtcNow)
@@ -294,6 +354,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 column.Tasks.Select(task => new BoardCardViewModel(task, snapshot.Config)))));
 
         IsFiltered = query.IsFiltered;
+        OnPropertyChanged(nameof(PanelFilterCount));
+        OnPropertyChanged(nameof(HasPanelFilters));
 
         // The two views show different sets — the board populates Final columns
         // the list hides, and omits statuses flagged off the board — so the
@@ -310,6 +372,23 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             : Tasks.FirstOrDefault(row => row.Id == _selectedTaskId);
 
         SyncDetail();
+    }
+
+    /// <summary>
+    /// Rebuilds a set of toggles, preserving which were selected. Replacing them
+    /// wholesale on every rescan would clear the user's filters whenever a sync
+    /// client touched a file.
+    /// </summary>
+    private void ReplaceToggles(
+        ObservableCollection<FilterToggle> target, IEnumerable<(string Id, string Name)> items)
+    {
+        var selected = target.Where(t => t.IsSelected).Select(t => t.Id).ToHashSet();
+
+        target.Clear();
+        foreach (var (id, name) in items)
+        {
+            target.Add(new FilterToggle(id, name, selected.Contains(id), OnFilterToggled));
+        }
     }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
@@ -374,7 +453,47 @@ public sealed class TaskRowViewModel(MightDoTask task, WorkspaceConfig config)
     public bool HasDue { get; } = task.DueDate is not null;
 }
 
-public sealed record StatusFilterViewModel(string Id, string Name);
+/// <summary>
+/// One selectable value in the filter panel — a Status, a Status Type, a
+/// Category, a Tag or a Priority. They behave identically, so they share a type.
+/// </summary>
+public sealed partial class FilterToggle : ObservableObject
+{
+    private readonly Action _onToggled;
+    private bool _suppress;
+
+    [ObservableProperty] private bool _isSelected;
+
+    public FilterToggle(string id, string name, bool isSelected, Action onToggled)
+    {
+        Id = id;
+        Name = name;
+        _isSelected = isSelected;
+        _onToggled = onToggled;
+    }
+
+    public string Id { get; }
+    public string Name { get; }
+
+    partial void OnIsSelectedChanged(bool value)
+    {
+        if (!_suppress) _onToggled();
+    }
+
+    /// <summary>Clears without re-querying, so a bulk clear queries once.</summary>
+    public void ClearWithoutNotifying()
+    {
+        _suppress = true;
+        try
+        {
+            IsSelected = false;
+        }
+        finally
+        {
+            _suppress = false;
+        }
+    }
+}
 
 public sealed record DueReminderViewModel(
     string TaskId, string ReminderId, string Summary, DateTime RemindAt)

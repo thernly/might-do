@@ -56,31 +56,30 @@
           x:DataType="vm:WorkspaceViewModel"
           RowDefinitions="Auto,Auto,*,Auto" Margin="16">
 
-      <!-- Filter bar -->
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+      <!-- Toolbar. The filter controls live behind a button; the search box
+           does not, which is why the count on that button ignores it. -->
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
         <TextBox Grid.Column="0" PlaceholderText="Search summaries, notes and steps"
-                 Text="{Binding Search}" MinWidth="220" />
-        <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150"
-                  ItemsSource="{Binding Statuses}"
-                  SelectedItem="{Binding SelectedStatus}"
-                  PlaceholderText="Any status">
-          <ComboBox.ItemTemplate>
-            <DataTemplate x:DataType="vm:StatusFilterViewModel">
-              <TextBlock Text="{Binding Name}" />
-            </DataTemplate>
-          </ComboBox.ItemTemplate>
-        </ComboBox>
+                 Text="{Binding Search}" MinWidth="200" />
+
+        <ToggleButton Grid.Column="1" Margin="8,0,0,0" IsChecked="{Binding FiltersOpen}">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <TextBlock Text="Filters" VerticalAlignment="Center" />
+            <Border CornerRadius="9" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
+                    Background="{DynamicResource SystemAccentColor}">
+              <TextBlock Text="{Binding PanelFilterCount}" FontSize="11" Foreground="White" />
+            </Border>
+          </StackPanel>
+        </ToggleButton>
+
         <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="150"
-                  ItemsSource="{Binding SortOptions}"
-                  SelectedItem="{Binding Sort}" />
-        <CheckBox Grid.Column="3" Margin="8,0,0,0" Content="Overdue"
-                  IsChecked="{Binding OverdueOnly}" />
-        <CheckBox Grid.Column="4" Margin="8,0,0,0" Content="Completed"
-                  IsChecked="{Binding IncludeCompleted}" />
-        <Button Grid.Column="5" Margin="8,0,0,0" Content="Clear"
+                  ItemsSource="{Binding SortOptions}" SelectedItem="{Binding Sort}" />
+
+        <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear"
                 Command="{Binding ClearFiltersCommand}"
                 IsVisible="{Binding IsFiltered}" />
-        <StackPanel Grid.Column="6" Orientation="Horizontal" Margin="12,0,0,0">
+
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="12,0,0,0">
           <RadioButton GroupName="ViewMode" Content="List" IsChecked="{Binding IsListView}"
                        Command="{Binding ShowListCommand}" VerticalAlignment="Center" />
           <RadioButton GroupName="ViewMode" Content="Board" IsChecked="{Binding IsBoardView}"
@@ -91,6 +90,80 @@
 
       <!-- Banners: reminders, sync conflicts, missing folder -->
       <StackPanel Grid.Row="1">
+        <Border Classes="banner" IsVisible="{Binding FiltersOpen}">
+          <StackPanel Spacing="10">
+            <WrapPanel>
+              <StackPanel Margin="0,0,20,6" MinWidth="140">
+                <TextBlock Text="Status" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding Statuses}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterToggle">
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,20,6" MinWidth="120">
+                <TextBlock Text="Status Type" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding StatusTypes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterToggle">
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,20,6" MinWidth="120">
+                <TextBlock Text="Priority" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding Priorities}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterToggle">
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+
+              <StackPanel Margin="0,0,20,6" MinWidth="140">
+                <TextBlock Text="Category" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding Categories}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterToggle">
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No categories yet" Classes="hint"
+                           IsVisible="{Binding !Categories.Count}" />
+              </StackPanel>
+
+              <StackPanel Margin="0,0,20,6" MinWidth="140">
+                <TextBlock Text="Tags" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <ItemsControl ItemsSource="{Binding TagFilters}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilterToggle">
+                      <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="No tags yet" Classes="hint"
+                           IsVisible="{Binding !TagFilters.Count}" />
+              </StackPanel>
+
+              <StackPanel Margin="0,0,20,6" MinWidth="120">
+                <TextBlock Text="Show" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <CheckBox Content="Overdue only" IsChecked="{Binding OverdueOnly}" />
+                <CheckBox Content="Completed" IsChecked="{Binding IncludeCompleted}" />
+              </StackPanel>
+            </WrapPanel>
+
+            <TextBlock Classes="hint"
+                       Text="Selecting a Final status, or the Final Status Type, shows completed work without ticking Completed." />
+          </StackPanel>
+        </Border>
+
         <Border Classes="banner"
                 IsVisible="{Binding Banner, Converter={x:Static ObjectConverters.IsNotNull}}">
           <TextBlock Text="{Binding Banner}" TextWrapping="Wrap" />
