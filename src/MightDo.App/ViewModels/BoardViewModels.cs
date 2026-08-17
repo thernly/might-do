@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using CommunityToolkit.Mvvm.ComponentModel;
 using MightDo.Core.Domain;
 
 namespace MightDo.App.ViewModels;
@@ -18,8 +19,17 @@ public sealed class BoardColumnViewModel(Status status, IEnumerable<BoardCardVie
 }
 
 /// <summary>One card on the board.</summary>
-public sealed class BoardCardViewModel(MightDoTask task, WorkspaceConfig config)
+public sealed partial class BoardCardViewModel(MightDoTask task, WorkspaceConfig config)
+    : ObservableObject
 {
+    /// <summary>
+    /// Whether this is the card the detail pane is showing. The board has no
+    /// selection of its own — a card is selected exactly when the workspace's
+    /// selected id is this one — so the workspace sets it.
+    /// </summary>
+    [ObservableProperty]
+    private bool _isSelected;
+
     public string Id { get; } = task.Id;
 
     public string StatusId { get; } = task.StatusId;

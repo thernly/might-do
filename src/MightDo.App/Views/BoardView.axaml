@@ -19,6 +19,11 @@
     <Style Selector="Border.card:pointerover">
       <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
     </Style>
+    <!-- The card the detail pane is showing. -->
+    <Style Selector="Border.card.selected">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
     <Style Selector="Border.column">
       <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
       <Setter Property="CornerRadius" Value="8" />
@@ -63,7 +68,8 @@
                       <DataTemplate x:DataType="vm:BoardCardViewModel">
                         <!-- Each card is both draggable and a drop target;
                              dropping on a card inserts above it. -->
-                        <Border Classes="card" Name="CardRoot" Tag="{Binding Id}">
+                        <Border Classes="card" Name="CardRoot" Tag="{Binding Id}"
+                                Classes.selected="{Binding IsSelected}">
                           <StackPanel Spacing="6">
                             <TextBlock Text="{Binding Summary}" TextWrapping="Wrap" />
                             <StackPanel Orientation="Horizontal" Spacing="5">

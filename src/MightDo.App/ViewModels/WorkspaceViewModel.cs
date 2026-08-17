@@ -26,6 +26,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly AppSettings _settings;
     private readonly IFilePicker _filePicker;
     private string? _selectedTaskId;
+    private bool _projecting;
     private bool _disposed;
 
     [ObservableProperty]
@@ -46,10 +47,10 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private bool _filtersOpen;
 
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private TaskRowViewModel? _selectedTask;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private TaskDetailViewModel? _detail;
 
     [ObservableProperty]
@@ -220,18 +221,65 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         await _session.ReorderOnBoardAsync(task, statusId, target.Above, target.Below);
     }
 
-    public bool HasSelection => SelectedTask is not null;
+    /// <summary>Whether the detail pane has anything to show.</summary>
+    /// <remarks>
+    /// Asked of the pane rather than of the list row, because the board can
+    /// select a task the list is not showing — a completed one, most obviously.
+    /// </remarks>
+    public bool HasSelection => Detail is not null;
 
     /// <summary>
     /// Opening a task in the detail pane. Keyed by id rather than by row, so a
-    /// rescan that rebuilds every row does not close the pane under the user.
+    /// rescan that rebuilds every row does not close the pane under the user,
+    /// and so both views can select through the same door.
     /// </summary>
-    partial void OnSelectedTaskChanged(TaskRowViewModel? value)
+    public void SelectTaskById(string? taskId)
     {
-        _selectedTaskId = value?.Id;
+        _selectedTaskId = taskId;
+
+        _projecting = true;
+        try
+        {
+            SelectedTask = taskId is null
+                ? null
+                : Tasks.FirstOrDefault(row => row.Id == taskId);
+        }
+        finally
+        {
+            _projecting = false;
+        }
+
+        MarkSelectedCard();
         SyncDetail();
     }
 
+    /// <summary>The list view's own selection, which is one way in among two.</summary>
+    partial void OnSelectedTaskChanged(TaskRowViewModel? value)
+    {
+        // Rebuilding Tasks makes the ListBox report a null selection on its way
+        // past, which would otherwise close the pane on every rescan.
+        if (_projecting) return;
+
+        SelectTaskById(value?.Id);
+    }
+
+    private void MarkSelectedCard()
+    {
+        foreach (var column in Columns)
+        {
+            foreach (var card in column.Cards) card.IsSelected = card.Id == _selectedTaskId;
+        }
+    }
+
+    /// <summary>
+    /// Points the detail pane at whatever is selected.
+    /// </summary>
+    /// <remarks>
+    /// The pane closes when the task leaves the workspace — trashed, or deleted
+    /// by another machine — and not merely when it leaves the current view. A
+    /// filter that hides the task you are editing, or a status change that does,
+    /// should not shut the pane in the middle of the edit that caused it.
+    /// </remarks>
     private void SyncDetail()
     {
         var task = _selectedTaskId is null ? null : _session.Snapshot.TaskById(_selectedTaskId);
@@ -262,7 +310,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private Task RefreshAsync() => _session.RefreshAsync();
 
     [RelayCommand]
-    private void CloseDetail() => SelectedTask = null;
+    private void CloseDetail() => SelectTaskById(null);
 
     /// <summary>
     /// A settings view model over this workspace's session. Created per window
@@ -315,6 +363,24 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
 
+        // Held for the whole rebuild: emptying Tasks makes the ListBox report a
+        // null selection, which without this would look like the user closing
+        // the pane.
+        _projecting = true;
+        try
+        {
+            Rebuild();
+        }
+        finally
+        {
+            _projecting = false;
+        }
+
+        SelectTaskById(_selectedTaskId);
+    }
+
+    private void Rebuild()
+    {
         var snapshot = _session.Snapshot;
         var query = Query;
         var visible = query.Apply(snapshot.Tasks, snapshot.Config);
@@ -364,14 +430,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         SummaryLine = shown == snapshot.Tasks.Count
             ? $"{shown} task{(shown == 1 ? "" : "s")}"
             : $"{shown} of {snapshot.Tasks.Count} tasks";
-
-        // Every row is a new object after a rescan, so reattach the selection by
-        // id. Without this the pane closes whenever anything on disk changes.
-        SelectedTask = _selectedTaskId is null
-            ? null
-            : Tasks.FirstOrDefault(row => row.Id == _selectedTaskId);
-
-        SyncDetail();
     }
 
     /// <summary>
