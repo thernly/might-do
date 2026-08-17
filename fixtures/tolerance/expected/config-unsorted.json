@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "defaultStatusId": "01m07z000000000000000000s2",
+  "statuses": [
+    {
+      "id": "01m07z000000000000000000s2",
+      "name": "Not Started",
+      "type": "initial",
+      "order": 0,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s3",
+      "name": "In Progress",
+      "type": "active",
+      "order": 1,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s5",
+      "name": "Done",
+      "type": "final",
+      "order": 2,
+      "hiddenFromBoard": false
+    }
+  ],
+  "categories": [],
+  "tags": []
+}

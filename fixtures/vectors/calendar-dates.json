@@ -1,0 +1,49 @@
+{
+  "comment": "CalendarDate.tryParse. A due date is a day: strictly yyyy-MM-dd, no time, no zone, and non-existent days are rejected.",
+  "cases": [
+    {
+      "input": "2026-08-21",
+      "parsed": "2026-08-21"
+    },
+    {
+      "input": "2026-02-29",
+      "parsed": null
+    },
+    {
+      "input": "2024-02-29",
+      "parsed": "2024-02-29"
+    },
+    {
+      "input": "2026-02-30",
+      "parsed": null
+    },
+    {
+      "input": "2026-13-01",
+      "parsed": null
+    },
+    {
+      "input": "2026-00-10",
+      "parsed": null
+    },
+    {
+      "input": "2026-08-00",
+      "parsed": null
+    },
+    {
+      "input": "2026-8-21",
+      "parsed": null
+    },
+    {
+      "input": "26-08-21",
+      "parsed": null
+    },
+    {
+      "input": "2026-08-21T00:00:00Z",
+      "parsed": null
+    },
+    {
+      "input": "",
+      "parsed": null
+    }
+  ]
+}

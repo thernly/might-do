@@ -53,6 +53,9 @@ flutter test
 
 - [CONTEXT.md](CONTEXT.md) — the domain vocabulary. Read this first.
 - [docs/adr/](docs/adr/) — decisions that would otherwise look surprising.
+- [docs/format/workspace-v1.md](docs/format/workspace-v1.md) — the on-disk
+  format, with a conformance corpus in [fixtures/](fixtures/). What any other
+  implementation is written against.
 
 ## Not in this version
 

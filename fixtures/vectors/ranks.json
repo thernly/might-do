@@ -1,0 +1,82 @@
+{
+  "comment": "rankBetween(before, after). Empty string means unbounded on that side. Result must sort strictly between the two under ordinary ordinal string comparison, and must never end in \"0\".",
+  "between": [
+    {
+      "before": "",
+      "after": "",
+      "result": "i"
+    },
+    {
+      "before": "",
+      "after": "i",
+      "result": "9"
+    },
+    {
+      "before": "i",
+      "after": "",
+      "result": "r"
+    },
+    {
+      "before": "h",
+      "after": "i",
+      "result": "hi"
+    },
+    {
+      "before": "a",
+      "after": "b",
+      "result": "ai"
+    },
+    {
+      "before": "hzzzzy",
+      "after": "i",
+      "result": "hzzzzz"
+    },
+    {
+      "before": "h",
+      "after": "h1",
+      "result": "h0i"
+    },
+    {
+      "before": "1",
+      "after": "2",
+      "result": "1i"
+    },
+    {
+      "before": "zz",
+      "after": "zzz",
+      "result": "zzh"
+    }
+  ],
+  "initialRanks": {
+    "count": 5,
+    "result": [
+      "i",
+      "r",
+      "w",
+      "y",
+      "z"
+    ]
+  },
+  "rejected": [
+    {
+      "before": "i",
+      "after": "h",
+      "why": "before must sort before after"
+    },
+    {
+      "before": "i",
+      "after": "i",
+      "why": "bounds must differ"
+    },
+    {
+      "before": "a0",
+      "after": "",
+      "why": "rank must not end in 0"
+    },
+    {
+      "before": "A",
+      "after": "",
+      "why": "base-36 is lowercase"
+    }
+  ]
+}

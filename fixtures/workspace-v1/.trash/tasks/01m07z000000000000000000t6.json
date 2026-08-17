@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t6",
+  "summary": "Abandoned experiment",
+  "description": "Kept because nothing purges the trash automatically.",
+  "statusId": "01m07z000000000000000000s6",
+  "categoryId": null,
+  "tagIds": [],
+  "priority": "low",
+  "dueDate": null,
+  "completedAt": "2026-08-12T17:00:00.000Z",
+  "estimateMinutes": null,
+  "totalTimeMinutes": null,
+  "boardRank": "k",
+  "steps": [],
+  "notes": [],
+  "attachments": [],
+  "reminders": [],
+  "createdAt": "2026-08-11T09:00:00.000Z",
+  "updatedAt": "2026-08-12T17:00:00.000Z"
+}

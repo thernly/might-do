@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t8",
+  "summary": "Non-UTC timestamps",
+  "statusId": "01m07z000000000000000000s2",
+  "priority": "high",
+  "dueDate": "2026-08-21",
+  "completedAt": "2026-08-16T16:22:09+02:00",
+  "boardRank": "m",
+  "notes": [
+    {
+      "id": "01m07z000000000000000000n4",
+      "createdAt": "2026-08-15T12:00:00Z",
+      "body": "No fractional seconds on the way in."
+    }
+  ],
+  "createdAt": "2026-08-10T10:00:00.5Z",
+  "updatedAt": "2026-08-16T14:22:09.7654321Z"
+}

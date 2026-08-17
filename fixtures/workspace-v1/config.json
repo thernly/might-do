@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "defaultStatusId": "01m07z000000000000000000s2",
+  "statuses": [
+    {
+      "id": "01m07z000000000000000000s1",
+      "name": "Backlog",
+      "type": "initial",
+      "order": 0,
+      "hiddenFromBoard": true
+    },
+    {
+      "id": "01m07z000000000000000000s2",
+      "name": "Not Started",
+      "type": "initial",
+      "order": 1,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s3",
+      "name": "In Progress",
+      "type": "active",
+      "order": 2,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s4",
+      "name": "Blocked",
+      "type": "active",
+      "order": 3,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s5",
+      "name": "Done",
+      "type": "final",
+      "order": 4,
+      "hiddenFromBoard": false
+    },
+    {
+      "id": "01m07z000000000000000000s6",
+      "name": "Abandoned",
+      "type": "final",
+      "order": 5,
+      "hiddenFromBoard": true
+    }
+  ],
+  "categories": [
+    {
+      "id": "01m07z000000000000000000c1",
+      "name": "Work",
+      "color": 4281236786
+    },
+    {
+      "id": "01m07z000000000000000000c2",
+      "name": "Home & Garden",
+      "color": 2161323823
+    }
+  ],
+  "tags": [
+    {
+      "id": "01m07z000000000000000000g1",
+      "name": "tag-1"
+    },
+    {
+      "id": "01m07z000000000000000000g2",
+      "name": "tag-2"
+    },
+    {
+      "id": "01m07z000000000000000000g3",
+      "name": "needs review"
+    },
+    {
+      "id": "01m07z000000000000000000g4",
+      "name": "tag-4"
+    },
+    {
+      "id": "01m07z000000000000000000g5",
+      "name": "tag-5"
+    },
+    {
+      "id": "01m07z000000000000000000g6",
+      "name": "tag-6"
+    },
+    {
+      "id": "01m07z000000000000000000g7",
+      "name": "tag-7"
+    },
+    {
+      "id": "01m07z000000000000000000g8",
+      "name": "tag-8"
+    },
+    {
+      "id": "01m07z000000000000000000g9",
+      "name": "tag-9"
+    },
+    {
+      "id": "01m07z000000000000000000ga",
+      "name": "tag-10"
+    }
+  ]
+}

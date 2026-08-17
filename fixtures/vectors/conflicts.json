@@ -1,0 +1,21 @@
+{
+  "comment": "Files planted in fixtures/workspace-v1/tasks/ that a load must surface as conflict artefacts rather than tasks. Sorted newest modified first at runtime, which mtime decides, so order is not fixed here.",
+  "files": [
+    {
+      "fileName": "01m07z000000000000000000t1-LAPTOP.json",
+      "taskId": "01m07z000000000000000000t1"
+    },
+    {
+      "fileName": "01m07z000000000000000000t2 (conflicted copy 2026-08-16).json",
+      "taskId": "01m07z000000000000000000t2"
+    },
+    {
+      "fileName": "01m07z000000000000000000t3 2.json",
+      "taskId": "01m07z000000000000000000t3"
+    },
+    {
+      "fileName": "scratch-notes.json",
+      "taskId": null
+    }
+  ]
+}

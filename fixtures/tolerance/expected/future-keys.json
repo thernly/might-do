@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t9",
+  "summary": "Carries keys this version does not know",
+  "description": "",
+  "statusId": "01m07z000000000000000000s2",
+  "categoryId": null,
+  "tagIds": [],
+  "priority": "medium",
+  "dueDate": null,
+  "completedAt": null,
+  "estimateMinutes": null,
+  "totalTimeMinutes": null,
+  "boardRank": "n",
+  "steps": [],
+  "notes": [],
+  "attachments": [],
+  "reminders": [],
+  "createdAt": "2026-08-15T07:30:00.000Z",
+  "updatedAt": "2026-08-15T07:30:00.000Z"
+}

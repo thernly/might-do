@@ -1,0 +1,86 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t1",
+  "summary": "Draft the quarterly plan",
+  "description": "Pull last quarter's numbers together and write the narrative before the board meeting.",
+  "statusId": "01m07z000000000000000000s3",
+  "categoryId": "01m07z000000000000000000c1",
+  "tagIds": [
+    "01m07z000000000000000000g1",
+    "01m07z000000000000000000g2",
+    "01m07z000000000000000000g3",
+    "01m07z000000000000000000g4",
+    "01m07z000000000000000000g5",
+    "01m07z000000000000000000g6",
+    "01m07z000000000000000000g7",
+    "01m07z000000000000000000g8",
+    "01m07z000000000000000000g9",
+    "01m07z000000000000000000ga"
+  ],
+  "priority": "critical",
+  "dueDate": "2026-08-21",
+  "completedAt": null,
+  "estimateMinutes": 240,
+  "totalTimeMinutes": 315,
+  "boardRank": "h",
+  "steps": [
+    {
+      "id": "01m07z000000000000000000p1",
+      "text": "Export the figures",
+      "done": true
+    },
+    {
+      "id": "01m07z000000000000000000p2",
+      "text": "Write the narrative",
+      "done": false
+    },
+    {
+      "id": "01m07z000000000000000000p3",
+      "text": "Circulate for comment",
+      "done": true
+    }
+  ],
+  "notes": [
+    {
+      "id": "01m07z000000000000000000n1",
+      "createdAt": "2026-08-14T09:05:30.123Z",
+      "body": "Figures are out of date; chased finance."
+    },
+    {
+      "id": "01m07z000000000000000000n2",
+      "createdAt": "2026-08-15T16:42:07.890123Z",
+      "body": "Finance came back.\n\nNumbers now agreed with Priya."
+    }
+  ],
+  "attachments": [
+    {
+      "id": "01m07z000000000000000000a1",
+      "originalName": "quarterly plan.pdf",
+      "storedName": "01m07z000000000000000000a1-quarterly-plan.pdf",
+      "sizeBytes": 184320,
+      "addedAt": "2026-08-14T09:06:00.000Z"
+    }
+  ],
+  "reminders": [
+    {
+      "id": "01m07z000000000000000000r1",
+      "remindAt": "2026-08-20T08:00:00.000Z",
+      "firedAt": null,
+      "dismissedAt": null
+    },
+    {
+      "id": "01m07z000000000000000000r2",
+      "remindAt": "2026-08-18T08:00:00.000Z",
+      "firedAt": "2026-08-18T08:00:01.005Z",
+      "dismissedAt": null
+    },
+    {
+      "id": "01m07z000000000000000000r3",
+      "remindAt": "2026-08-16T08:00:00.000Z",
+      "firedAt": "2026-08-16T08:00:00.500Z",
+      "dismissedAt": "2026-08-16T09:15:22.000Z"
+    }
+  ],
+  "createdAt": "2026-08-14T09:00:00.000Z",
+  "updatedAt": "2026-08-16T09:15:22.004060Z"
+}

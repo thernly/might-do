@@ -1,0 +1,60 @@
+{
+  "comment": "isOwnTaskFile: a 26-char Crockford base32 ULID plus \".json\", matched case-insensitively. Anything else in tasks/ is a conflict artefact, except our own in-flight \".tmp\" writes, which are skipped.",
+  "cases": [
+    {
+      "fileName": "01m07z000000000000000000t1.json",
+      "isOwnTaskFile": true,
+      "isConflictArtefact": false
+    },
+    {
+      "fileName": "01M07Z000000000000000000T1.json",
+      "isOwnTaskFile": true,
+      "isConflictArtefact": false
+    },
+    {
+      "fileName": "01m07z000000000000000000t1-LAPTOP.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "01m07z000000000000000000t1 (conflicted copy 2026-08-16).json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "01m07z000000000000000000t1 2.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "01m07z000000000000000000t1.json.tmp",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": false
+    },
+    {
+      "fileName": "01m07z000000000000000000t.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "01m07z0000000000000000000t1.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "01i07z000000000000000000t1.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "scratch-notes.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    },
+    {
+      "fileName": "config.json",
+      "isOwnTaskFile": false,
+      "isConflictArtefact": true
+    }
+  ]
+}

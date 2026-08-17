@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t9",
+  "summary": "Carries keys this version does not know",
+  "statusId": "01m07z000000000000000000s2",
+  "boardRank": "n",
+  "colour": "purple",
+  "recurrence": {
+    "every": "week"
+  },
+  "createdAt": "2026-08-15T07:30:00.000Z",
+  "updatedAt": "2026-08-15T07:30:00.000Z"
+}
