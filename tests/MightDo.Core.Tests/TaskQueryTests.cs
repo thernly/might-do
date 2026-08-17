@@ -127,6 +127,66 @@ public class TaskQueryTests
             """)!;
     }
 
+    [Fact]
+    public void FinalTypeSelectionRevealsCompletedWork()
+    {
+        // Concluded work is hidden unless the user says otherwise, and ticking
+        // the Status Type `Final` says so as plainly as ticking the Status
+        // `Done`. A deliberate divergence from the Flutter implementation, which
+        // consults selected Statuses only and so shows an empty list here.
+        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done)];
+
+        var result = new TaskQuery { StatusTypes = Set(StatusType.Final) }
+            .Apply(tasks, _config);
+
+        Assert.Equal(["Shipped"], Summaries(result));
+    }
+
+    [Fact]
+    public void SelectingAnotherStatusTypeStillHidesCompletedWork()
+    {
+        // The fix must not turn into "any Stage selection reveals everything".
+        List<MightDoTask> tasks = [Task("Doing", _active), Task("Shipped", _done)];
+
+        var result = new TaskQuery { StatusTypes = Set(StatusType.Active) }
+            .Apply(tasks, _config);
+
+        Assert.Equal(["Doing"], Summaries(result));
+    }
+
+    [Fact]
+    public void SelectingAnInitialStatusStillHidesCompletedWork()
+    {
+        // Guards the equivalence the rewrite relies on. The old rule keyed off
+        // "no Status ticked at all"; the new one keys off "this task's Status
+        // ticked". They agree because a Final task can only survive the Status
+        // filter when its own Status was ticked — but that is worth pinning
+        // rather than asserting.
+        List<MightDoTask> tasks = [Task("Waiting"), Task("Shipped", _done)];
+
+        var result = new TaskQuery { StatusIds = Set(_initial.Id) }.Apply(tasks, _config);
+
+        Assert.Equal(["Waiting"], Summaries(result));
+    }
+
+    [Fact]
+    public void SelectingBothAnInitialAndAFinalStatusShowsBoth()
+    {
+        List<MightDoTask> tasks =
+        [
+            Task("Waiting"),
+            Task("Doing", _active),
+            Task("Shipped", _done),
+        ];
+
+        var result = new TaskQuery { StatusIds = Set(_initial.Id, _done.Id) }
+            .Apply(tasks, _config);
+
+        Assert.Equal(2, result.Count);
+        Assert.Contains("Waiting", Summaries(result));
+        Assert.Contains("Shipped", Summaries(result));
+    }
+
     // ---- search ------------------------------------------------------------
 
     [Fact]
@@ -412,6 +472,19 @@ public class TaskQueryTests
         Assert.True(new TaskQuery { Search = "x" }.IsFiltered);
         Assert.True(new TaskQuery { OverdueOnly = true }.IsFiltered);
         Assert.True(new TaskQuery { IncludeCompleted = true }.IsFiltered);
+    }
+
+    [Fact]
+    public void IsFilteredMeansNotTheDefaultViewNotNarrowed()
+    {
+        // Ticking Completed widens the result, and still counts: the empty state
+        // and the clear-filters button both need to react to it. With Completed
+        // on and nothing matching, "no tasks match your filters" is the true
+        // message rather than "no tasks yet".
+        var widened = new TaskQuery { IncludeCompleted = true };
+
+        Assert.True(widened.IsFiltered);
+        Assert.True(widened.Apply([], _config).Count == 0);
     }
 
     [Fact]

@@ -57,12 +57,29 @@ public sealed record TaskQuery
     public TaskSort Sort { get; init; } = TaskSort.Smart;
 
     /// <summary>
-    /// Whether the user has narrowed the view, which is what the "clear filters"
-    /// affordance keys off.
+    /// Whether this is anything other than the default view.
     /// </summary>
     /// <remarks>
-    /// Sorting is deliberately not filtering. <see cref="IncludeCompleted"/>
-    /// counts even though it widens the result, matching the Flutter behaviour.
+    /// Deliberately <i>not</i> "has the user narrowed the result": it is what
+    /// the empty state and the "clear filters" affordance key off, and both want
+    /// to react to <see cref="IncludeCompleted"/> even though that widens the
+    /// result. With Completed ticked and nothing matching, "no tasks match your
+    /// filters" is the true message, not "no tasks yet".
+    /// <para>
+    /// Sorting is not filtering, so <see cref="Sort"/> is excluded.
+    /// </para>
+    /// <para>
+    /// Written out property by property rather than as a comparison against
+    /// <see cref="Default"/>, which would read more like the definition but
+    /// would be wrong: the set properties compare by reference, so a query
+    /// holding a freshly allocated empty set would not equal the default.
+    /// </para>
+    /// <para>
+    /// Distinct from the filter panel's count badge, which asks a different
+    /// question — how many controls <i>inside the panel</i> are active — and so
+    /// ignores the search box, which is a visible field outside it. That count
+    /// is a fact about a UI arrangement and lives in the view model.
+    /// </para>
     /// </remarks>
     public bool IsFiltered =>
         !string.IsNullOrWhiteSpace(Search)
@@ -97,9 +114,21 @@ public sealed record TaskQuery
 
         // Hide-completed keys off the status's *type*, never off CompletedAt.
         // The two can disagree, and the type is what the application reasons
-        // about (ADR-0002). Any explicit status selection disables this, which
-        // is what lets "filter to Done" show the done tasks.
-        if (!IncludeCompleted && status?.Type == StatusType.Final && StatusIds.Count == 0)
+        // about (ADR-0002).
+        //
+        // Concluded work is hidden unless the user has said otherwise, and there
+        // are three equally explicit ways of saying so: the Completed toggle,
+        // ticking this task's Status, or ticking its Status Type. The last of
+        // those is a deliberate divergence from the Flutter implementation,
+        // which consults selected Statuses only — so there, ticking the Status
+        // `Done` shows your done tasks while ticking the Status Type `Final`
+        // shows an empty list, though `Done` is Final. Same intent, two
+        // controls, opposite outcomes. Not a porting mistake; see
+        // FinalTypeSelectionRevealsCompletedWork.
+        if (!IncludeCompleted
+            && status?.Type == StatusType.Final
+            && !StatusIds.Contains(task.StatusId)
+            && !StatusTypes.Contains(StatusType.Final))
         {
             return false;
         }
