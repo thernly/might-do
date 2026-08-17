@@ -13,19 +13,19 @@ public class SettingsViewModelTests : IAsyncLifetime
     private WorkspaceSession _session = null!;
     private SettingsViewModel _vm = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _session = await WorkspaceSession.OpenAsync(
             new TaskStore(new Core.Storage.Workspace(_root)));
         _vm = new SettingsViewModel(_session);
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _vm.Dispose();
         _session.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private WorkspaceConfig Config => _session.Snapshot.Config;

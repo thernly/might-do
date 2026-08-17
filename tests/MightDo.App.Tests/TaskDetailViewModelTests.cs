@@ -20,7 +20,7 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     private MightDoTask _task = null!;
     private TaskDetailViewModel _vm = null!;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _session = await WorkspaceSession.OpenAsync(
             new TaskStore(new Core.Storage.Workspace(_root)));
@@ -28,11 +28,11 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         _vm = new TaskDetailViewModel(_session, _task, new NoFilePicker());
     }
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _session.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private MightDoTask Current => _session.Snapshot.TaskById(_task.Id)!;
