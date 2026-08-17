@@ -240,8 +240,17 @@ Findings from the Dart implementation, verified rather than assumed:
 - `System.Text.Json` escapes non-ASCII **and** HTML-sensitive characters
   (`<`, `>`, `&`, `'`) by default, so `Café — 日本語` is written as a wall of
   `\uXXXX`. Valid JSON and read back correctly, but it defeats the greppability
-  ADR-0001 is built on. `JavaScriptEncoder.UnsafeRelaxedJsonEscaping` matches
-  what is on disk today.
+  ADR-0001 is built on. `JavaScriptEncoder.UnsafeRelaxedJsonEscaping` is the
+  closest match to what is on disk today.
+- **Astral-plane characters are the one divergence we accept.** Every
+  `System.Text.Json` encoder — `UnsafeRelaxedJsonEscaping`,
+  `Create(UnicodeRanges.All)`, a hand-built `TextEncoderSettings` — writes
+  characters outside the BMP as surrogate pairs, so an emoji in a summary
+  becomes `🎉` where Flutter writes `🎉`. BMP text (`é`, `—`, `日本語`)
+  stays literal in both. The two files parse to identical values, which is what
+  compatibility means here; eliminating it would need a custom `Utf8JsonWriter`
+  and is not worth it. Worth knowing before someone diffs two files and thinks
+  something is broken.
 - `Category.color` overflows `int`. Use `uint`.
 - Compare `boardRank` with `StringComparer.Ordinal`, never the default.
 - Emit lowercase ULIDs to match existing files. Not required — readers are
