@@ -220,6 +220,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void CloseDetail() => SelectedTask = null;
 
+    /// <summary>
+    /// A settings view model over this workspace's session. Created per window
+    /// so it can unsubscribe when that window closes.
+    /// </summary>
+    public SettingsViewModel CreateSettingsViewModel() => new(_session);
+
     [RelayCommand]
     private void ClearFilters()
     {

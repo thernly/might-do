@@ -1,0 +1,264 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="760"
+        x:Class="MightDo.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="might-do settings"
+        Width="720" Height="760" MinWidth="560" MinHeight="420"
+        WindowStartupLocation="CenterOwner">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,18,0,2" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Border.row">
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="Padding" Value="0,7" />
+    </Style>
+    <Style Selector="Button.tiny">
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Padding" Value="7,3" />
+      <Setter Property="Margin" Value="3,0,0,0" />
+    </Style>
+  </Window.Styles>
+
+  <Grid RowDefinitions="*,Auto">
+    <ScrollViewer Grid.Row="0" Padding="18,10,18,10">
+      <StackPanel>
+
+        <!-- Statuses -->
+        <TextBlock Classes="section" Text="Statuses" />
+        <TextBlock Classes="hint"
+                   Text="Your own stages of work, and the board's columns in this order. Every status is one of three Status Types — Initial, Active or Final — and the application reasons about the type: entering any Final status stamps the completion date, and leaving one clears it." />
+
+        <ItemsControl ItemsSource="{Binding Statuses}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:StatusRowViewModel">
+              <Border Classes="row">
+                <StackPanel Spacing="4">
+                  <Grid ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto,Auto">
+                    <TextBox Grid.Column="0" Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                             MinWidth="150" VerticalAlignment="Center">
+                      <TextBox.KeyBindings>
+                        <KeyBinding Gesture="Enter"
+                                    Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RenameStatusCommand}"
+                                    CommandParameter="{Binding}" />
+                      </TextBox.KeyBindings>
+                    </TextBox>
+
+                    <ComboBox Grid.Column="1" Margin="6,0,0,0" MinWidth="100"
+                              VerticalAlignment="Center"
+                              ItemsSource="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).StatusTypes}"
+                              SelectedItem="{Binding Type}" />
+
+                    <CheckBox Grid.Column="2" Margin="8,0,0,0" Content="Off board"
+                              VerticalAlignment="Center" IsChecked="{Binding HiddenFromBoard}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SetStatusHiddenCommand}"
+                              CommandParameter="{Binding}" />
+
+                    <TextBlock Grid.Column="3" Classes="hint" Margin="8,0"
+                               VerticalAlignment="Center" Text="{Binding TaskCountLabel}" />
+
+                    <Button Grid.Column="4" Classes="tiny" Content="↑"
+                            Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).MoveStatusUpCommand}"
+                            CommandParameter="{Binding}" />
+                    <Button Grid.Column="5" Classes="tiny" Content="↓"
+                            Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).MoveStatusDownCommand}"
+                            CommandParameter="{Binding}" />
+
+                    <StackPanel Grid.Column="6" Orientation="Horizontal">
+                      <Button Classes="tiny" Content="Make default"
+                              IsVisible="{Binding CanMakeDefault}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).MakeDefaultCommand}"
+                              CommandParameter="{Binding}" />
+                      <Button Classes="tiny" Content="Delete"
+                              IsEnabled="{Binding CanDelete}"
+                              Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).BeginDeleteStatusCommand}"
+                              CommandParameter="{Binding}" />
+                    </StackPanel>
+                  </Grid>
+
+                  <TextBlock Classes="hint" Text="Default for new tasks"
+                             IsVisible="{Binding IsDefault}" />
+                  <TextBlock Classes="hint" Text="{Binding BlockerMessage}"
+                             IsVisible="{Binding BlockerMessage, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                </StackPanel>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- Deleting a status needs somewhere for its tasks to go. -->
+        <Border IsVisible="{Binding IsConfirmingStatusDelete}" Margin="0,10,0,0"
+                Padding="12" CornerRadius="6"
+                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+          <StackPanel Spacing="8">
+            <TextBlock TextWrapping="Wrap"
+                       Text="Deleting a status never deletes its tasks. Where should they go?" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ComboBox MinWidth="180" ItemsSource="{Binding StatusReassignOptions}"
+                        SelectedItem="{Binding StatusReassignTarget}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatusOption">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Content="Move them and delete"
+                      Command="{Binding ConfirmDeleteStatusCommand}" />
+              <Button Content="Cancel" Command="{Binding CancelDeleteStatusCommand}" />
+            </StackPanel>
+            <TextBlock Classes="hint"
+                       Text="Moving into a Final status counts as completing, so those tasks get a completion date." />
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+          <TextBox Grid.Column="0" PlaceholderText="New status name"
+                   Text="{Binding NewStatusName}">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding AddStatusCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <ComboBox Grid.Column="1" Margin="6,0,0,0" MinWidth="100"
+                    ItemsSource="{Binding StatusTypes}" SelectedItem="{Binding NewStatusType}" />
+          <Button Grid.Column="2" Margin="6,0,0,0" Content="Add"
+                  Command="{Binding AddStatusCommand}" />
+        </Grid>
+
+        <!-- Categories -->
+        <TextBlock Classes="section" Text="Categories" />
+        <TextBlock Classes="hint"
+                   Text="What area of your life a task belongs to. A task has one, or none." />
+
+        <ItemsControl ItemsSource="{Binding Categories}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CategoryRowViewModel">
+              <Border Classes="row">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto">
+                  <TextBox Grid.Column="0" Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                           MinWidth="150" VerticalAlignment="Center">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RenameCategoryCommand}"
+                                  CommandParameter="{Binding}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                  <TextBox Grid.Column="1" Margin="6,0,0,0" Width="110"
+                           VerticalAlignment="Center"
+                           Text="{Binding ColorHex, UpdateSourceTrigger=LostFocus}">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SetCategoryColorCommand}"
+                                  CommandParameter="{Binding}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                  <TextBlock Grid.Column="2" Classes="hint" Margin="8,0"
+                             VerticalAlignment="Center" Text="{Binding TaskCountLabel}" />
+                  <Button Grid.Column="3" Classes="tiny" Content="Delete"
+                          Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).BeginDeleteCategoryCommand}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Border IsVisible="{Binding IsConfirmingCategoryDelete}" Margin="0,10,0,0"
+                Padding="12" CornerRadius="6"
+                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+          <StackPanel Spacing="8">
+            <TextBlock TextWrapping="Wrap"
+                       Text="Tasks using this category keep everything else. What should happen to their category?" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <ComboBox MinWidth="180" ItemsSource="{Binding CategoryReassignOptions}"
+                        SelectedItem="{Binding CategoryReassignTarget}">
+                <ComboBox.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CategoryOption">
+                    <TextBlock Text="{Binding Name}" />
+                  </DataTemplate>
+                </ComboBox.ItemTemplate>
+              </ComboBox>
+              <Button Content="Delete category"
+                      Command="{Binding ConfirmDeleteCategoryCommand}" />
+              <Button Content="Cancel" Command="{Binding CancelDeleteCategoryCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
+
+        <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,10,0,0">
+          <TextBox Grid.Column="0" PlaceholderText="New category name"
+                   Text="{Binding NewCategoryName}">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding AddCategoryCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <TextBox Grid.Column="1" Margin="6,0,0,0" Width="110"
+                   PlaceholderText="AARRGGBB" Text="{Binding NewCategoryColor}" />
+          <Button Grid.Column="2" Margin="6,0,0,0" Content="Add"
+                  Command="{Binding AddCategoryCommand}" />
+        </Grid>
+
+        <!-- Tags -->
+        <TextBlock Classes="section" Text="Tags" />
+        <TextBlock Classes="hint"
+                   Text="Lightweight labels for things that cut across categories. A task may carry up to ten. Deleting one just detaches it — no prompt, nothing else is lost." />
+
+        <ItemsControl ItemsSource="{Binding Tags}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TagRowViewModel">
+              <Border Classes="row">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBox Grid.Column="0" Text="{Binding Name, UpdateSourceTrigger=LostFocus}"
+                           MinWidth="150" VerticalAlignment="Center">
+                    <TextBox.KeyBindings>
+                      <KeyBinding Gesture="Enter"
+                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RenameTagCommand}"
+                                  CommandParameter="{Binding}" />
+                    </TextBox.KeyBindings>
+                  </TextBox>
+                  <TextBlock Grid.Column="1" Classes="hint" Margin="8,0"
+                             VerticalAlignment="Center" Text="{Binding TaskCountLabel}" />
+                  <Button Grid.Column="2" Classes="tiny" Content="Delete"
+                          Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).DeleteTagCommand}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <Grid ColumnDefinitions="*,Auto" Margin="0,10,0,0">
+          <TextBox Grid.Column="0" PlaceholderText="New tag name" Text="{Binding NewTagName}">
+            <TextBox.KeyBindings>
+              <KeyBinding Gesture="Enter" Command="{Binding AddTagCommand}" />
+            </TextBox.KeyBindings>
+          </TextBox>
+          <Button Grid.Column="1" Margin="6,0,0,0" Content="Add"
+                  Command="{Binding AddTagCommand}" />
+        </Grid>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="1" Padding="18,10" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+      <Grid ColumnDefinitions="*,Auto">
+        <TextBlock Grid.Column="0" Text="{Binding Error}" TextWrapping="Wrap"
+                   VerticalAlignment="Center"
+                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        <Button Grid.Column="1" Content="Close" Click="OnClose" />
+      </Grid>
+    </Border>
+  </Grid>
+</Window>

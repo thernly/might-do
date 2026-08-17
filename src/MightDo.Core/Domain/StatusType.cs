@@ -37,3 +37,18 @@ public enum StatusType
     [JsonStringEnumMemberName("final")]
     Final,
 }
+
+public static class StatusTypeExtensions
+{
+    /// <summary>
+    /// Human-readable name shown in the UI. Deliberately the glossary's term —
+    /// these are Status Types, never "stages".
+    /// </summary>
+    public static string Label(this StatusType type) => type switch
+    {
+        StatusType.Initial => "Initial",
+        StatusType.Active => "Active",
+        StatusType.Final => "Final",
+        _ => throw new ArgumentOutOfRangeException(nameof(type)),
+    };
+}

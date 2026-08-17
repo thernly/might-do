@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MightDo.App.ViewModels;
 
@@ -6,9 +7,37 @@ namespace MightDo.App.Views;
 
 public partial class MainWindow : Window
 {
+    private SettingsWindow? _settings;
+
     public MainWindow()
     {
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// Opens settings, or brings the open one forward. The view model is built
+    /// here because it needs the session, which only exists once a workspace is
+    /// open.
+    /// </summary>
+    private void OnOpenSettings(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is not MainViewModel { Workspace: { } workspace }) return;
+
+        if (_settings is not null)
+        {
+            _settings.Activate();
+            return;
+        }
+
+        var viewModel = workspace.CreateSettingsViewModel();
+        _settings = new SettingsWindow { DataContext = viewModel };
+        _settings.Closed += (_, _) =>
+        {
+            viewModel.Dispose();
+            _settings = null;
+        };
+
+        _settings.Show(this);
     }
 }
 
