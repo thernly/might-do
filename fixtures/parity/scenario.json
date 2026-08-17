@@ -1,0 +1,125 @@
+{
+  "config": {
+    "defaultStatus": "Not Started",
+    "statuses": [
+      {
+        "name": "Backlog",
+        "type": "initial",
+        "order": 0,
+        "hiddenFromBoard": true
+      },
+      {
+        "name": "Not Started",
+        "type": "initial",
+        "order": 1,
+        "hiddenFromBoard": false
+      },
+      {
+        "name": "In Progress",
+        "type": "active",
+        "order": 2,
+        "hiddenFromBoard": false
+      },
+      {
+        "name": "Blocked",
+        "type": "active",
+        "order": 3,
+        "hiddenFromBoard": false
+      },
+      {
+        "name": "Done",
+        "type": "final",
+        "order": 4,
+        "hiddenFromBoard": false
+      },
+      {
+        "name": "Abandoned",
+        "type": "final",
+        "order": 5,
+        "hiddenFromBoard": true
+      }
+    ],
+    "categories": [
+      {
+        "name": "Work",
+        "color": 4281236786
+      }
+    ],
+    "tags": [
+      {
+        "name": "urgent"
+      }
+    ]
+  },
+  "tasks": [
+    {
+      "summary": "Alpha",
+      "description": "The first one.",
+      "status": "Not Started",
+      "category": "Work",
+      "tags": [
+        "urgent"
+      ],
+      "priority": "medium",
+      "dueDate": null,
+      "isComplete": false,
+      "estimateMinutes": 60,
+      "totalTimeMinutes": null,
+      "boardRank": "i",
+      "steps": [
+        {
+          "text": "Step one",
+          "done": true
+        },
+        {
+          "text": "Step two",
+          "done": false
+        }
+      ],
+      "notes": [
+        {
+          "body": "Made a start."
+        }
+      ],
+      "reminders": [],
+      "attachments": []
+    },
+    {
+      "summary": "Beta",
+      "description": "",
+      "status": "Blocked",
+      "category": null,
+      "tags": [],
+      "priority": "high",
+      "dueDate": "2026-09-01",
+      "isComplete": false,
+      "estimateMinutes": null,
+      "totalTimeMinutes": null,
+      "boardRank": "r",
+      "steps": [],
+      "notes": [],
+      "reminders": [],
+      "attachments": []
+    },
+    {
+      "summary": "Gamma",
+      "description": "",
+      "status": "Not Started",
+      "category": null,
+      "tags": [],
+      "priority": "medium",
+      "dueDate": null,
+      "isComplete": false,
+      "estimateMinutes": null,
+      "totalTimeMinutes": null,
+      "boardRank": "9",
+      "steps": [],
+      "notes": [],
+      "reminders": [],
+      "attachments": []
+    }
+  ],
+  "trashedSummaries": [
+    "Delta"
+  ]
+}
