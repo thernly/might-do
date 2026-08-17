@@ -46,3 +46,7 @@ app.*.map.json
 
 # Serena (local agent tooling, not part of the project)
 /.serena/
+
+# .NET build output (spikes/, and the port when it lands)
+[Bb]in/
+[Oo]bj/
