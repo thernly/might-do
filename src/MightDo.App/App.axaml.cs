@@ -29,6 +29,11 @@ public partial class App : Application
 
             window.DataContext = viewModel;
             window.Closed += (_, _) => viewModel.Workspace?.Dispose();
+
+            // Quitting from the menu, or with Cmd+Q, is not the same path as
+            // closing the window.
+            desktop.ShutdownRequested += (_, _) => window.SaveSize();
+
             desktop.MainWindow = window;
 
             // Reopen the remembered workspace once the UI is up, so a slow disk

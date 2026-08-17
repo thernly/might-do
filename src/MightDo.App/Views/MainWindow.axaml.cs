@@ -1,7 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
 using MightDo.App.ViewModels;
+using MightDo.Platform;
 
 namespace MightDo.App.Views;
 
@@ -9,10 +11,87 @@ public partial class MainWindow : Window
 {
     private SettingsWindow? _settings;
 
+    private readonly WindowSizeMemory _size = new();
+
     public MainWindow()
     {
         InitializeComponent();
     }
+
+    /// <summary>
+    /// The remembered size is applied here rather than on opening, so the window
+    /// is never painted at one size and then jumped to another.
+    /// </summary>
+    protected override void OnDataContextChanged(EventArgs e)
+    {
+        base.OnDataContextChanged(e);
+
+        if (DataContext is not MainViewModel { WindowPlacement: { } placement }) return;
+
+        // Clamped to the screen in front of the user, not the one the size was
+        // chosen on: a window sized on a desk monitor must still fit when the
+        // laptop is undocked.
+        var (availableWidth, availableHeight) = AvailableSize();
+        Width = Clamp(placement.Width, MinWidth, availableWidth);
+        Height = Clamp(placement.Height, MinHeight, availableHeight);
+
+        _size.Remembered(new Size(Width, Height));
+
+        if (placement.Maximized) WindowState = WindowState.Maximized;
+    }
+
+    protected override void OnResized(WindowResizedEventArgs e)
+    {
+        base.OnResized(e);
+
+        _size.Resized(e.ClientSize, WindowState);
+    }
+
+    protected override void OnClosing(WindowClosingEventArgs e)
+    {
+        base.OnClosing(e);
+        SaveSize();
+    }
+
+    /// <summary>
+    /// Records the size to reopen at.
+    /// </summary>
+    /// <remarks>
+    /// Public because closing the window is not the only way out: quitting from
+    /// the menu or with Cmd+Q asks the application to shut down, and the
+    /// composition root calls this from there too. Writing the same value twice
+    /// costs nothing; not writing it at all would mean the size was only ever
+    /// kept by users who close the window rather than quit.
+    /// </remarks>
+    public void SaveSize()
+    {
+        if (DataContext is not MainViewModel viewModel) return;
+
+        viewModel.RememberWindow(_size.Placement(new Size(Width, Height), WindowState));
+    }
+
+    /// <summary>
+    /// The usable area of the screen this window is on, in the same units as
+    /// <see cref="Layoutable.Width"/>.
+    /// </summary>
+    private (double Width, double Height) AvailableSize()
+    {
+        if ((Screens.ScreenFromWindow(this) ?? Screens.Primary) is not { } screen)
+        {
+            return (double.PositiveInfinity, double.PositiveInfinity);
+        }
+
+        var area = screen.WorkingArea;
+        return (area.Width / screen.Scaling, area.Height / screen.Scaling);
+    }
+
+    /// <summary>
+    /// Clamps, preferring the minimum. <see cref="Math.Clamp(double, double, double)"/>
+    /// throws when the bounds cross, which they do on a screen smaller than the
+    /// window's own minimum size.
+    /// </summary>
+    private static double Clamp(double value, double min, double max) =>
+        Math.Max(min, Math.Min(value, max));
 
     /// <summary>
     /// Opens settings, or brings the open one forward. The view model is built

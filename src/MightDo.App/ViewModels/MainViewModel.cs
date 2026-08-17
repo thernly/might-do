@@ -52,6 +52,13 @@ public sealed partial class MainViewModel : ViewModelBase
 
     public bool HasWorkspace => Workspace is not null;
 
+    /// <summary>The size the window was last left at, if there is one.</summary>
+    public WindowPlacement? WindowPlacement => _settings.WindowPlacement;
+
+    /// <summary>Records the size to reopen at. Called by the window as it closes.</summary>
+    public void RememberWindow(WindowPlacement placement) =>
+        _settings.SetWindowPlacement(placement);
+
     /// <summary>
     /// Reopens the remembered workspace, if it is still there.
     /// </summary>
