@@ -1,0 +1,189 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
+        x:Class="MightDo.App.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="might-do"
+        Width="1000" Height="700"
+        MinWidth="640" MinHeight="420">
+
+  <Window.Styles>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Border.chip">
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="8,2" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.banner">
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="12,8" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
+    </Style>
+  </Window.Styles>
+
+  <Panel>
+    <!-- No workspace yet: ask for one. -->
+    <Border IsVisible="{Binding !HasWorkspace}" Padding="48">
+      <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                  Spacing="12" MaxWidth="520">
+        <TextBlock Text="might-do" FontSize="30" FontWeight="SemiBold"
+                   HorizontalAlignment="Center" />
+        <TextBlock TextWrapping="Wrap" HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   Text="Choose a folder for your tasks. Everything is kept as plain JSON files beneath it, one per task — put it inside OneDrive, Dropbox or iCloud Drive and your tasks follow you between machines." />
+        <Button Content="Choose a folder…"
+                Command="{Binding ChooseWorkspaceCommand}"
+                HorizontalAlignment="Center" />
+        <TextBlock Text="{Binding Message}" Classes="hint"
+                   IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}"
+                   TextWrapping="Wrap" TextAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <!-- A workspace is open. The visibility test belongs to the shell, so it
+         sits outside the element that rebinds to the workspace. -->
+    <Border IsVisible="{Binding HasWorkspace}">
+    <Grid DataContext="{Binding Workspace}"
+          x:DataType="vm:WorkspaceViewModel"
+          RowDefinitions="Auto,Auto,*,Auto" Margin="16">
+
+      <!-- Filter bar -->
+      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto,Auto" Margin="0,0,0,12">
+        <TextBox Grid.Column="0" PlaceholderText="Search summaries, notes and steps"
+                 Text="{Binding Search}" MinWidth="220" />
+        <ComboBox Grid.Column="1" Margin="8,0,0,0" MinWidth="150"
+                  ItemsSource="{Binding Statuses}"
+                  SelectedItem="{Binding SelectedStatus}"
+                  PlaceholderText="Any status">
+          <ComboBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:StatusFilterViewModel">
+              <TextBlock Text="{Binding Name}" />
+            </DataTemplate>
+          </ComboBox.ItemTemplate>
+        </ComboBox>
+        <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="150"
+                  ItemsSource="{Binding SortOptions}"
+                  SelectedItem="{Binding Sort}" />
+        <CheckBox Grid.Column="3" Margin="8,0,0,0" Content="Overdue"
+                  IsChecked="{Binding OverdueOnly}" />
+        <CheckBox Grid.Column="4" Margin="8,0,0,0" Content="Completed"
+                  IsChecked="{Binding IncludeCompleted}" />
+        <Button Grid.Column="5" Margin="8,0,0,0" Content="Clear"
+                Command="{Binding ClearFiltersCommand}"
+                IsVisible="{Binding IsFiltered}" />
+      </Grid>
+
+      <!-- Banners: reminders, sync conflicts, missing folder -->
+      <StackPanel Grid.Row="1">
+        <Border Classes="banner"
+                IsVisible="{Binding Banner, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <TextBlock Text="{Binding Banner}" TextWrapping="Wrap" />
+        </Border>
+
+        <Border Classes="banner" IsVisible="{Binding OutstandingReminders.Count}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Reminders" FontWeight="SemiBold" />
+            <ItemsControl ItemsSource="{Binding OutstandingReminders}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:DueReminderViewModel">
+                  <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+                    <TextBlock Grid.Column="0" Text="{Binding Summary}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="{Binding When}" Classes="hint"
+                               Margin="8,0" VerticalAlignment="Center" />
+                    <Button Grid.Column="2" Content="Dismiss"
+                            Command="{Binding $parent[ItemsControl].((vm:WorkspaceViewModel)DataContext).DismissReminderCommand}"
+                            CommandParameter="{Binding}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="banner" IsVisible="{Binding Conflicts.Count}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Sync conflicts" FontWeight="SemiBold" />
+            <TextBlock Classes="hint" TextWrapping="Wrap"
+                       Text="Your sync client left copies of these files in the tasks folder. They are not loaded — open the folder to resolve them." />
+            <ItemsControl ItemsSource="{Binding Conflicts}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" FontFamily="monospace" FontSize="12" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <!-- The list -->
+      <Border Grid.Row="2" BorderThickness="1" CornerRadius="6"
+              BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+        <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
+                 Background="Transparent">
+          <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:TaskRowViewModel">
+              <Grid ColumnDefinitions="*,Auto" Margin="4,6">
+                <StackPanel Grid.Column="0" Spacing="4">
+                  <TextBlock Text="{Binding Summary}" FontSize="14"
+                             TextTrimming="CharacterEllipsis" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Border Classes="chip">
+                      <TextBlock Text="{Binding StatusName}" FontSize="12" />
+                    </Border>
+                    <Border Classes="chip">
+                      <TextBlock Text="{Binding PriorityLabel}" FontSize="12" />
+                    </Border>
+                    <Border Classes="chip" IsVisible="{Binding HasCategory}">
+                      <TextBlock Text="{Binding CategoryName}" FontSize="12" />
+                    </Border>
+                    <Border Classes="chip" IsVisible="{Binding HasSteps}">
+                      <TextBlock Text="{Binding StepsLabel}" FontSize="12" />
+                    </Border>
+                    <TextBlock Classes="hint" VerticalAlignment="Center"
+                               IsVisible="{Binding HasTags}" Text="{Binding TagNames}" />
+                  </StackPanel>
+                </StackPanel>
+                <TextBlock Grid.Column="1" Text="{Binding DueLabel}"
+                           IsVisible="{Binding HasDue}" VerticalAlignment="Center"
+                           Margin="12,0,0,0" FontSize="12">
+                  <TextBlock.Styles>
+                    <Style Selector="TextBlock">
+                      <Setter Property="Opacity" Value="0.7" />
+                    </Style>
+                  </TextBlock.Styles>
+                </TextBlock>
+              </Grid>
+            </DataTemplate>
+          </ListBox.ItemTemplate>
+        </ListBox>
+      </Border>
+
+      <!-- Create, and the status line -->
+      <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,12,0,0">
+        <TextBox Grid.Column="0" PlaceholderText="Add a task and press Enter"
+                 Text="{Binding NewTaskSummary}">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding CreateTaskCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Grid.Column="1" Margin="8,0,0,0" Content="Add"
+                Command="{Binding CreateTaskCommand}" />
+        <Button Grid.Column="2" Margin="8,0,0,0" Content="Refresh"
+                Command="{Binding RefreshCommand}" />
+        <TextBlock Grid.Column="3" Margin="12,0,0,0" Classes="hint"
+                   VerticalAlignment="Center" Text="{Binding SummaryLine}" />
+      </Grid>
+    </Grid>
+    </Border>
+  </Panel>
+</Window>

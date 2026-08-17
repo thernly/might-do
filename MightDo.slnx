@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/MightDo.App/MightDo.App.csproj" />
     <Project Path="src/MightDo.Core/MightDo.Core.csproj" />
     <Project Path="src/MightDo.Platform/MightDo.Platform.csproj" />
   </Folder>
