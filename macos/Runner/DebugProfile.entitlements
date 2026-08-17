@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The App Sandbox is deliberately off.
+
+  might-do keeps its workspace in a folder the user picks — inside OneDrive or
+  iCloud Drive — and must reopen that same folder on every later launch. Under the
+  sandbox, a user-selected path grants access only for the current session;
+  persisting it requires security-scoped bookmarks, which add real complexity
+  and still break when the folder moves.
+
+  We are not shipping through the Mac App Store, so the sandbox is not
+  required. Revisit this if that ever changes.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<false/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+</dict>
+</plist>
