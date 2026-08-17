@@ -220,9 +220,10 @@ folder that grows.
 
 | Path | What it is |
 |---|---|
-| `fixtures/workspace-v1/` | A real workspace. Five tasks, one trashed task, an attachment, and four conflict artefacts. |
+| `fixtures/workspace-v1/` | A real workspace, written by the Flutter implementation. Five tasks, one trashed task, an attachment, and four conflict artefacts. |
 | `fixtures/tolerance/` | Non-canonical input under `input/`, and the canonical form each becomes under `expected/`. |
 | `fixtures/vectors/` | Inputs and expected outputs for the pure functions: ranks, calendar-date parsing, filename classification, conflict detection. |
+| `fixtures/interop/dotnet-written/` | The same workspace, written by the .NET implementation, plus one task it created from scratch. |
 
 The five tasks are chosen to be awkward: one with every field populated and
 every collection non-empty; one with nothing optional set; one carrying emoji,
@@ -232,6 +233,22 @@ in a `final` status with a completion date; one with a deep fractional rank.
 A port passes when it can load `workspace-v1/`, write it back without changing
 any value, normalise the `tolerance/` inputs to their expected forms, and
 reproduce the `vectors/` outputs.
+
+That only proves one direction, so the corpora are checked both ways. Each
+implementation reads what the other wrote:
+
+| Direction | Written by | Read and checked by |
+|---|---|---|
+| Flutter → .NET | `tool/generate_fixtures.dart` → `workspace-v1/` | `tests/MightDo.Core.Tests/` |
+| .NET → Flutter | `tools/MightDo.FixtureWriter` → `interop/dotnet-written/` | `test/format/interop_test.dart` |
+
+Both corpora are committed, so neither toolchain is needed to run the other's
+tests. Regenerate after changing serialization on either side; the opposite
+implementation's tests fail loudly if the output drifts.
+
+In practice the two agree closely: of the seven files in the canonical
+workspace, six are byte-identical between implementations and the seventh
+differs only in the astral-plane escaping described above.
 
 ## Notes for the .NET port
 

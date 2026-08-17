@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000t3",
+  "summary": "Café — 日本語 \uD83C\uDF89 \"quoted\" & <tagged>",
+  "description": "Backslash \\ slash / tab\there\nNewline above. Apostrophe’s and an ampersand & a <b>tag</b>.\nControl char: \u0001 end.",
+  "statusId": "01m07z000000000000000000s1",
+  "categoryId": "01m07z000000000000000000c2",
+  "tagIds": [
+    "01m07z000000000000000000g3"
+  ],
+  "priority": "low",
+  "dueDate": null,
+  "completedAt": null,
+  "estimateMinutes": null,
+  "totalTimeMinutes": null,
+  "boardRank": "g",
+  "steps": [],
+  "notes": [
+    {
+      "id": "01m07z000000000000000000n3",
+      "createdAt": "2026-08-15T12:00:00.000Z",
+      "body": "Emoji in a note: \uD83C\uDF89\uD83C\uDF89 and a lone quote: \""
+    }
+  ],
+  "attachments": [],
+  "reminders": [],
+  "createdAt": "2026-08-15T11:00:00.000Z",
+  "updatedAt": "2026-08-15T12:00:00.000Z"
+}

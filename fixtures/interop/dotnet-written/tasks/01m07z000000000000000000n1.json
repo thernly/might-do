@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "id": "01m07z000000000000000000n1",
+  "summary": "Written by MightDo.Core \uD83C\uDF89",
+  "description": "Created by the .NET implementation, not round-tripped.\nAmpersands & <angle brackets> and a café.",
+  "statusId": "01m07z000000000000000000s2",
+  "categoryId": "01m07z000000000000000000c1",
+  "tagIds": [
+    "01m07z000000000000000000g1",
+    "01m07z000000000000000000g2"
+  ],
+  "priority": "high",
+  "dueDate": "2026-09-01",
+  "completedAt": null,
+  "estimateMinutes": 45,
+  "totalTimeMinutes": null,
+  "boardRank": "hi",
+  "steps": [
+    {
+      "id": "01m07z000000000000000000n2",
+      "text": "A step",
+      "done": true
+    }
+  ],
+  "notes": [
+    {
+      "id": "01m07z000000000000000000n3",
+      "createdAt": "2026-08-17T09:30:00.000Z",
+      "body": "A note written by .NET."
+    }
+  ],
+  "attachments": [],
+  "reminders": [
+    {
+      "id": "01m07z000000000000000000n4",
+      "remindAt": "2026-08-20T08:00:00.000Z",
+      "firedAt": null,
+      "dismissedAt": null
+    }
+  ],
+  "createdAt": "2026-08-17T09:00:00.000Z",
+  "updatedAt": "2026-08-17T09:30:00.000Z"
+}
