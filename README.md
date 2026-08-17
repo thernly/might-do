@@ -96,7 +96,7 @@ expectation is committed:
   rather than a launch.
 
 ```sh
-dotnet test                                   # 229 tests
+dotnet test                                   # 232 tests
 flutter test                                  # 110 tests
 
 # Regenerating the shared corpora, after changing either side's serialization

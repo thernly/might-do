@@ -76,17 +76,22 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     public async Task EditingTheDueDateKeepsItACalendarDay()
     {
         // The bug CalendarDate exists to prevent: a due date must not shift a
-        // day because of a timezone conversion.
-        _vm.DueDate = new DateTimeOffset(2026, 8, 21, 0, 0, 0, TimeSpan.FromHours(-7));
+        // day because of a timezone conversion. Both ends of the day are tried,
+        // so that whichever way this machine's zone leans, converting rather
+        // than reading off the calendar components moves one of them.
+        _vm.DueDate = new DateTime(2026, 8, 21, 23, 30, 0, DateTimeKind.Utc);
         await Settle();
+        Assert.Equal(new CalendarDate(2026, 8, 21), Current.DueDate);
 
+        _vm.DueDate = new DateTime(2026, 8, 21, 0, 30, 0, DateTimeKind.Utc);
+        await Settle();
         Assert.Equal(new CalendarDate(2026, 8, 21), Current.DueDate);
     }
 
     [Fact]
     public async Task ClearingTheDueDateRemovesIt()
     {
-        _vm.DueDate = new DateTimeOffset(2026, 8, 21, 0, 0, 0, TimeSpan.Zero);
+        _vm.DueDate = new DateTime(2026, 8, 21);
         await Settle();
         _vm.DueDate = null;
         await Settle();
@@ -194,7 +199,7 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     [Fact]
     public async Task AddingAReminderCombinesTheDateAndTime()
     {
-        _vm.NewReminderDate = new DateTimeOffset(2026, 9, 1, 0, 0, 0, TimeSpan.Zero);
+        _vm.NewReminderDate = new DateTime(2026, 9, 1);
         _vm.NewReminderTime = new TimeSpan(14, 30, 0);
 
         await _vm.AddReminderCommand.ExecuteAsync(null!);

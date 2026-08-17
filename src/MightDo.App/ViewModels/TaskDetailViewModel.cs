@@ -36,13 +36,13 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     [ObservableProperty] private StatusOption? _selectedStatus;
     [ObservableProperty] private Priority _selectedPriority;
     [ObservableProperty] private CategoryOption? _selectedCategory;
-    [ObservableProperty] private DateTimeOffset? _dueDate;
+    [ObservableProperty] private DateTime? _dueDate;
     [ObservableProperty] private string _estimateMinutes = "";
     [ObservableProperty] private string _totalTimeMinutes = "";
     [ObservableProperty] private string _tagNames = "";
     [ObservableProperty] private string _newStepText = "";
     [ObservableProperty] private string _newNoteBody = "";
-    [ObservableProperty] private DateTimeOffset? _newReminderDate = DateTimeOffset.Now;
+    [ObservableProperty] private DateTime? _newReminderDate = DateTime.Today;
     [ObservableProperty] private TimeSpan? _newReminderTime = new TimeSpan(9, 0, 0);
     [ObservableProperty] private string? _completedLabel;
     [ObservableProperty] private string _varianceLabel = "";
@@ -82,7 +82,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             SelectedPriority = task.Priority;
             SelectedCategory = CategoryOption.For(config.CategoryById(task.CategoryId));
             DueDate = task.DueDate is { } due
-                ? new DateTimeOffset(due.Year, due.Month, due.Day, 0, 0, 0, TimeSpan.Zero)
+                ? new DateTime(due.Year, due.Month, due.Day, 0, 0, 0, DateTimeKind.Unspecified)
                 : null;
             EstimateMinutes = task.EstimateMinutes?.ToString(CultureInfo.InvariantCulture) ?? "";
             TotalTimeMinutes = task.TotalTimeMinutes?.ToString(CultureInfo.InvariantCulture) ?? "";
@@ -130,7 +130,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     partial void OnSelectedCategoryChanged(CategoryOption? value) =>
         Save(task => task with { CategoryId = value?.Id });
 
-    partial void OnDueDateChanged(DateTimeOffset? value) => Save(task => task with
+    partial void OnDueDateChanged(DateTime? value) => Save(task => task with
     {
         // A due date is a day. Take the calendar components straight across
         // rather than converting an instant, which would shift it a day in
