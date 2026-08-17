@@ -1,0 +1,215 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+             mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="700"
+             x:Class="MightDo.App.Views.TaskDetailView"
+             x:DataType="vm:TaskDetailViewModel">
+
+  <UserControl.Styles>
+    <Style Selector="TextBlock.label">
+      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="Margin" Value="0,8,0,2" />
+    </Style>
+    <Style Selector="TextBlock.hint">
+      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="FontSize" Value="11" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,16,0,4" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer>
+    <StackPanel Margin="16,8,16,16">
+
+      <!-- Summary and description. Both commit on losing focus, because each
+           commit is a file write into a synced folder. -->
+      <TextBlock Classes="label" Text="Summary" />
+      <TextBox Text="{Binding Summary, UpdateSourceTrigger=LostFocus}"
+               AcceptsReturn="False" />
+
+      <TextBlock Classes="label" Text="Description" />
+      <TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
+               AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"
+               MaxHeight="200" />
+
+      <TextBlock Classes="hint" Margin="0,4,0,0"
+                 Text="Written once, up front. Use notes for what happens as you go." />
+
+      <!-- Classification -->
+      <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
+        <StackPanel Grid.Row="0" Grid.Column="0">
+          <TextBlock Classes="label" Text="Status" />
+          <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding SelectedStatus}"
+                    HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:StatusOption">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="0" Grid.Column="2">
+          <TextBlock Classes="label" Text="Priority" />
+          <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}"
+                    HorizontalAlignment="Stretch" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="0">
+          <TextBlock Classes="label" Text="Category" />
+          <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+                    HorizontalAlignment="Stretch">
+            <ComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:CategoryOption">
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="1" Grid.Column="2">
+          <TextBlock Classes="label" Text="Due" />
+          <DatePicker SelectedDate="{Binding DueDate}" HorizontalAlignment="Stretch" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Grid.Column="0">
+          <TextBlock Classes="label" Text="Estimate (minutes)" />
+          <TextBox Text="{Binding EstimateMinutes, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2" Grid.Column="2">
+          <TextBlock Classes="label" Text="Actual (minutes)" />
+          <TextBox Text="{Binding TotalTimeMinutes, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
+      </Grid>
+
+      <TextBlock Classes="hint" Text="{Binding VarianceLabel}" Margin="0,4,0,0"
+                 IsVisible="{Binding VarianceLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
+
+      <TextBlock Classes="hint" Text="{Binding CompletedLabel}" Margin="0,4,0,0"
+                 IsVisible="{Binding CompletedLabel, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+      <TextBlock Classes="label" Text="Tags (comma separated)" />
+      <TextBox Text="{Binding TagNames, UpdateSourceTrigger=LostFocus}">
+        <TextBox.KeyBindings>
+          <KeyBinding Gesture="Enter" Command="{Binding CommitTagsCommand}" />
+        </TextBox.KeyBindings>
+      </TextBox>
+      <Button Content="Apply tags" Command="{Binding CommitTagsCommand}"
+              Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+      <!-- Steps -->
+      <TextBlock Classes="section" Text="Steps" />
+      <TextBlock Classes="hint"
+                 Text="Ticking them all off does not complete the task." />
+      <ItemsControl ItemsSource="{Binding Steps}" Margin="0,4,0,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:StepViewModel">
+            <Grid ColumnDefinitions="Auto,*,Auto" Margin="0,2">
+              <CheckBox Grid.Column="0" IsChecked="{Binding Done}"
+                        Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).ToggleStepCommand}"
+                        CommandParameter="{Binding}" />
+              <TextBlock Grid.Column="1" Text="{Binding Text}" VerticalAlignment="Center"
+                         TextWrapping="Wrap" />
+              <Button Grid.Column="2" Content="✕" FontSize="11" Padding="6,2"
+                      Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).DeleteStepCommand}"
+                      CommandParameter="{Binding}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Grid ColumnDefinitions="*,Auto" Margin="0,4,0,0">
+        <TextBox Grid.Column="0" PlaceholderText="Add a step"
+                 Text="{Binding NewStepText}">
+          <TextBox.KeyBindings>
+            <KeyBinding Gesture="Enter" Command="{Binding AddStepCommand}" />
+          </TextBox.KeyBindings>
+        </TextBox>
+        <Button Grid.Column="1" Content="Add" Margin="6,0,0,0"
+                Command="{Binding AddStepCommand}" />
+      </Grid>
+
+      <!-- Notes -->
+      <TextBlock Classes="section" Text="Notes" />
+      <TextBlock Classes="hint"
+                 Text="A running commentary. Never rewritten to reflect a later understanding." />
+      <ItemsControl ItemsSource="{Binding Notes}" Margin="0,4,0,0">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:NoteViewModel">
+            <Border Padding="8" Margin="0,3" CornerRadius="4"
+                    Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding When}" Classes="hint" />
+                <Button Grid.Row="0" Grid.Column="1" Content="✕" FontSize="11" Padding="6,0"
+                        Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).DeleteNoteCommand}"
+                        CommandParameter="{Binding}" />
+                <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Body}"
+                           TextWrapping="Wrap" Margin="0,2,0,0" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <TextBox PlaceholderText="Add a note" Text="{Binding NewNoteBody}"
+               AcceptsReturn="True" TextWrapping="Wrap" MinHeight="52" Margin="0,4,0,0" />
+      <Button Content="Add note" Command="{Binding AddNoteCommand}"
+              Margin="0,4,0,0" HorizontalAlignment="Right" />
+
+      <!-- Reminders -->
+      <TextBlock Classes="section" Text="Reminders" />
+      <ItemsControl ItemsSource="{Binding Reminders}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ReminderViewModel">
+            <Grid ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,2">
+              <TextBlock Grid.Column="0" Text="{Binding When}" VerticalAlignment="Center" />
+              <TextBlock Grid.Column="1" Text="{Binding State}" Classes="hint"
+                         Margin="8,0" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Content="Dismiss" FontSize="11" Padding="6,2"
+                      IsVisible="{Binding CanDismiss}"
+                      Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).DismissReminderCommand}"
+                      CommandParameter="{Binding}" />
+              <Button Grid.Column="3" Content="✕" FontSize="11" Padding="6,2" Margin="4,0,0,0"
+                      Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).DeleteReminderCommand}"
+                      CommandParameter="{Binding}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,4,0,0">
+        <DatePicker Grid.Column="0" SelectedDate="{Binding NewReminderDate}" />
+        <TimePicker Grid.Column="1" SelectedTime="{Binding NewReminderTime}" Margin="6,0,0,0" />
+        <Button Grid.Column="2" Content="Add" Margin="6,0,0,0"
+                Command="{Binding AddReminderCommand}" />
+      </Grid>
+      <TextBlock Classes="hint" Margin="0,4,0,0"
+                 Text="Reminders fire only while might-do is running. Anything missed waits in the banner." />
+
+      <!-- Attachments -->
+      <TextBlock Classes="section" Text="Attachments" />
+      <ItemsControl ItemsSource="{Binding Attachments}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:AttachmentViewModel">
+            <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
+              <TextBlock Grid.Column="0" Text="{Binding OriginalName}"
+                         VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+              <TextBlock Grid.Column="1" Text="{Binding Size}" Classes="hint"
+                         Margin="8,0" VerticalAlignment="Center" />
+              <Button Grid.Column="2" Content="✕" FontSize="11" Padding="6,2"
+                      Command="{Binding $parent[ItemsControl].((vm:TaskDetailViewModel)DataContext).DeleteAttachmentCommand}"
+                      CommandParameter="{Binding}" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Content="Attach a file…" Command="{Binding AttachFileCommand}"
+              Margin="0,4,0,0" HorizontalAlignment="Left" />
+      <TextBlock Classes="hint" Margin="0,4,0,0"
+                 Text="The copy is authoritative — your original can move or be deleted afterwards." />
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

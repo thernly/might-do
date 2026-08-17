@@ -24,6 +24,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly WorkspaceWatcher _watcher;
     private readonly ReminderScheduler _reminders;
     private readonly AppSettings _settings;
+    private readonly IFilePicker _filePicker;
+    private string? _selectedTaskId;
     private bool _disposed;
 
     [ObservableProperty]
@@ -42,7 +44,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private StatusFilterViewModel? _selectedStatus;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasSelection))]
     private TaskRowViewModel? _selectedTask;
+
+    [ObservableProperty]
+    private TaskDetailViewModel? _detail;
 
     [ObservableProperty]
     private string _newTaskSummary = "";
@@ -51,10 +57,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private string? _banner;
 
     private WorkspaceViewModel(
-        WorkspaceSession session, AppSettings settings, string root)
+        WorkspaceSession session, AppSettings settings, IFilePicker filePicker, string root)
     {
         _session = session;
         _settings = settings;
+        _filePicker = filePicker;
         Root = root;
 
         _session.Changed += OnWorkspaceChanged;
@@ -77,10 +84,10 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     }
 
     public static async Task<WorkspaceViewModel> OpenAsync(
-        TaskStore store, AppSettings settings)
+        TaskStore store, AppSettings settings, IFilePicker filePicker)
     {
         var session = await WorkspaceSession.OpenAsync(store);
-        return new WorkspaceViewModel(session, settings, store.Workspace.Root);
+        return new WorkspaceViewModel(session, settings, filePicker, store.Workspace.Root);
     }
 
     public string Root { get; }
@@ -123,6 +130,34 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     partial void OnSelectedStatusChanged(StatusFilterViewModel? value) => Project();
 
+    public bool HasSelection => SelectedTask is not null;
+
+    /// <summary>
+    /// Opening a task in the detail pane. Keyed by id rather than by row, so a
+    /// rescan that rebuilds every row does not close the pane under the user.
+    /// </summary>
+    partial void OnSelectedTaskChanged(TaskRowViewModel? value)
+    {
+        _selectedTaskId = value?.Id;
+        SyncDetail();
+    }
+
+    private void SyncDetail()
+    {
+        var task = _selectedTaskId is null ? null : _session.Snapshot.TaskById(_selectedTaskId);
+
+        if (task is null)
+        {
+            Detail = null;
+            return;
+        }
+
+        // Refresh in place when it is the same task, so an edit landing back
+        // through the session does not replace the pane the user is typing in.
+        if (Detail is { } existing && existing.TaskId == task.Id) existing.Refresh(task);
+        else Detail = new TaskDetailViewModel(_session, task, _filePicker);
+    }
+
     [RelayCommand]
     private async Task CreateTaskAsync()
     {
@@ -135,6 +170,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private Task RefreshAsync() => _session.RefreshAsync();
+
+    [RelayCommand]
+    private void CloseDetail() => SelectedTask = null;
 
     [RelayCommand]
     private void ClearFilters()
@@ -195,11 +233,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             ? $"{visible.Count} task{(visible.Count == 1 ? "" : "s")}"
             : $"{visible.Count} of {snapshot.Tasks.Count} tasks";
 
-        // A rescan can remove whatever was selected.
-        if (SelectedTask is { } selected && Tasks.All(row => row.Id != selected.Id))
-        {
-            SelectedTask = null;
-        }
+        // Every row is a new object after a rescan, so reattach the selection by
+        // id. Without this the pane closes whenever anything on disk changes.
+        SelectedTask = _selectedTaskId is null
+            ? null
+            : Tasks.FirstOrDefault(row => row.Id == _selectedTaskId);
+
+        SyncDetail();
     }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)

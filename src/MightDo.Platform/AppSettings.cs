@@ -51,13 +51,24 @@ public sealed class AppSettings
         _data = data;
     }
 
-    /// <summary><c>~/.config/might-do/settings.json</c>, or the platform equivalent.</summary>
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(
-            Environment.SpecialFolder.ApplicationData,
-            Environment.SpecialFolderOption.Create),
-        "might-do",
-        "settings.json");
+    /// <summary>
+    /// Where the settings live: the platform's application-data folder, unless
+    /// <c>MIGHTDO_SETTINGS</c> names somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// The override exists so a development run cannot silently attach to the
+    /// real workspace remembered from ordinary use — which would put a live
+    /// watcher and reminder scheduler on someone's actual tasks.
+    /// </remarks>
+    public static string DefaultPath =>
+        Environment.GetEnvironmentVariable("MIGHTDO_SETTINGS") is { Length: > 0 } overridden
+            ? overridden
+            : Path.Combine(
+                Environment.GetFolderPath(
+                    Environment.SpecialFolder.ApplicationData,
+                    Environment.SpecialFolderOption.Create),
+                "might-do",
+                "settings.json");
 
     /// <summary>
     /// Reads the settings, falling back to defaults.

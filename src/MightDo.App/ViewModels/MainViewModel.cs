@@ -25,6 +25,7 @@ public sealed partial class MainViewModel : ViewModelBase
 {
     private readonly AppSettings _settings;
     private readonly IFolderPicker _picker;
+    private readonly IFilePicker _filePicker;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasWorkspace))]
@@ -36,15 +37,16 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private bool _isBusy;
 
-    public MainViewModel(AppSettings settings, IFolderPicker picker)
+    public MainViewModel(AppSettings settings, IFolderPicker picker, IFilePicker filePicker)
     {
         _settings = settings;
         _picker = picker;
+        _filePicker = filePicker;
     }
 
     /// <summary>A parameterless constructor for the XAML designer.</summary>
     public MainViewModel()
-        : this(AppSettings.Load(), new NoFolderPicker())
+        : this(AppSettings.Load(), new NoPicker(), new NoPicker())
     {
     }
 
@@ -95,7 +97,7 @@ public sealed partial class MainViewModel : ViewModelBase
         {
             Workspace?.Dispose();
             var store = new TaskStore(new Core.Storage.Workspace(path));
-            Workspace = await WorkspaceViewModel.OpenAsync(store, _settings);
+            Workspace = await WorkspaceViewModel.OpenAsync(store, _settings, _filePicker);
             Message = null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -108,8 +110,11 @@ public sealed partial class MainViewModel : ViewModelBase
         }
     }
 
-    private sealed class NoFolderPicker : IFolderPicker
+    /// <summary>Picks nothing. For the XAML designer, which has no window to ask.</summary>
+    private sealed class NoPicker : IFolderPicker, IFilePicker
     {
         public Task<string?> PickFolderAsync(string title) => Task.FromResult<string?>(null);
+
+        public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(null);
     }
 }

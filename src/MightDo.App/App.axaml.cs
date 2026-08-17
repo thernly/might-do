@@ -22,7 +22,10 @@ public partial class App : Application
             // has a top level to hang off, then the view model is given to it.
             var window = new MainWindow();
             var settings = AppSettings.Load();
-            var viewModel = new MainViewModel(settings, new StorageFolderPicker(window));
+            var viewModel = new MainViewModel(
+                settings,
+                new StorageFolderPicker(window),
+                new StorageFilePicker(window));
 
             window.DataContext = viewModel;
             window.Closed += (_, _) => viewModel.Workspace?.Dispose();

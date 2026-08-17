@@ -5,6 +5,7 @@
     <Project Path="src/MightDo.Platform/MightDo.Platform.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MightDo.App.Tests/MightDo.App.Tests.csproj" />
     <Project Path="tests/MightDo.Core.Tests/MightDo.Core.Tests.csproj" />
     <Project Path="tests/MightDo.Platform.Tests/MightDo.Platform.Tests.csproj" />
   </Folder>

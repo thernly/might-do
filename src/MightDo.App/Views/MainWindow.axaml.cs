@@ -29,3 +29,15 @@ public sealed class StorageFolderPicker(TopLevel topLevel) : IFolderPicker
         return folders.Count == 0 ? null : folders[0].TryGetLocalPath();
     }
 }
+
+/// <summary>Asks for a file using the platform's own picker.</summary>
+public sealed class StorageFilePicker(TopLevel topLevel) : IFilePicker
+{
+    public async Task<string?> PickFileAsync(string title)
+    {
+        var files = await topLevel.StorageProvider.OpenFilePickerAsync(
+            new FilePickerOpenOptions { Title = title, AllowMultiple = false });
+
+        return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+}

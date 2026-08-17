@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+        xmlns:views="clr-namespace:MightDo.App.Views"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
         x:Class="MightDo.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -125,8 +126,9 @@
         </Border>
       </StackPanel>
 
-      <!-- The list -->
-      <Border Grid.Row="2" BorderThickness="1" CornerRadius="6"
+      <!-- The list, and the detail pane for whatever is selected -->
+      <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
+      <Border Grid.Column="0" BorderThickness="1" CornerRadius="6"
               BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
         <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
                  Background="Transparent">
@@ -167,6 +169,20 @@
           </ListBox.ItemTemplate>
         </ListBox>
       </Border>
+
+      <GridSplitter Grid.Column="1" Width="6" Background="Transparent"
+                    IsVisible="{Binding HasSelection}" />
+
+      <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="6"
+              IsVisible="{Binding HasSelection}"
+              BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+        <Grid RowDefinitions="Auto,*">
+          <Button Grid.Row="0" Content="Close" HorizontalAlignment="Right" Margin="8,8,8,0"
+                  Command="{Binding CloseDetailCommand}" />
+          <views:TaskDetailView Grid.Row="1" DataContext="{Binding Detail}" />
+        </Grid>
+      </Border>
+      </Grid>
 
       <!-- Create, and the status line -->
       <Grid Grid.Row="3" ColumnDefinitions="*,Auto,Auto,Auto" Margin="0,12,0,0">
