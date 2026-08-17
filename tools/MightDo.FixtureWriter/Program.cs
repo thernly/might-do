@@ -65,7 +65,6 @@ var native = new MightDoTask
                   + "Ampersands & <angle brackets> and a café.",
     StatusId = config.DefaultStatusId,
     CategoryId = config.Categories[0].Id,
-    TagIds = [config.Tags[0].Id, config.Tags[1].Id],
     Priority = Priority.High,
     DueDate = new CalendarDate(2026, 9, 1),
     EstimateMinutes = 45,
@@ -86,7 +85,7 @@ var native = new MightDoTask
     ],
     CreatedAt = new DateTime(2026, 8, 17, 9, 0, 0, DateTimeKind.Utc),
     UpdatedAt = new DateTime(2026, 8, 17, 9, 30, 0, DateTimeKind.Utc),
-};
+}.WithTags([config.Tags[0].Id, config.Tags[1].Id]);
 await WorkspaceFiles.WriteJsonAtomicAsync(target.TaskFile(native.Id), native);
 written++;
 

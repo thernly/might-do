@@ -39,7 +39,14 @@ public sealed record MightDoTask
 
     public string? CategoryId { get; init; }
 
-    public IReadOnlyList<string> TagIds { get; init; } = [];
+    /// <summary>
+    /// Set through <see cref="WithTags"/> so the <see cref="MaxTags"/> cap lives
+    /// in one place. The Flutter implementation caps on create, not on update,
+    /// and re-checks it again in the UI; this makes over-tagging unrepresentable
+    /// instead.
+    /// </summary>
+    [JsonInclude]
+    public IReadOnlyList<string> TagIds { get; private init; } = [];
 
     public Priority Priority { get; init; } = Priority.Medium;
 
@@ -48,9 +55,18 @@ public sealed record MightDoTask
 
     /// <summary>
     /// The moment the task entered a status of type <see cref="StatusType.Final"/>.
-    /// Set by the application, cleared if it leaves one.
+    /// Set by the application, never by the user, and cleared if it leaves one.
     /// </summary>
-    public DateTime? CompletedAt { get; init; }
+    /// <remarks>
+    /// Settable only through <see cref="WithStatus"/>, which is what makes the
+    /// rule in ADR-0002 an invariant rather than a convention every caller has
+    /// to remember. Deserialization still sets it directly — a file can arrive
+    /// from a sync conflict with a completion date that disagrees with its
+    /// status, and refusing to represent that would lose the user's data rather
+    /// than surface it.
+    /// </remarks>
+    [JsonInclude]
+    public DateTime? CompletedAt { get; private init; }
 
     /// <summary>Expected effort in whole minutes, recorded up front.</summary>
     public int? EstimateMinutes { get; init; }
@@ -96,7 +112,7 @@ public sealed record MightDoTask
             Description = description,
             StatusId = statusId,
             CategoryId = categoryId,
-            TagIds = tagIds ?? [],
+            TagIds = CapTags(tagIds ?? []),
             Priority = priority,
             DueDate = dueDate,
             EstimateMinutes = estimateMinutes,
@@ -138,4 +154,86 @@ public sealed record MightDoTask
     /// <see cref="UpdatedAt"/> cannot be forgotten.
     /// </summary>
     public MightDoTask Touch() => this with { UpdatedAt = DateTime.UtcNow };
+
+    /// <summary>
+    /// Moves the task to <paramref name="statusId"/>, applying the
+    /// completion-date rule.
+    /// </summary>
+    /// <remarks>
+    /// The completion date is derived from the status <i>type</i>, not from any
+    /// particular status: entering any <see cref="StatusType.Final"/> status
+    /// stamps it, leaving one clears it, and moving between two Final statuses
+    /// preserves the original moment rather than restamping it. There is no "the
+    /// done status" — see ADR-0002.
+    /// </remarks>
+    /// <param name="boardRank">Null keeps the task's current position.</param>
+    public MightDoTask WithStatus(
+        string statusId, WorkspaceConfig config, string? boardRank = null)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var wasFinal = config.IsFinal(StatusId);
+        var isFinal = config.IsFinal(statusId);
+
+        return this with
+        {
+            StatusId = statusId,
+            BoardRank = boardRank ?? BoardRank,
+            CompletedAt = isFinal
+                ? (wasFinal ? CompletedAt : DateTime.UtcNow)
+                : null,
+        };
+    }
+
+    /// <summary>
+    /// Replaces the task's tags, keeping at most <see cref="MaxTags"/>.
+    /// </summary>
+    /// <remarks>
+    /// Truncates rather than throwing, matching what the Flutter implementation
+    /// does on create. Tags are a lightweight convenience; refusing an edit
+    /// outright over the eleventh one would be a worse experience than quietly
+    /// keeping the first ten.
+    /// </remarks>
+    public MightDoTask WithTags(IEnumerable<string> tagIds) =>
+        this with { TagIds = CapTags(tagIds) };
+
+    /// <summary>
+    /// Whether this holds the same values as <paramref name="other"/>.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>==</c>: the generated record equality compares the collection
+    /// properties by reference, so two tasks read from the same file are never
+    /// equal. Their elements are records of scalars, so comparing the sequences
+    /// is enough.
+    /// </remarks>
+    public bool HasSameContentAs(MightDoTask? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return Id == other.Id
+               && Summary == other.Summary
+               && Description == other.Description
+               && StatusId == other.StatusId
+               && CategoryId == other.CategoryId
+               && Priority == other.Priority
+               && DueDate == other.DueDate
+               && CompletedAt == other.CompletedAt
+               && EstimateMinutes == other.EstimateMinutes
+               && TotalTimeMinutes == other.TotalTimeMinutes
+               && BoardRank == other.BoardRank
+               && CreatedAt == other.CreatedAt
+               && UpdatedAt == other.UpdatedAt
+               && TagIds.SequenceEqual(other.TagIds)
+               && Steps.SequenceEqual(other.Steps)
+               && Notes.SequenceEqual(other.Notes)
+               && Attachments.SequenceEqual(other.Attachments)
+               && Reminders.SequenceEqual(other.Reminders);
+    }
+
+    private static IReadOnlyList<string> CapTags(IEnumerable<string> tagIds)
+    {
+        ArgumentNullException.ThrowIfNull(tagIds);
+        return [.. tagIds.Take(MaxTags)];
+    }
 }

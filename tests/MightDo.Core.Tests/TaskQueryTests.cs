@@ -31,11 +31,11 @@ public class TaskQueryTests
         IReadOnlyList<Note>? notes = null,
         IReadOnlyList<Step>? steps = null,
         string? categoryId = null,
-        IReadOnlyList<string>? tagIds = null,
-        bool complete = false) =>
-        MightDoTask.Create(
+        IReadOnlyList<string>? tagIds = null)
+    {
+        var created = MightDoTask.Create(
             summary: summary,
-            statusId: (status ?? _initial).Id,
+            statusId: _initial.Id,
             boardRank: Rank.First,
             description: description,
             categoryId: categoryId,
@@ -45,8 +45,15 @@ public class TaskQueryTests
         {
             Notes = notes ?? [],
             Steps = steps ?? [],
-            CompletedAt = complete ? DateTime.UtcNow : null,
         };
+
+        // Reaching a status goes through WithStatus, so the completion date
+        // follows the rule rather than being set by hand — it is no longer
+        // possible to set it by hand.
+        return status is null || status.Id == _initial.Id
+            ? created
+            : created.WithStatus(status.Id, _config);
+    }
 
     private static IEnumerable<string> Summaries(IEnumerable<MightDoTask> tasks) =>
         tasks.Select(t => t.Summary);
@@ -56,7 +63,7 @@ public class TaskQueryTests
     [Fact]
     public void CompletedTasksAreHiddenByDefault()
     {
-        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done, complete: true)];
+        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done)];
 
         var result = TaskQuery.Default.Apply(tasks, _config);
 
@@ -66,7 +73,7 @@ public class TaskQueryTests
     [Fact]
     public void CompletedTasksAppearWhenAskedFor()
     {
-        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done, complete: true)];
+        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done)];
 
         var result = new TaskQuery { IncludeCompleted = true }.Apply(tasks, _config);
 
@@ -76,7 +83,7 @@ public class TaskQueryTests
     [Fact]
     public void CompletedTasksAppearWhenExplicitlyFilteredToAFinalStatus()
     {
-        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done, complete: true)];
+        List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done)];
 
         var result = new TaskQuery { StatusIds = Set(_done.Id) }.Apply(tasks, _config);
 
@@ -90,15 +97,34 @@ public class TaskQueryTests
         // about. A task carrying a completion date but sitting in an Active
         // status is still work in progress and stays visible; one in a Final
         // status without a date is finished and is hidden.
+        //
+        // Neither state is reachable through the API any more — WithStatus owns
+        // the rule — so they are built the only way they can actually occur: a
+        // file arriving from a sync conflict or a hand edit.
         List<MightDoTask> tasks =
         [
-            Task("Stamped but active", _active, complete: true),
-            Task("Final but unstamped", _done),
+            FromDisk("Stamped but active", _active.Id, completedAt: "2026-08-16T14:22:09.000Z"),
+            FromDisk("Final but unstamped", _done.Id, completedAt: null),
         ];
 
         var result = TaskQuery.Default.Apply(tasks, _config);
 
         Assert.Equal(["Stamped but active"], Summaries(result));
+    }
+
+    private static MightDoTask FromDisk(string summary, string statusId, string? completedAt)
+    {
+        var completed = completedAt is null ? "null" : $"\"{completedAt}\"";
+        return MightDo.Core.Serialization.WorkspaceJson.Deserialize<MightDoTask>($$"""
+            {
+              "id": "{{Ulid.New()}}",
+              "summary": "{{summary}}",
+              "statusId": "{{statusId}}",
+              "completedAt": {{completed}},
+              "createdAt": "2026-08-15T07:30:00.000Z",
+              "updatedAt": "2026-08-15T07:30:00.000Z"
+            }
+            """)!;
     }
 
     // ---- search ------------------------------------------------------------

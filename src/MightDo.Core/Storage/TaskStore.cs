@@ -155,6 +155,45 @@ public sealed class TaskStore(Workspace workspace)
         return tasks;
     }
 
+    /// <summary>
+    /// Copies a file into the workspace's attachments folder.
+    /// </summary>
+    /// <remarks>
+    /// The copy is authoritative — moving or deleting the user's original has no
+    /// effect on it. The stored name is prefixed with the attachment's id so two
+    /// files called <c>contract.pdf</c> cannot collide.
+    /// </remarks>
+    public async Task<Attachment> CopyAttachmentAsync(
+        string sourcePath, DateTime addedAt, CancellationToken cancellationToken = default)
+    {
+        Workspace.EnsureLayout();
+
+        var id = Ulid.New();
+        var originalName = Path.GetFileName(sourcePath);
+        var storedName = $"{id}-{originalName}";
+        var destination = Workspace.AttachmentFile(storedName);
+
+        await using (var source = File.OpenRead(sourcePath))
+        await using (var target = File.Create(destination))
+        {
+            await source.CopyToAsync(target, cancellationToken);
+        }
+
+        return new Attachment(
+            id,
+            originalName,
+            storedName,
+            new FileInfo(destination).Length,
+            addedAt);
+    }
+
+    /// <summary>Removes an attachment's bytes. Absent is not an error.</summary>
+    public void DeleteAttachment(string storedName)
+    {
+        var file = Workspace.AttachmentFile(storedName);
+        if (File.Exists(file)) File.Delete(file);
+    }
+
     private static void MoveInto(string file, string targetDir)
     {
         Directory.CreateDirectory(targetDir);

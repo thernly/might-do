@@ -1,0 +1,537 @@
+using MightDo.Core.Domain;
+using MightDo.Core.Query;
+using MightDo.Core.Session;
+using MightDo.Core.Storage;
+
+namespace MightDo.Core.Tests;
+
+/// <summary>
+/// Ports <c>test/app/workspace_controller_test.dart</c>, then adds the cases
+/// that only matter once the layer is not single-threaded.
+/// </summary>
+public class WorkspaceSessionTests : IAsyncLifetime
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), "mightdo-session-" + Guid.NewGuid().ToString("N")[..8]);
+
+    private WorkspaceSession _session = null!;
+
+    public async Task InitializeAsync() =>
+        _session = await WorkspaceSession.OpenAsync(
+            new TaskStore(new Core.Storage.Workspace(_root)));
+
+    public Task DisposeAsync()
+    {
+        _session.Dispose();
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        return Task.CompletedTask;
+    }
+
+    private Status StatusOfType(StatusType type) =>
+        _session.Snapshot.Config.Statuses.First(s => s.Type == type);
+
+    private MightDoTask Reload(MightDoTask task) => _session.Snapshot.TaskById(task.Id)!;
+
+    // ---- creating tasks ----------------------------------------------------
+
+    [Fact]
+    public async Task NewTasksStartInTheDefaultInitialStatusWithNoCompletionDate()
+    {
+        var task = await _session.CreateTaskAsync("Write the thing");
+
+        var config = _session.Snapshot.Config;
+        Assert.Equal(config.DefaultStatusId, task.StatusId);
+        Assert.Equal(StatusType.Initial, config.StatusById(task.StatusId)!.Type);
+        Assert.Null(task.CompletedAt);
+        Assert.False(task.IsComplete);
+    }
+
+    [Fact]
+    public async Task CreatingATaskCapsTagsAtTheDocumentedMaximum()
+    {
+        var task = await _session.CreateTaskAsync(
+            "Over-tagged", tagIds: [.. Enumerable.Range(0, 15).Select(i => $"tag-{i}")]);
+
+        Assert.Equal(MightDoTask.MaxTags, task.TagIds.Count);
+    }
+
+    [Fact]
+    public async Task UpdatingTagsCapsThemToo()
+    {
+        // The Flutter implementation caps on create but not on update, and
+        // re-checks the limit in the UI instead. Here it is one rule in one place.
+        var task = await _session.CreateTaskAsync("Tagged");
+
+        var updated = await _session.SetTagsAsync(
+            task, [.. Enumerable.Range(0, 15).Select(i => $"tag-{i}")]);
+
+        Assert.Equal(MightDoTask.MaxTags, updated.TagIds.Count);
+    }
+
+    [Fact]
+    public async Task NewTasksAppendToTheBottomOfTheirColumn()
+    {
+        var first = await _session.CreateTaskAsync("First");
+        var second = await _session.CreateTaskAsync("Second");
+
+        Assert.True(string.CompareOrdinal(first.BoardRank, second.BoardRank) < 0);
+    }
+
+    // ---- the completion-date rule ------------------------------------------
+
+    [Fact]
+    public async Task CompletionIsStampedOnEnteringAnyFinalStatus()
+    {
+        var task = await _session.CreateTaskAsync("Finish");
+
+        await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Final).Id);
+
+        Assert.NotNull(Reload(task).CompletedAt);
+        Assert.True(Reload(task).IsComplete);
+    }
+
+    [Fact]
+    public async Task CompletionIsClearedOnLeavingAFinalStatus()
+    {
+        var task = await _session.CreateTaskAsync("Reopened");
+        await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Final).Id);
+
+        await _session.MoveToStatusAsync(Reload(task), StatusOfType(StatusType.Active).Id);
+
+        Assert.Null(Reload(task).CompletedAt);
+    }
+
+    [Fact]
+    public async Task CompletionIsPreservedBetweenTwoFinalStatuses()
+    {
+        var finals = _session.Snapshot.Config.Statuses
+            .Where(s => s.Type == StatusType.Final).ToList();
+        Assert.True(finals.Count >= 2, "seed should provide Done and Abandoned");
+
+        var task = await _session.CreateTaskAsync("Done then abandoned");
+        await _session.MoveToStatusAsync(task, finals[0].Id);
+        var stampedAt = Reload(task).CompletedAt;
+
+        await _session.MoveToStatusAsync(Reload(task), finals[1].Id);
+
+        Assert.Equal(stampedAt, Reload(task).CompletedAt);
+    }
+
+    [Fact]
+    public async Task CompletionIsNotSetByActiveStatuses()
+    {
+        var task = await _session.CreateTaskAsync("Working");
+
+        await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Active).Id);
+
+        Assert.Null(Reload(task).CompletedAt);
+    }
+
+    [Fact]
+    public async Task MovingStatusWithoutARankKeepsTheBoardPosition()
+    {
+        // Not covered by the Flutter suite, and the kind of thing a port of
+        // copyWith's null-means-unset sentinel gets backwards.
+        var task = await _session.CreateTaskAsync("Stays put");
+        var rank = task.BoardRank;
+
+        await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Active).Id);
+
+        Assert.Equal(rank, Reload(task).BoardRank);
+    }
+
+    // ---- board reordering --------------------------------------------------
+
+    [Fact]
+    public async Task DropsATaskBetweenTwoOthers()
+    {
+        var a = await _session.CreateTaskAsync("A");
+        var b = await _session.CreateTaskAsync("B");
+        var c = await _session.CreateTaskAsync("C");
+
+        await _session.ReorderOnBoardAsync(c, a.StatusId, above: a, below: b);
+
+        var column = BoardProjection.Column(_session.Snapshot.Tasks, a.StatusId);
+        Assert.Equal(["A", "C", "B"], column.Select(t => t.Summary));
+    }
+
+    [Fact]
+    public async Task MovingToAnotherColumnChangesStatusAndStampsCompletion()
+    {
+        var task = await _session.CreateTaskAsync("Drag me");
+        var done = StatusOfType(StatusType.Final);
+
+        await _session.ReorderOnBoardAsync(task, done.Id);
+
+        var moved = Reload(task);
+        Assert.Equal(done.Id, moved.StatusId);
+        Assert.NotNull(moved.CompletedAt);
+    }
+
+    // ---- deleting a status -------------------------------------------------
+
+    [Fact]
+    public void DeletingTheDefaultStatusIsBlocked() =>
+        Assert.Equal(
+            StatusDeletionBlocker.IsDefault,
+            _session.StatusDeletionBlockerFor(_session.Snapshot.Config.DefaultStatusId));
+
+    [Fact]
+    public async Task DeletingTheLastStatusOfATypeIsBlocked()
+    {
+        var actives = _session.Snapshot.Config.Statuses
+            .Where(s => s.Type == StatusType.Active).ToList();
+        for (var i = 0; i < actives.Count - 1; i++)
+        {
+            await _session.DeleteStatusAsync(actives[i].Id, actives[^1].Id);
+        }
+
+        var last = _session.Snapshot.Config.Statuses.First(s => s.Type == StatusType.Active);
+
+        Assert.Equal(StatusDeletionBlocker.LastOfItsType,
+            _session.StatusDeletionBlockerFor(last.Id));
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _session.DeleteStatusAsync(last.Id, last.Id));
+    }
+
+    [Fact]
+    public async Task DeletingAStatusMovesItsTasksRatherThanDeletingThem()
+    {
+        var blocked = await _session.AddStatusAsync("Blocked elsewhere", StatusType.Active);
+        var task = await _session.CreateTaskAsync("Stuck");
+        await _session.MoveToStatusAsync(task, blocked.Id);
+        var replacement = StatusOfType(StatusType.Active);
+
+        await _session.DeleteStatusAsync(blocked.Id, replacement.Id);
+
+        Assert.Null(_session.Snapshot.Config.StatusById(blocked.Id));
+        Assert.Single(_session.Snapshot.Tasks);
+        Assert.Equal(replacement.Id, Reload(task).StatusId);
+    }
+
+    [Fact]
+    public async Task ReassigningIntoAFinalStatusIsStillACompletion()
+    {
+        var extra = await _session.AddStatusAsync("Shipping", StatusType.Active);
+        var task = await _session.CreateTaskAsync("Ship it");
+        await _session.MoveToStatusAsync(task, extra.Id);
+        Assert.Null(Reload(task).CompletedAt);
+
+        await _session.DeleteStatusAsync(extra.Id, StatusOfType(StatusType.Final).Id);
+
+        Assert.NotNull(Reload(task).CompletedAt);
+    }
+
+    [Fact]
+    public async Task DeletingAStatusRenumbersTheRestSoBoardOrderStaysContiguous()
+    {
+        var extra = await _session.AddStatusAsync("Temporary", StatusType.Active);
+
+        await _session.DeleteStatusAsync(extra.Id, StatusOfType(StatusType.Active).Id);
+
+        var orders = _session.Snapshot.Config.Statuses.Select(s => s.Order).ToList();
+        Assert.Equal(Enumerable.Range(0, orders.Count), orders);
+    }
+
+    [Fact]
+    public async Task DeletingAStatusIsOneChangeNotOnePerTask()
+    {
+        // The Flutter implementation writes and notifies once per affected task,
+        // so a failure halfway leaves the workspace half-migrated. One batch,
+        // one event.
+        var extra = await _session.AddStatusAsync("Doomed", StatusType.Active);
+        foreach (var i in Enumerable.Range(0, 5))
+        {
+            var task = await _session.CreateTaskAsync($"Task {i}");
+            await _session.MoveToStatusAsync(task, extra.Id);
+        }
+
+        var changes = 0;
+        _session.Changed += (_, _) => Interlocked.Increment(ref changes);
+
+        await _session.DeleteStatusAsync(extra.Id, StatusOfType(StatusType.Active).Id);
+
+        Assert.Equal(1, changes);
+    }
+
+    [Fact]
+    public async Task ReassignmentMustNameAStatusThatExists()
+    {
+        var extra = await _session.AddStatusAsync("Doomed", StatusType.Active);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _session.DeleteStatusAsync(extra.Id, "01m07z0000000000000000gone"));
+    }
+
+    // ---- default status ----------------------------------------------------
+
+    [Fact]
+    public async Task TheDefaultStatusMustBeAnInitialStatus() =>
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => _session.SetDefaultStatusAsync(StatusOfType(StatusType.Active).Id));
+
+    [Fact]
+    public async Task TheDefaultStatusCanMoveToAnotherInitialStatus()
+    {
+        var config = _session.Snapshot.Config;
+        var other = config.Statuses.First(
+            s => s.Type == StatusType.Initial && s.Id != config.DefaultStatusId);
+
+        await _session.SetDefaultStatusAsync(other.Id);
+
+        Assert.Equal(other.Id, _session.Snapshot.Config.DefaultStatusId);
+    }
+
+    // ---- categories and tags -----------------------------------------------
+
+    [Fact]
+    public async Task DeletingACategoryClearsItFromTasksByDefault()
+    {
+        var category = await _session.AddCategoryAsync("Home", 0xFF00FF00);
+        var task = await _session.CreateTaskAsync("Fix the door", categoryId: category.Id);
+
+        await _session.DeleteCategoryAsync(category.Id);
+
+        Assert.Empty(_session.Snapshot.Config.Categories);
+        Assert.Null(Reload(task).CategoryId);
+        Assert.Single(_session.Snapshot.Tasks);
+    }
+
+    [Fact]
+    public async Task DeletingACategoryCanReassignInstead()
+    {
+        var from = await _session.AddCategoryAsync("Old", 0xFF00FF00);
+        var to = await _session.AddCategoryAsync("New", 0xFF0000FF);
+        var task = await _session.CreateTaskAsync("Move me", categoryId: from.Id);
+
+        await _session.DeleteCategoryAsync(from.Id, to.Id);
+
+        Assert.Equal(to.Id, Reload(task).CategoryId);
+    }
+
+    [Fact]
+    public async Task AddingAnExistingTagByNameReusesIt()
+    {
+        var first = await _session.AddTagAsync("urgent");
+        var second = await _session.AddTagAsync("URGENT");
+
+        Assert.Equal(first.Id, second.Id);
+        Assert.Single(_session.Snapshot.Config.Tags);
+    }
+
+    [Fact]
+    public async Task DeletingATagDetachesItFromEveryTask()
+    {
+        var tag = await _session.AddTagAsync("waiting");
+        var task = await _session.CreateTaskAsync("Tagged", tagIds: [tag.Id]);
+
+        await _session.DeleteTagAsync(tag.Id);
+
+        Assert.Empty(_session.Snapshot.Config.Tags);
+        Assert.Empty(Reload(task).TagIds);
+    }
+
+    // ---- steps, notes and reminders ----------------------------------------
+
+    [Fact]
+    public async Task TickingEveryStepDoesNotCompleteTheTask()
+    {
+        var task = await _session.CreateTaskAsync("Multi-step");
+        await _session.AddStepAsync(Reload(task), "One");
+        await _session.AddStepAsync(Reload(task), "Two");
+
+        foreach (var step in Reload(task).Steps)
+        {
+            await _session.SetStepDoneAsync(Reload(task), step.Id, true);
+        }
+
+        var updated = Reload(task);
+        Assert.Equal(2, updated.StepsDone);
+        Assert.False(updated.IsComplete);
+    }
+
+    [Fact]
+    public async Task NotesAccumulateWithUtcTimestamps()
+    {
+        var task = await _session.CreateTaskAsync("Logged");
+        await _session.AddNoteAsync(Reload(task), "First");
+        await _session.AddNoteAsync(Reload(task), "Second");
+
+        var notes = Reload(task).Notes;
+        Assert.Equal(["First", "Second"], notes.Select(n => n.Body));
+        Assert.All(notes, note => Assert.Equal(DateTimeKind.Utc, note.CreatedAt.Kind));
+    }
+
+    [Fact]
+    public async Task ADismissedReminderStopsBeingOutstanding()
+    {
+        var task = await _session.CreateTaskAsync("Remind me");
+        await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-1));
+
+        var due = Reload(task).OutstandingReminders(DateTime.UtcNow);
+        Assert.Single(due);
+
+        await _session.DismissRemindersAsync(Reload(task), Ids(due[0].Id));
+
+        Assert.Empty(Reload(task).OutstandingReminders(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task AFutureReminderIsNotOutstandingYet()
+    {
+        var task = await _session.CreateTaskAsync("Later");
+        await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddDays(1));
+
+        Assert.Empty(Reload(task).OutstandingReminders(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task AFiredButUndismissedReminderIsStillOutstanding()
+    {
+        // ADR-0004: the in-app surface is the contract, so a reminder stays
+        // there until acknowledged even after an OS notification fired.
+        var task = await _session.CreateTaskAsync("Nagging");
+        await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-1));
+        var reminder = Reload(task).Reminders.Single();
+
+        await _session.MarkRemindersFiredAsync(Reload(task), Ids(reminder.Id));
+
+        var updated = Reload(task).Reminders.Single();
+        Assert.NotNull(updated.FiredAt);
+        Assert.False(updated.IsPending);
+        Assert.True(updated.IsOutstanding);
+        Assert.Single(Reload(task).OutstandingReminders(DateTime.UtcNow));
+    }
+
+    [Fact]
+    public async Task TwoRemindersDueAtOnceBothStayFired()
+    {
+        // Regression test for a bug in the Flutter implementation: it marks
+        // reminders one at a time from a task snapshot captured before the loop,
+        // so the second write discards the first's firedAt and that reminder
+        // re-fires on every tick, forever.
+        var task = await _session.CreateTaskAsync("Two reminders");
+        await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-2));
+        await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-1));
+        var ids = Reload(task).Reminders.Select(r => r.Id).ToHashSet();
+
+        await _session.MarkRemindersFiredAsync(Reload(task), ids);
+
+        Assert.All(Reload(task).Reminders, r => Assert.NotNull(r.FiredAt));
+        Assert.DoesNotContain(Reload(task).Reminders, r => r.IsPending);
+    }
+
+    // ---- trashing and persistence ------------------------------------------
+
+    [Fact]
+    public async Task TrashingRemovesTheTaskFromTheWorkingSet()
+    {
+        var task = await _session.CreateTaskAsync("Mistake");
+
+        await _session.TrashTaskAsync(task);
+
+        Assert.Empty(_session.Snapshot.Tasks);
+        Assert.Null(_session.Snapshot.TaskById(task.Id));
+    }
+
+    [Fact]
+    public async Task ChangesSurviveAReloadFromDisk()
+    {
+        var task = await _session.CreateTaskAsync("Persisted");
+        await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Active).Id);
+        await _session.AddNoteAsync(Reload(task), "A note");
+
+        using var reopened = await WorkspaceSession.OpenAsync(
+            new TaskStore(new Core.Storage.Workspace(_root)));
+
+        var loaded = reopened.Snapshot.TaskById(task.Id)!;
+        Assert.Equal("Persisted", loaded.Summary);
+        Assert.Equal("A note", loaded.Notes.Single().Body);
+        Assert.Equal(StatusType.Active,
+            reopened.Snapshot.Config.StatusById(loaded.StatusId)!.Type);
+    }
+
+    // ---- things that only matter once it isn't single-threaded --------------
+
+    [Fact]
+    public async Task ConcurrentWritesAllLandAndNoneClobberAnother()
+    {
+        // Dart got this free from its single isolate. .NET has real threads, so
+        // it has to be arranged.
+        await Task.WhenAll(Enumerable.Range(0, 50)
+            .Select(i => _session.CreateTaskAsync($"Task {i}")));
+
+        Assert.Equal(50, _session.Snapshot.Tasks.Count);
+
+        using var reopened = await WorkspaceSession.OpenAsync(
+            new TaskStore(new Core.Storage.Workspace(_root)));
+        Assert.Equal(50, reopened.Snapshot.Tasks.Count);
+
+        // Every task got its own board rank rather than racing for the same one.
+        Assert.Equal(50, _session.Snapshot.Tasks.Select(t => t.BoardRank).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task InterleavedRefreshesDoNotLoseWrites()
+    {
+        var writes = Enumerable.Range(0, 25).Select(i => _session.CreateTaskAsync($"Task {i}"));
+        var refreshes = Enumerable.Range(0, 10).Select(_ => _session.RefreshAsync());
+
+        await Task.WhenAll(writes.Cast<Task>().Concat(refreshes));
+
+        Assert.Equal(25, _session.Snapshot.Tasks.Count);
+    }
+
+    [Fact]
+    public async Task ARefreshThatFindsNothingNewSaysNothing()
+    {
+        // ADR-0003 makes reloads frequent and idempotent. Announcing an
+        // unchanged workspace would redraw the UI every time a sync client
+        // touched a file.
+        await _session.CreateTaskAsync("Settled");
+        var changes = 0;
+        _session.Changed += (_, _) => Interlocked.Increment(ref changes);
+
+        await _session.RefreshAsync();
+
+        Assert.Equal(0, changes);
+    }
+
+    [Fact]
+    public async Task ARefreshThatFindsAnExternalEditAnnouncesIt()
+    {
+        var task = await _session.CreateTaskAsync("Edited elsewhere");
+        var changes = 0;
+        _session.Changed += (_, _) => Interlocked.Increment(ref changes);
+
+        // Another machine's edit, arriving through the sync client.
+        var store = new TaskStore(new Core.Storage.Workspace(_root));
+        await store.SaveTaskAsync(task with { Summary = "Edited on the laptop" });
+
+        await _session.RefreshAsync();
+
+        Assert.Equal(1, changes);
+        Assert.Equal("Edited on the laptop", Reload(task).Summary);
+    }
+
+    [Fact]
+    public async Task AttachingAFileCopiesItIntoTheWorkspace()
+    {
+        var source = Path.Combine(_root, "original.txt");
+        await File.WriteAllTextAsync(source, "the original bytes");
+        var task = await _session.CreateTaskAsync("Has a file");
+
+        var updated = await _session.AttachFileAsync(task, source);
+
+        var attachment = Assert.Single(updated.Attachments);
+        Assert.Equal("original.txt", attachment.OriginalName);
+        Assert.StartsWith(attachment.Id, attachment.StoredName);
+        Assert.Equal(18, attachment.SizeBytes);
+
+        // The copy is authoritative: the user's original can vanish afterwards.
+        File.Delete(source);
+        Assert.True(File.Exists(_session.Workspace.AttachmentFile(attachment.StoredName)));
+    }
+
+    private static IReadOnlySet<string> Ids(params string[] ids) => new HashSet<string>(ids);
+}

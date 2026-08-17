@@ -73,6 +73,26 @@ public sealed record WorkspaceConfig
     public bool IsFinal(string? statusId) => StatusById(statusId)?.Type == StatusType.Final;
 
     /// <summary>
+    /// Whether this holds the same values as <paramref name="other"/>.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>==</c>: the generated record equality compares the list properties
+    /// by reference, so two configs read from the same file are never equal.
+    /// The elements are records of scalars, so comparing the sequences is
+    /// enough.
+    /// </remarks>
+    public bool HasSameContentAs(WorkspaceConfig? other)
+    {
+        if (other is null) return false;
+        if (ReferenceEquals(this, other)) return true;
+
+        return DefaultStatusId == other.DefaultStatusId
+               && Statuses.SequenceEqual(other.Statuses)
+               && Categories.SequenceEqual(other.Categories)
+               && Tags.SequenceEqual(other.Tags);
+    }
+
+    /// <summary>
     /// The starting point for a brand new workspace: one status of each type,
     /// plus a hidden backlog, so the board is immediately usable.
     /// </summary>
