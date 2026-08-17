@@ -71,6 +71,44 @@ public static class BoardProjection
     /// </summary>
     public static string RankBetween(MightDoTask? above, MightDoTask? below) =>
         Rank.Between(above?.BoardRank ?? "", below?.BoardRank ?? "");
+
+    /// <summary>
+    /// The neighbours a dropped card lands between: above
+    /// <paramref name="beforeTaskId"/>, or at the bottom of the column when that
+    /// is null.
+    /// </summary>
+    /// <remarks>
+    /// The dragged task is excluded from the column first, so its own current
+    /// rank can never end up as one of its own neighbours — which would ask
+    /// <see cref="Rank.Between"/> for a rank between a value and itself.
+    /// <para>
+    /// Returns null when the drop is a no-op or cannot be placed: dropping a
+    /// card onto itself, or onto a card that has since moved. The caller should
+    /// do nothing rather than guess.
+    /// </para>
+    /// </remarks>
+    public static (MightDoTask? Above, MightDoTask? Below)? DropTarget(
+        IEnumerable<MightDoTask> tasks,
+        string statusId,
+        string taskId,
+        string? beforeTaskId)
+    {
+        if (taskId == beforeTaskId) return null;
+
+        var column = Column(tasks, statusId)
+            .Where(candidate => candidate.Id != taskId)
+            .ToList();
+
+        if (beforeTaskId is null)
+        {
+            return (column.Count == 0 ? null : column[^1], null);
+        }
+
+        var index = column.FindIndex(candidate => candidate.Id == beforeTaskId);
+        if (index < 0) return null;
+
+        return (index == 0 ? null : column[index - 1], column[index]);
+    }
 }
 
 public sealed record BoardColumn(Status Status, IReadOnlyList<MightDoTask> Tasks);

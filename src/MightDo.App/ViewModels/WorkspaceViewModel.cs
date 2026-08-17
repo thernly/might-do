@@ -56,6 +56,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     private string? _banner;
 
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsListView))]
+    [NotifyPropertyChangedFor(nameof(IsBoardView))]
+    private ViewMode _viewMode = ViewMode.List;
+
     private WorkspaceViewModel(
         WorkspaceSession session, AppSettings settings, IFilePicker filePicker, string root)
     {
@@ -80,6 +85,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _reminders.Fired += (_, _) => OnUiThread(Project);
         _reminders.Start();
 
+        ViewMode = settings.ViewMode;
         Project();
     }
 
@@ -99,6 +105,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     public ObservableCollection<DueReminderViewModel> OutstandingReminders { get; } = [];
 
     public ObservableCollection<string> Conflicts { get; } = [];
+
+    public ObservableCollection<BoardColumnViewModel> Columns { get; } = [];
 
     public IReadOnlyList<TaskSort> SortOptions { get; } = Enum.GetValues<TaskSort>();
 
@@ -129,6 +137,44 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     partial void OnOverdueOnlyChanged(bool value) => Project();
 
     partial void OnSelectedStatusChanged(StatusFilterViewModel? value) => Project();
+
+    public bool IsListView => ViewMode == ViewMode.List;
+
+    public bool IsBoardView => ViewMode == ViewMode.Board;
+
+    partial void OnViewModeChanged(ViewMode value)
+    {
+        _settings.SetViewMode(value);
+        Project();
+    }
+
+    [RelayCommand]
+    private void ShowList() => ViewMode = ViewMode.List;
+
+    [RelayCommand]
+    private void ShowBoard() => ViewMode = ViewMode.Board;
+
+    /// <summary>
+    /// Moves a card, dropping it above <paramref name="beforeTaskId"/> or at the
+    /// bottom of the column when that is null.
+    /// </summary>
+    public async Task MoveOnBoardAsync(string taskId, string statusId, string? beforeTaskId)
+    {
+        var snapshot = _session.Snapshot;
+        var task = snapshot.TaskById(taskId);
+        if (task is null) return;
+
+        // Where the card lands is board logic, not view logic, so the view model
+        // only asks and then applies the answer. A null answer means the drop is
+        // a no-op or cannot be placed — do nothing rather than guess.
+        if (BoardProjection.DropTarget(snapshot.Tasks, statusId, taskId, beforeTaskId)
+            is not { } target)
+        {
+            return;
+        }
+
+        await _session.ReorderOnBoardAsync(task, statusId, target.Above, target.Below);
+    }
 
     public bool HasSelection => SelectedTask is not null;
 
@@ -228,10 +274,28 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         Replace(Conflicts, snapshot.Conflicts.Select(conflict => conflict.FileName));
 
+        // The board always shows Final columns populated, even though the list
+        // hides completed work by default: a column headed "Done" holding
+        // nothing would be worse than useless. That is a decision about this
+        // view, so it is applied here rather than in the query's defaults.
+        var boardTasks = (query with { IncludeCompleted = true })
+            .Apply(snapshot.Tasks, snapshot.Config);
+
+        Replace(Columns, BoardProjection
+            .Columns(boardTasks, snapshot.Config)
+            .Select(column => new BoardColumnViewModel(
+                column.Status,
+                column.Tasks.Select(task => new BoardCardViewModel(task, snapshot.Config)))));
+
         IsFiltered = query.IsFiltered;
-        SummaryLine = visible.Count == snapshot.Tasks.Count
-            ? $"{visible.Count} task{(visible.Count == 1 ? "" : "s")}"
-            : $"{visible.Count} of {snapshot.Tasks.Count} tasks";
+
+        // The two views show different sets — the board populates Final columns
+        // the list hides, and omits statuses flagged off the board — so the
+        // count has to follow whichever view is on screen.
+        var shown = IsBoardView ? Columns.Sum(column => column.Cards.Count) : visible.Count;
+        SummaryLine = shown == snapshot.Tasks.Count
+            ? $"{shown} task{(shown == 1 ? "" : "s")}"
+            : $"{shown} of {snapshot.Tasks.Count} tasks";
 
         // Every row is a new object after a rescan, so reattach the selection by
         // id. Without this the pane closes whenever anything on disk changes.
