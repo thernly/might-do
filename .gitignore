@@ -1,52 +1,38 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
+# macOS / editor scratch
 .DS_Store
-.atom/
-.build/
-.buildlog/
+*.swp
+*.log
 .history
-.svn/
-.swiftpm/
-migrate_working_dir/
 
-# IntelliJ related
-*.iml
-*.ipr
-*.iws
+# .NET build output
+[Bb]in/
+[Oo]bj/
+artifacts/
+*.binlog
+
+# Test and coverage output
+TestResults/
+*.coverage
+coverage.*.xml
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+
+# Rider / IntelliJ
 .idea/
+*.iml
 
-# The .vscode folder contains launch configuration and tasks you configure in
-# VS Code which you may wish to be included in version control, so this line
-# is commented out by default.
-#.vscode/
-
-# Flutter/Dart/Pub related
-**/doc/api/
-**/ios/Flutter/.last_build_id
-.dart_tool/
-.flutter-plugins-dependencies
-.pub-cache/
-.pub/
-/build/
-/coverage/
-
-# Symbolication related
-app.*.symbols
-
-# Obfuscation related
-app.*.map.json
-
-# Android Studio will place build artifacts here
-/android/app/debug
-/android/app/profile
-/android/app/release
+# The .vscode folder holds launch configurations and tasks that are often worth
+# committing, so it is deliberately not ignored.
 
 # Serena (local agent tooling, not part of the project)
 /.serena/
 
-# .NET build output (spikes/, and the port when it lands)
-[Bb]in/
-[Oo]bj/
+# working files
+*.bak
+handoff.md
+finding*.md
+assess*.md
+task*.md
