@@ -40,35 +40,47 @@
             <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#FADAD5</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#9E2B18</SolidColorBrush>
 
+            <!-- Text painted over the raw accent colour. -->
+            <SolidColorBrush x:Key="OnAccentBrush">#FFFFFF</SolidColorBrush>
+
             <SolidColorBrush x:Key="StatusInitialBrush">#98948C</SolidColorBrush>
             <SolidColorBrush x:Key="StatusActiveBrush">#3E74D6</SolidColorBrush>
             <SolidColorBrush x:Key="StatusFinalBrush">#2E7D46</SolidColorBrush>
           </ResourceDictionary>
 
+          <!-- Dark leans cool and deep rather than flat grey: the window is
+               near-black with a blue cast, and each level up (column, card,
+               chip) is visibly lighter, because shadows carry almost nothing
+               against a dark ground — elevation has to come from the surfaces
+               themselves. Borders sit lighter than their card for the same
+               reason. -->
           <ResourceDictionary x:Key="Dark">
-            <Color x:Key="SystemAccentColor">#14B8A6</Color>
-            <Color x:Key="SystemAccentColorLight1">#2CC7B5</Color>
-            <Color x:Key="SystemAccentColorLight2">#55D6C6</Color>
-            <Color x:Key="SystemAccentColorLight3">#85E3D7</Color>
-            <Color x:Key="SystemAccentColorDark1">#109383</Color>
-            <Color x:Key="SystemAccentColorDark2">#0C7264</Color>
-            <Color x:Key="SystemAccentColorDark3">#085047</Color>
+            <Color x:Key="SystemAccentColor">#2DD4BF</Color>
+            <Color x:Key="SystemAccentColorLight1">#48DECB</Color>
+            <Color x:Key="SystemAccentColorLight2">#6FE7D7</Color>
+            <Color x:Key="SystemAccentColorLight3">#9DF0E4</Color>
+            <Color x:Key="SystemAccentColorDark1">#22AA99</Color>
+            <Color x:Key="SystemAccentColorDark2">#188173</Color>
+            <Color x:Key="SystemAccentColorDark3">#10594F</Color>
 
-            <SolidColorBrush x:Key="AppWindowBrush">#202124</SolidColorBrush>
-            <SolidColorBrush x:Key="AppSurfaceBrush">#2A2B2E</SolidColorBrush>
-            <SolidColorBrush x:Key="AppCardBrush">#333438</SolidColorBrush>
-            <SolidColorBrush x:Key="AppChipBrush">#3F4046</SolidColorBrush>
-            <SolidColorBrush x:Key="AppBorderBrush">#3A3B40</SolidColorBrush>
+            <SolidColorBrush x:Key="AppWindowBrush">#16181D</SolidColorBrush>
+            <SolidColorBrush x:Key="AppSurfaceBrush">#1E2128</SolidColorBrush>
+            <SolidColorBrush x:Key="AppCardBrush">#262A33</SolidColorBrush>
+            <SolidColorBrush x:Key="AppChipBrush">#343A47</SolidColorBrush>
+            <SolidColorBrush x:Key="AppBorderBrush">#3A4150</SolidColorBrush>
 
-            <SolidColorBrush x:Key="OverdueBrush">#FF8A70</SolidColorBrush>
-            <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#4C3620</SolidColorBrush>
-            <SolidColorBrush x:Key="PriorityHighForegroundBrush">#F2B879</SolidColorBrush>
-            <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#4E2620</SolidColorBrush>
-            <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#F49B8B</SolidColorBrush>
+            <SolidColorBrush x:Key="OverdueBrush">#FF7A66</SolidColorBrush>
+            <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#403017</SolidColorBrush>
+            <SolidColorBrush x:Key="PriorityHighForegroundBrush">#F5BC6B</SolidColorBrush>
+            <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#47211C</SolidColorBrush>
+            <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#FA9A87</SolidColorBrush>
 
-            <SolidColorBrush x:Key="StatusInitialBrush">#8D9199</SolidColorBrush>
-            <SolidColorBrush x:Key="StatusActiveBrush">#82AAF5</SolidColorBrush>
-            <SolidColorBrush x:Key="StatusFinalBrush">#66C388</SolidColorBrush>
+            <!-- The dark accent is bright, so text on it goes dark. -->
+            <SolidColorBrush x:Key="OnAccentBrush">#0C201C</SolidColorBrush>
+
+            <SolidColorBrush x:Key="StatusInitialBrush">#8B93A1</SolidColorBrush>
+            <SolidColorBrush x:Key="StatusActiveBrush">#7CA9F5</SolidColorBrush>
+            <SolidColorBrush x:Key="StatusFinalBrush">#5FCE8C</SolidColorBrush>
           </ResourceDictionary>
         </ResourceDictionary.ThemeDictionaries>
 

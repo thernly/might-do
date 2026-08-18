@@ -56,7 +56,8 @@
             <TextBlock Text="Filters" VerticalAlignment="Center" />
             <Border CornerRadius="9" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
                     Background="{DynamicResource SystemAccentColor}">
-              <TextBlock Text="{Binding PanelFilterCount}" FontSize="11" Foreground="White" />
+              <TextBlock Text="{Binding PanelFilterCount}" FontSize="11"
+                         Foreground="{DynamicResource OnAccentBrush}" />
             </Border>
           </StackPanel>
         </ToggleButton>
