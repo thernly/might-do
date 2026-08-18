@@ -1,4 +1,19 @@
+using MightDo.Core.Domain;
+
 namespace MightDo.Core.Storage;
+
+/// <summary>
+/// A persisted name that does not identify a file inside the workspace.
+/// </summary>
+/// <remarks>
+/// Task ids and attachment stored names come out of JSON the user (or a sync
+/// client, or anything else with write access to the folder) can edit, and they
+/// are turned straight back into paths. An absolute path or a <c>..</c> segment
+/// would resolve outside <c>tasks/</c> or <c>attachments/</c> and let a crafted
+/// workspace overwrite, move, or delete files elsewhere on the machine. Names
+/// are therefore checked at the boundary rather than trusted.
+/// </remarks>
+public sealed class UnsafeWorkspaceNameException(string message) : Exception(message);
 
 /// <summary>
 /// The on-disk layout of a workspace folder.
@@ -26,13 +41,59 @@ public sealed class Workspace(string root)
     public string TrashTasksDir => Path.Combine(TrashDir, "tasks");
     public string TrashAttachmentsDir => Path.Combine(TrashDir, "attachments");
 
-    public string TaskFile(string taskId) => Path.Combine(TasksDir, $"{taskId}.json");
+    public string TaskFile(string taskId) =>
+        Path.Combine(TasksDir, $"{RequireTaskId(taskId)}.json");
 
     public string TrashedTaskFile(string taskId) =>
-        Path.Combine(TrashTasksDir, $"{taskId}.json");
+        Path.Combine(TrashTasksDir, $"{RequireTaskId(taskId)}.json");
 
     public string AttachmentFile(string storedName) =>
-        Path.Combine(AttachmentsDir, storedName);
+        Path.Combine(AttachmentsDir, RequireStoredName(storedName));
+
+    public string TrashedAttachmentFile(string storedName) =>
+        Path.Combine(TrashAttachmentsDir, RequireStoredName(storedName));
+
+    /// <summary>A task id, or a refusal — never a path.</summary>
+    public static string RequireTaskId(string taskId) =>
+        Ulid.IsUlid(taskId)
+            ? taskId
+            : throw new UnsafeWorkspaceNameException(
+                $"Task id is not a ULID: '{taskId}'.");
+
+    /// <summary>
+    /// An attachment's stored name, which is always
+    /// <c>&lt;attachment-ulid&gt;-&lt;original file name&gt;</c> and always a
+    /// plain name inside the attachments folder.
+    /// </summary>
+    public static string RequireStoredName(string storedName)
+    {
+        var separator = Ulid.Length;
+        if (storedName.Length > separator + 1
+            && storedName[separator] == '-'
+            && Ulid.IsUlid(storedName.AsSpan(0, Ulid.Length))
+            && IsPlainName(storedName[(separator + 1)..]))
+        {
+            return storedName;
+        }
+
+        throw new UnsafeWorkspaceNameException(
+            $"Attachment stored name is not '<ulid>-<file name>': '{storedName}'.");
+    }
+
+    /// <summary>
+    /// Whether a name stays put: no separator on any platform, no drive or
+    /// stream qualifier, and not a walk up the tree.
+    /// </summary>
+    /// <remarks>
+    /// Both separators are rejected everywhere, not just the local one. A
+    /// workspace written on Linux is read on Windows, where a name containing a
+    /// backslash stops being one name.
+    /// </remarks>
+    private static bool IsPlainName(string name) =>
+        name is not ("." or "..")
+        && name.AsSpan().IndexOfAny('/', '\\') < 0
+        && !name.Contains(':')
+        && !Path.IsPathRooted(name);
 
     public void EnsureLayout()
     {

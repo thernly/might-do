@@ -223,6 +223,144 @@ public class TaskStoreTests : IDisposable
         Assert.Empty(loaded.Tasks);
     }
 
+    // A workspace is a folder the user (and a sync client, and anything else
+    // with write access) can edit by hand, so every persisted name that becomes
+    // a path is hostile input until checked.
+
+    [Theory]
+    [InlineData("/etc/passwd")]
+    [InlineData("../../escaped")]
+    [InlineData("..\\..\\escaped")]
+    [InlineData("sub/dir")]
+    [InlineData("")]
+    [InlineData("01m07z000000000000000000zz")] // a ULID, but not this file's
+    public async Task RefusesATaskFileWhoseIdWouldWriteSomewhereElse(string craftedId)
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        // The filename is a perfectly good ULID; only the id inside is crafted.
+        var fileName = $"{Ulid.New()}.json";
+        await File.WriteAllTextAsync(
+            Path.Combine(store.Workspace.TasksDir, fileName),
+            $$"""
+              {"schemaVersion":1,"id":{{System.Text.Json.JsonSerializer.Serialize(craftedId)}},
+               "summary":"Crafted","statusId":"s","boardRank":"n","createdAt":"2026-08-18T00:00:00Z",
+               "updatedAt":"2026-08-18T00:00:00Z"}
+              """);
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Empty(loaded.Tasks);
+        var failure = Assert.Single(loaded.Failures);
+        Assert.Equal(fileName, failure.FileName);
+        Assert.IsType<UnsafeWorkspaceNameException>(failure.Error);
+    }
+
+    [Theory]
+    [InlineData("/etc/passwd")]
+    [InlineData("../../../secrets.txt")]
+    [InlineData("01m07z000000000000000000a1-../../escaped")]
+    [InlineData("01m07z000000000000000000a1-..\\..\\escaped")]
+    [InlineData("01m07z000000000000000000a1-..")]
+    [InlineData("plan.pdf")] // no id prefix
+    public async Task RefusesAnAttachmentNameThatWouldReachOutsideTheWorkspace(string storedName)
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        var id = Ulid.New();
+        await File.WriteAllTextAsync(
+            Path.Combine(store.Workspace.TasksDir, $"{id}.json"),
+            $$"""
+              {"schemaVersion":1,"id":"{{id}}","summary":"Crafted","statusId":"s",
+               "boardRank":"n","createdAt":"2026-08-18T00:00:00Z",
+               "updatedAt":"2026-08-18T00:00:00Z",
+               "attachments":[{"id":"01m07z000000000000000000a1","originalName":"plan.pdf",
+                 "storedName":{{System.Text.Json.JsonSerializer.Serialize(storedName)}},
+                 "sizeBytes":1,"addedAt":"2026-08-18T00:00:00Z"}]}
+              """);
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Empty(loaded.Tasks);
+        Assert.IsType<UnsafeWorkspaceNameException>(Assert.Single(loaded.Failures).Error);
+        Assert.Throws<UnsafeWorkspaceNameException>(() => store.DeleteAttachment(storedName));
+    }
+
+    [Fact]
+    public async Task DoesNotDeleteAFileOutsideTheWorkspaceOnAttachmentDelete()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        var outsider = Path.Combine(Path.GetTempPath(), $"mightdo-outsider-{Guid.NewGuid():N}");
+        await File.WriteAllTextAsync(outsider, "must survive");
+        try
+        {
+            Assert.Throws<UnsafeWorkspaceNameException>(
+                () => store.DeleteAttachment($"../../{Path.GetFileName(outsider)}"));
+            Assert.Throws<UnsafeWorkspaceNameException>(() => store.DeleteAttachment(outsider));
+            Assert.True(File.Exists(outsider));
+        }
+        finally
+        {
+            File.Delete(outsider);
+        }
+    }
+
+    [Fact]
+    public async Task RefusesToTrashATaskWithACraftedAttachmentBeforeMovingAnything()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        const string safe = "01m07z000000000000000000a1-plan.pdf";
+        await File.WriteAllTextAsync(store.Workspace.AttachmentFile(safe), "attachment bytes");
+
+        var task = MightDoTask.Create("Two attachments", "s", Rank.First) with
+        {
+            Attachments =
+            [
+                new Attachment("01m07z000000000000000000a1", "plan.pdf", safe, 15, DateTime.UtcNow),
+                new Attachment("01m07z000000000000000000a2", "evil", "../../evil", 1, DateTime.UtcNow),
+            ],
+        };
+        await store.SaveTaskAsync(task);
+
+        await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(
+            () => store.TrashTaskAsync(task));
+
+        // Nothing was moved: the check happens before the first rename, so the
+        // task is not left half in the trash.
+        Assert.True(File.Exists(store.Workspace.AttachmentFile(safe)));
+        Assert.True(File.Exists(store.Workspace.TaskFile(task.Id)));
+    }
+
+    [Fact]
+    public async Task RefusesToSaveATaskWhoseIdIsNotAUlid()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+        var task = MightDoTask.Create("Crafted", "s", Rank.First) with { Id = "../../escaped" };
+
+        await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(() => store.SaveTaskAsync(task));
+
+        Assert.Empty(Directory.GetFiles(store.Workspace.TasksDir));
+    }
+
+    [Fact]
+    public async Task ReadsAnImpossibleTaskIdAsAbsentRatherThanThrowing()
+    {
+        // Looking something up is allowed to come back empty; only writing under
+        // a crafted id is an error.
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        Assert.Null(await store.LoadTaskAsync("../../etc/passwd"));
+        Assert.Null(await store.RestoreTaskAsync("../../etc/passwd"));
+    }
+
     [Fact]
     public void KnowsWhenTheWorkspaceFolderHasGone()
     {
