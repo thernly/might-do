@@ -4,9 +4,7 @@ A personal task tracker for people who find Microsoft To Do too limited but full
 project-management tools too heavy. Local-first, single-user, no server and no
 account. Runs on macOS, Windows and Linux.
 
-The application is C# on .NET 10 with an Avalonia front end, ported from an
-earlier Flutter implementation that has now been removed — see
-[The format is verified, not the port](#the-format-is-verified-not-the-port).
+The application is C# on .NET 10 with an Avalonia front end.
 
 ## What a task has
 
@@ -93,6 +91,68 @@ somewhere harmless:
 MIGHTDO_SETTINGS=/tmp/might-do-dev.json dotnet run --project src/MightDo.App
 ```
 
+## Building for release
+
+From the repo root, build the app in Release configuration:
+
+```sh
+dotnet build src/MightDo.App/MightDo.App.csproj -c Release
+```
+
+This compiles the .NET 10 app and produces the publishable binaries for the
+current machine. Use the platform-specific commands below if you want to build a
+native app bundle or installer for a target OS.
+
+### macOS
+
+```sh
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r osx-arm64 --self-contained false
+```
+
+Use the appropriate RID for your Mac architecture (`osx-x64` for Intel, `osx-arm64`
+for Apple Silicon).
+
+For macOS app-bundle and DMG packaging, use the packaging script:
+
+```sh
+brew install create-dmg
+./tools/package-macos-release.sh
+```
+
+Optional architecture override:
+
+```sh
+./tools/package-macos-release.sh x86_64
+./tools/package-macos-release.sh arm64
+```
+
+The script creates both artifacts in `dist/`: `might-do.app` and
+`might-do-<rid>.dmg`.
+
+### Windows
+
+```powershell
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r win-x64 --self-contained false
+
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r win-arm64 --self-contained false
+```
+
+Use `win-x64` for 64-bit Windows or `win-arm64` for ARM-based Windows devices.
+The published output is the portable app folder that can then be wrapped in an
+installer or packaged for distribution.
+
+### Linux
+
+```sh
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-x64 --self-contained false
+
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-arm64 --self-contained false
+```
+
+Use the RID that matches your Linux architecture (`linux-x64` or `linux-arm64`).
+If you want a fully self-contained single-binary deployment, replace
+`--self-contained false` with `--self-contained true` and choose the matching RID.
+
 ## Repository layout
 
 | Path | What it is |
@@ -105,18 +165,17 @@ MIGHTDO_SETTINGS=/tmp/might-do-dev.json dotnet run --project src/MightDo.App
 | `tools/` | The fixture writer. |
 | `spikes/` | Throwaway code backing the measurements in ADR-0003 and ADR-0004. |
 
-## The format is verified, not the port
+## The format is verified
 
-The Flutter implementation was the reference this one was checked against. It
-has been removed now that the checking is finished, but what it pinned down
-survives as committed fixtures, and three things stay verified automatically:
+The app keeps committed fixtures and parity scenarios to verify the on-disk
+format and behaviour automatically:
 
-- **The format reads both ways.** `fixtures/workspace-v1/` is a corpus Flutter
-  wrote, loaded and written back without losing a value; `fixtures/interop/`
-  is what this implementation writes, which Flutter read the same way.
-- **The behaviour matches.** A sixteen-step scenario, and the workspace Flutter
-  left after running it, are committed in `fixtures/parity/` and replayed on
-  every test run — down to the board ranks.
+- **The format reads both ways.** `fixtures/workspace-v1/` is a corpus that is
+  loaded and written back without losing a value; `fixtures/interop/` is what
+  this implementation writes and is checked against the same expectations.
+- **The behaviour matches.** A sixteen-step scenario, and the workspace left
+  after running it, are committed in `fixtures/parity/` and replayed on every
+  test run — down to the board ranks.
 - **The views load.** Avalonia's headless platform builds the real visual tree
   with no display, so a XAML file naming a type that does not exist fails a test
   rather than a launch.
@@ -129,10 +188,6 @@ dotnet run --project tools/MightDo.FixtureWriter   # rewrites fixtures/interop
 These expectations can no longer be regenerated — the oracle that produced them
 is gone. Treat a parity or conformance failure as a change in behaviour to
 justify, not a fixture to refresh.
-
-One divergence from Flutter is deliberate, recorded next to the code and named
-by a test: selecting the `Final` **status type** reveals completed work here,
-where Flutter showed an empty list. Flutter's behaviour was the bug.
 
 ## Documentation
 

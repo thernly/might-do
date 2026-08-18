@@ -36,3 +36,6 @@ handoff.md
 finding*.md
 assess*.md
 task*.md
+
+# distribution files
+dist/

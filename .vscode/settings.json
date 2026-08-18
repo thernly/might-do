@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^dotnet build src/MightDo\\.App/MightDo\\.App\\.csproj -nologo$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}
