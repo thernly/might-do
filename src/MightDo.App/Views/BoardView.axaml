@@ -12,7 +12,7 @@
          faint shadow that deepens under the pointer. -->
     <Style Selector="Border.card">
       <Setter Property="Background" Value="{DynamicResource AppCardBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="10,8" />

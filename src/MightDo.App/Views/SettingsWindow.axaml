@@ -8,7 +8,9 @@
         x:DataType="vm:SettingsViewModel"
         Title="might-do settings"
         Width="720" Height="760" MinWidth="560" MinHeight="420"
-        WindowStartupLocation="CenterOwner">
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppWindowBrush}"
+        Foreground="{DynamicResource AppTextBrush}">
 
   <Window.Styles>
     <Style Selector="TextBlock.section">
@@ -17,7 +19,7 @@
       <Setter Property="Margin" Value="0,18,0,2" />
     </Style>
     <Style Selector="TextBlock.hint">
-      <Setter Property="Opacity" Value="0.6" />
+      <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
       <Setter Property="FontSize" Value="11" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>

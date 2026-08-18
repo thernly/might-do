@@ -10,7 +10,8 @@
         Title="might-do"
         Width="1000" Height="700"
         MinWidth="640" MinHeight="420"
-        Background="{DynamicResource AppWindowBrush}">
+        Background="{DynamicResource AppWindowBrush}"
+        Foreground="{DynamicResource AppTextBrush}">
 
   <Panel>
     <!-- No workspace yet: ask for one. -->
@@ -67,7 +68,8 @@
              would reshuffle the toolbar on every view switch. -->
         <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"
                     IsEnabled="{Binding IsListView}">
-          <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" Opacity="0.6" />
+          <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0"
+                     Foreground="{DynamicResource AppTextSecondaryBrush}" />
           <ComboBox MinWidth="150"
                     ItemsSource="{Binding SortOptions}"
                     DisplayMemberBinding="{Binding Label}"
@@ -224,7 +226,7 @@
       <Border Grid.Column="0" BorderThickness="1" CornerRadius="8"
               IsVisible="{Binding IsListView}"
               Background="{DynamicResource AppCardBrush}"
-              BorderBrush="{DynamicResource AppBorderBrush}">
+              BorderBrush="{DynamicResource AppCardBorderBrush}">
         <ListBox Classes="rows" ItemsSource="{Binding Tasks}"
                  SelectedItem="{Binding SelectedTask}" Background="Transparent">
           <ListBox.ItemTemplate>
@@ -281,7 +283,7 @@
       <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="8"
               IsVisible="{Binding HasSelection}"
               Background="{DynamicResource AppCardBrush}"
-              BorderBrush="{DynamicResource AppBorderBrush}"
+              BorderBrush="{DynamicResource AppCardBorderBrush}"
               BoxShadow="0 1 4 0 #22000000">
         <Grid RowDefinitions="Auto,Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="8,8,8,0">

@@ -34,6 +34,17 @@
             <SolidColorBrush x:Key="AppChipBrush">#E9E6DF</SolidColorBrush>
             <SolidColorBrush x:Key="AppBorderBrush">#E2DFD8</SolidColorBrush>
 
+            <!-- Text. Two levels, both chosen against the surfaces rather
+                 than faded into them with opacity: a washed-out grey and a
+                 half-transparent black are not the same colour, and only the
+                 first stays legible over a tinted chip. -->
+            <SolidColorBrush x:Key="AppTextBrush">#22201C</SolidColorBrush>
+            <SolidColorBrush x:Key="AppTextSecondaryBrush">#6E6A62</SolidColorBrush>
+
+            <!-- Card edges are flat in light mode: a lighter top edge against
+                 a white card has nothing to be lighter than. -->
+            <SolidColorBrush x:Key="AppCardBorderBrush">#E2DFD8</SolidColorBrush>
+
             <SolidColorBrush x:Key="OverdueBrush">#C0361C</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#FCE8D5</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityHighForegroundBrush">#8F4A00</SolidColorBrush>
@@ -68,6 +79,22 @@
             <SolidColorBrush x:Key="AppCardBrush">#262A33</SolidColorBrush>
             <SolidColorBrush x:Key="AppChipBrush">#343A47</SolidColorBrush>
             <SolidColorBrush x:Key="AppBorderBrush">#3A4150</SolidColorBrush>
+
+            <!-- Not white. Pure white on a dark ground is past legible and
+                 into glare, and it is the largest area of colour on screen,
+                 so it takes the same blue cast as the surfaces under it. -->
+            <SolidColorBrush x:Key="AppTextBrush">#E4E8F0</SolidColorBrush>
+            <SolidColorBrush x:Key="AppTextSecondaryBrush">#99A1B0</SolidColorBrush>
+
+            <!-- The lit edge. A real surface catches light along its top, and
+                 on a dark ground that hairline reads as depth in a way a
+                 uniform border cannot — the gradient runs from a lifted edge
+                 back to the plain border within the first few pixels. -->
+            <LinearGradientBrush x:Key="AppCardBorderBrush"
+                                 StartPoint="0%,0%" EndPoint="0%,100%">
+              <GradientStop Offset="0" Color="#55607A" />
+              <GradientStop Offset="0.28" Color="#3A4150" />
+            </LinearGradientBrush>
 
             <SolidColorBrush x:Key="OverdueBrush">#FF7A66</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#403017</SolidColorBrush>
@@ -113,12 +140,12 @@
           <Setter Property="Margin" Value="0,0,0,3" />
         </Style>
         <Style Selector="TextBlock.label">
-          <Setter Property="Opacity" Value="0.6" />
+          <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
           <Setter Property="FontSize" Value="11" />
           <Setter Property="Margin" Value="0,8,0,2" />
         </Style>
         <Style Selector="TextBlock.hint">
-          <Setter Property="Opacity" Value="0.6" />
+          <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
           <Setter Property="FontSize" Value="12" />
         </Style>
 
@@ -126,12 +153,11 @@
              thing on the row. -->
         <Style Selector="TextBlock.due">
           <Setter Property="FontSize" Value="12" />
-          <Setter Property="Opacity" Value="0.7" />
+          <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
         </Style>
         <Style Selector="TextBlock.due.overdue">
           <Setter Property="Foreground" Value="{DynamicResource OverdueBrush}" />
           <Setter Property="FontWeight" Value="SemiBold" />
-          <Setter Property="Opacity" Value="1" />
         </Style>
 
         <!-- Chips. Neutral by default; a priority worth noticing tints its
@@ -184,6 +210,10 @@
              nth-last-child keeps the final row from drawing a line into the
              list's own bottom border. -->
         <Style Selector="ListBox.rows > ListBoxItem">
+          <!-- The item's own theme sets a foreground, which otherwise wins
+               over the window's and leaves the rows on stock black or white
+               while everything around them is tinted. -->
+          <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
           <Setter Property="Padding" Value="10,3" />
           <Setter Property="CornerRadius" Value="0" />
           <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
