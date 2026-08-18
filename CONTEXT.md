@@ -5,6 +5,18 @@ project-management tools too heavy. Deliberately single-user and local-first.
 
 ## Language
 
+### Where tasks live
+
+**Workspace**:
+A folder holding one self-contained set of tasks, with its own statuses,
+categories and tags. A user may keep several — work in one, home in another —
+and the app has exactly one open at a time; switching closes the one being
+left. Everything in the glossary below belongs to a workspace and means nothing
+outside it: two workspaces may both have a `Blocked` status, and they are not
+the same status.
+_Avoid_: Project (means Category to a user, and both are wrong), vault, space,
+database, account
+
 ### The task itself
 
 **Task**:
@@ -45,8 +57,9 @@ Several statuses may share a type: `Backlog` and `Ready` are both `Initial`;
 _Avoid_: Category (means something else here), kind, class, bucket, state
 
 **Category**:
-A user-defined grouping that answers "what area of my life does this belong to?"
-A task has exactly one, or none.
+A user-defined grouping *within a workspace* that answers "what area of my life
+does this belong to?" A task has exactly one, or none. Not to be confused with
+the Workspace, which is the coarser split and a different folder entirely.
 _Avoid_: Project, list, folder, bucket, area
 
 **Tag**:

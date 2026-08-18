@@ -160,3 +160,265 @@ public class NotifierSelectionTests
         else if (OperatingSystem.IsLinux()) Assert.IsType<LinuxReminderNotifier>(notifier);
     }
 }
+
+/// <summary>
+/// The list of workspaces, and the per-workspace view state beside it.
+/// </summary>
+public class WorkspaceListTests : IDisposable
+{
+    private readonly string _dir = Path.Combine(
+        Path.GetTempPath(), "mightdo-workspaces-" + Guid.NewGuid().ToString("N")[..8]);
+
+    private string SettingsPath => Path.Combine(_dir, "settings.json");
+
+    private string Folder(string name)
+    {
+        var path = Path.Combine(_dir, name);
+        Directory.CreateDirectory(path);
+        return path;
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_dir)) Directory.Delete(_dir, recursive: true);
+        GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public void RemembersSeveralWorkspacesAndWhichIsOpen()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        var home = Folder("home");
+
+        settings.AddWorkspace(work);
+        settings.AddWorkspace(home);
+
+        var reloaded = AppSettings.Load(SettingsPath);
+
+        Assert.Equal([work, home], reloaded.Workspaces.Select(w => w.Path));
+        Assert.Equal(home, reloaded.CurrentWorkspace?.Path);
+    }
+
+    [Fact]
+    public void NamesAWorkspaceAfterItsFolderUntilItIsRenamed()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+
+        settings.AddWorkspace(work);
+        Assert.Equal("work", settings.CurrentWorkspace?.Name);
+
+        settings.RenameWorkspace(work, "  The day job  ");
+
+        Assert.Equal("The day job", AppSettings.Load(SettingsPath).CurrentWorkspace?.Name);
+    }
+
+    [Fact]
+    public void RenamingToNothingLeavesTheNameAlone()
+    {
+        // An empty name is a row in the switcher you cannot see or point at.
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        settings.AddWorkspace(work);
+
+        settings.RenameWorkspace(work, "   ");
+
+        Assert.Equal("work", settings.CurrentWorkspace?.Name);
+    }
+
+    [Fact]
+    public void AddingAFolderAlreadyInTheListSwitchesToItInstead()
+    {
+        // Two rows for one folder cannot be told apart, and one of them would
+        // hold a stale copy of the view state.
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        var home = Folder("home");
+
+        settings.AddWorkspace(work, "The day job");
+        settings.AddWorkspace(home);
+        settings.AddWorkspace(work);
+
+        Assert.Equal(2, settings.Workspaces.Count);
+        Assert.Equal(work, settings.CurrentWorkspace?.Path);
+        Assert.Equal("The day job", settings.CurrentWorkspace?.Name);
+    }
+
+    [Fact]
+    public void ForgettingTheOpenWorkspaceLeavesNothingOpen()
+    {
+        // And not the neighbour: quietly loading a different set of tasks into
+        // the window is a worse surprise than an empty one.
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        var home = Folder("home");
+        settings.AddWorkspace(work);
+        settings.AddWorkspace(home);
+
+        settings.ForgetWorkspace(home);
+
+        var reloaded = AppSettings.Load(SettingsPath);
+        Assert.Equal([work], reloaded.Workspaces.Select(w => w.Path));
+        Assert.Null(reloaded.CurrentWorkspace);
+    }
+
+    [Fact]
+    public void ClosingAWorkspaceKeepsItInTheList()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        settings.AddWorkspace(work);
+
+        settings.CloseWorkspace();
+
+        var reloaded = AppSettings.Load(SettingsPath);
+        Assert.Single(reloaded.Workspaces);
+        Assert.Null(reloaded.CurrentWorkspace);
+    }
+
+    [Fact]
+    public void AWorkspaceWhoseFolderHasGoneStaysInTheList()
+    {
+        // An unmounted drive, or a OneDrive folder that has not synced yet.
+        var settings = AppSettings.Load(SettingsPath);
+        var gone = Path.Combine(_dir, "not-here");
+        settings.AddWorkspace(gone);
+
+        var reloaded = AppSettings.Load(SettingsPath);
+
+        Assert.Single(reloaded.Workspaces);
+        Assert.False(reloaded.Workspaces[0].Exists);
+        Assert.Equal(gone, reloaded.RememberedWorkspacePath);
+        Assert.Null(reloaded.WorkspacePath);
+    }
+
+    [Fact]
+    public void SwitchingToAFolderNobodyAddedIsRefused()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+
+        Assert.Throws<ArgumentException>(() => settings.SetCurrentWorkspace(Folder("work")));
+    }
+
+    // ---- view state ---------------------------------------------------------
+
+    [Fact]
+    public void EachWorkspaceKeepsItsOwnView()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        var home = Folder("home");
+        settings.AddWorkspace(work);
+        settings.AddWorkspace(home);
+
+        settings.SaveViewState(work, new WorkspaceViewState
+        {
+            ViewMode = ViewMode.Board,
+            Sort = "DueDate",
+            Search = "invoice",
+            OverdueOnly = true,
+            TagIds = ["01hq"],
+        });
+        settings.SaveViewState(home, new WorkspaceViewState { ViewMode = ViewMode.List });
+
+        var reloaded = AppSettings.Load(SettingsPath);
+
+        var workView = reloaded.ViewStateFor(work);
+        Assert.Equal(ViewMode.Board, workView.ViewMode);
+        Assert.Equal("DueDate", workView.Sort);
+        Assert.Equal("invoice", workView.Search);
+        Assert.True(workView.OverdueOnly);
+        Assert.Equal(["01hq"], workView.TagIds);
+
+        Assert.Equal(ViewMode.List, reloaded.ViewStateFor(home).ViewMode);
+        Assert.False(reloaded.ViewStateFor(home).HasAnyFilter);
+    }
+
+    [Fact]
+    public void ANewWorkspaceStartsInTheViewLastUsedAnywhere()
+    {
+        // Adding a second workspace should not throw a board user back to the
+        // list on their first look at it.
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        settings.AddWorkspace(work);
+        settings.SaveViewState(work, new WorkspaceViewState { ViewMode = ViewMode.Board });
+
+        var home = settings.AddWorkspace(Folder("home"));
+
+        Assert.Equal(ViewMode.Board, home.View.ViewMode);
+    }
+
+    [Fact]
+    public void ViewStateForAWorkspaceNobodyAddedIsADefault()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+
+        var state = settings.ViewStateFor(Folder("stranger"));
+
+        Assert.Equal(ViewMode.List, state.ViewMode);
+        Assert.False(state.HasAnyFilter);
+    }
+
+    // ---- migration ----------------------------------------------------------
+
+    [Fact]
+    public void MigratesTheSingleWorkspacePathOlderVersionsWrote()
+    {
+        // Upgrading must not drop someone at the "choose a folder" screen
+        // having apparently forgotten everything they had.
+        var work = Folder("work");
+        File.WriteAllText(SettingsPath, $$"""
+            {
+              "workspacePath": {{System.Text.Json.JsonSerializer.Serialize(work)}},
+              "viewMode": "board",
+              "windowWidth": 900,
+              "windowHeight": 600
+            }
+            """);
+
+        var settings = AppSettings.Load(SettingsPath);
+
+        var only = Assert.Single(settings.Workspaces);
+        Assert.Equal(work, only.Path);
+        Assert.Equal("work", only.Name);
+        Assert.Equal(ViewMode.Board, only.View.ViewMode);
+        Assert.Equal(work, settings.WorkspacePath);
+        Assert.Equal(900, settings.WindowPlacement?.Width);
+    }
+
+    [Fact]
+    public void TheMigratedPathIsNotWrittenBack()
+    {
+        var work = Folder("work");
+        File.WriteAllText(SettingsPath, $$"""
+            { "workspacePath": {{System.Text.Json.JsonSerializer.Serialize(work)}} }
+            """);
+
+        var settings = AppSettings.Load(SettingsPath);
+        settings.RenameWorkspace(work, "The day job");
+
+        var written = File.ReadAllText(SettingsPath);
+        Assert.DoesNotContain("\"workspacePath\"", written);
+        Assert.Contains("\"workspaces\"", written);
+    }
+
+    [Fact]
+    public void AWorkspaceListAlreadyThereWinsOverTheOldKey()
+    {
+        var work = Folder("work");
+        File.WriteAllText(SettingsPath, $$"""
+            {
+              "workspaces": [ { "path": {{System.Text.Json.JsonSerializer.Serialize(work)}}, "name": "Kept" } ],
+              "currentWorkspacePath": {{System.Text.Json.JsonSerializer.Serialize(work)}},
+              "workspacePath": "/somewhere/stale"
+            }
+            """);
+
+        var settings = AppSettings.Load(SettingsPath);
+
+        Assert.Single(settings.Workspaces);
+        Assert.Equal("Kept", settings.CurrentWorkspace?.Name);
+    }
+}

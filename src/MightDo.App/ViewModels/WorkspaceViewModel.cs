@@ -27,8 +27,22 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly ReminderScheduler _reminders;
     private readonly AppSettings _settings;
     private readonly IFilePicker _filePicker;
+
+    /// <summary>
+    /// Filter selections read from settings that no toggle exists for yet.
+    /// </summary>
+    /// <remarks>
+    /// The toggles are built from the workspace's config, which is not loaded
+    /// when the restored state arrives, so the ids wait here and are claimed by
+    /// the first projection. Ids naming something since deleted — a tag removed
+    /// on another machine — are simply never claimed.
+    /// </remarks>
+    private readonly HashSet<string> _restoredFilterIds = [];
+    private readonly Timer _saveViewState;
     private string? _selectedTaskId;
     private bool _projecting;
+    private bool _restoring;
+    private WorkspaceViewState? _pendingViewState;
     private bool _disposed;
 
     [ObservableProperty]
@@ -93,7 +107,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _reminders.Fired += (_, _) => OnUiThread(Project);
         _reminders.Start();
 
-        ViewMode = settings.ViewMode;
+        // Written on a threadpool tick from state captured on the UI thread, so
+        // typing in the search box does not put a file write behind every
+        // keystroke.
+        _saveViewState = new Timer(_ => FlushViewState(), null, Timeout.Infinite, Timeout.Infinite);
+
+        Restore(settings.ViewStateFor(root));
         Project();
     }
 
@@ -105,6 +124,84 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     }
 
     public string Root { get; }
+
+    /// <summary>
+    /// Puts back the view this workspace was left in.
+    /// </summary>
+    /// <remarks>
+    /// Applied with projection suppressed and then projected once, rather than
+    /// letting each property change redraw the list on its way past.
+    /// </remarks>
+    private void Restore(WorkspaceViewState state)
+    {
+        _restoring = true;
+        try
+        {
+            ViewMode = state.ViewMode;
+            Search = state.Search;
+            IncludeCompleted = state.IncludeCompleted;
+            OverdueOnly = state.OverdueOnly;
+
+            // An unparseable sort is a sort this build no longer has. Falling
+            // back beats refusing to open the workspace over it.
+            if (Enum.TryParse<TaskSort>(state.Sort, out var sort)) Sort = sort;
+
+            foreach (var id in state.SelectedFilterIds) _restoredFilterIds.Add(id);
+
+            // Only worth opening the panel when there is something in it to see.
+            FiltersOpen = _restoredFilterIds.Count > 0 || IncludeCompleted || OverdueOnly;
+        }
+        finally
+        {
+            _restoring = false;
+        }
+    }
+
+    /// <summary>The view as it stands, in the shape settings stores.</summary>
+    private WorkspaceViewState CurrentViewState() => new()
+    {
+        ViewMode = ViewMode,
+        Sort = Sort.ToString(),
+        Search = Search,
+        IncludeCompleted = IncludeCompleted,
+        OverdueOnly = OverdueOnly,
+        StatusIds = [.. SelectedIds(Statuses)],
+        StatusTypes = [.. SelectedIds(StatusTypes)],
+        CategoryIds = [.. SelectedIds(Categories)],
+        TagIds = [.. SelectedIds(TagFilters)],
+        Priorities = [.. SelectedIds(Priorities)],
+    };
+
+    private static IEnumerable<string> SelectedIds(IEnumerable<FilterToggle> toggles) =>
+        toggles.Where(toggle => toggle.IsSelected).Select(toggle => toggle.Id);
+
+    /// <summary>
+    /// Captures the view now and writes it shortly.
+    /// </summary>
+    /// <remarks>
+    /// The capture happens here, on the UI thread, so the timer never reads a
+    /// collection the projection is midway through rebuilding.
+    /// </remarks>
+    private void ScheduleViewStateSave()
+    {
+        if (_restoring || _disposed) return;
+
+        _pendingViewState = CurrentViewState();
+        _saveViewState.Change(TimeSpan.FromMilliseconds(400), Timeout.InfiniteTimeSpan);
+    }
+
+    /// <summary>Writes any captured view state immediately.</summary>
+    /// <remarks>
+    /// Called as the workspace closes — switching to another one, or quitting —
+    /// so the last change before it does is not the one that gets lost.
+    /// </remarks>
+    public void FlushViewState()
+    {
+        if (Interlocked.Exchange(ref _pendingViewState, null) is { } state)
+        {
+            _settings.SaveViewState(Root, state);
+        }
+    }
 
     public ObservableCollection<TaskRowViewModel> Tasks { get; } = [];
 
@@ -201,11 +298,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public bool IsBoardView => ViewMode == ViewMode.Board;
 
-    partial void OnViewModeChanged(ViewMode value)
-    {
-        _settings.SetViewMode(value);
-        Project();
-    }
+    partial void OnViewModeChanged(ViewMode value) => Project();
 
     [RelayCommand]
     private void ShowList() => ViewMode = ViewMode.List;
@@ -405,7 +498,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void Project()
     {
-        if (_disposed) return;
+        if (_disposed || _restoring) return;
 
         // Held for the whole rebuild: emptying Tasks makes the ListBox report a
         // null selection, which without this would look like the user closing
@@ -421,6 +514,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         }
 
         SelectTaskById(_selectedTaskId);
+        ScheduleViewStateSave();
     }
 
     private void Rebuild()
@@ -463,6 +557,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 column.Status,
                 column.Tasks.Select(task => new BoardCardViewModel(task, snapshot.Config)))));
 
+        // The restored selections have now been offered to every group, so they
+        // stop being pending. Holding them longer would re-select a filter the
+        // user had just cleared.
+        _restoredFilterIds.Clear();
+
         IsFiltered = query.IsFiltered;
         OnPropertyChanged(nameof(PanelFilterCount));
         OnPropertyChanged(nameof(HasPanelFilters));
@@ -485,6 +584,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         ObservableCollection<FilterToggle> target, IEnumerable<(string Id, string Name)> items)
     {
         var selected = target.Where(t => t.IsSelected).Select(t => t.Id).ToHashSet();
+        selected.UnionWith(_restoredFilterIds);
 
         target.Clear();
         foreach (var (id, name) in items)
@@ -513,6 +613,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+
+        FlushViewState();
+        _saveViewState.Dispose();
 
         _session.Changed -= OnWorkspaceChanged;
         _watcher.Dispose();

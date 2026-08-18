@@ -32,8 +32,27 @@ public sealed record WindowPlacement(double Width, double Height, bool Maximized
 /// <summary>The settings file's shape. Machine-local, never synced.</summary>
 public sealed record AppSettingsData
 {
+    /// <summary>Every workspace the user has added, in the order they added them.</summary>
+    public IReadOnlyList<RememberedWorkspace> Workspaces { get; init; } = [];
+
+    /// <summary>Which of them is open.</summary>
+    public string? CurrentWorkspacePath { get; init; }
+
+    /// <summary>
+    /// The single workspace path older versions wrote, migrated on load.
+    /// </summary>
+    /// <remarks>
+    /// Kept only so an existing installation does not open to the "choose a
+    /// folder" screen having apparently forgotten everything. Read once, folded
+    /// into <see cref="Workspaces"/>, and never written again.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? WorkspacePath { get; init; }
 
+    /// <summary>
+    /// The view a newly added workspace starts in, which is the last one chosen
+    /// anywhere. Each workspace then keeps its own in <see cref="WorkspaceViewState"/>.
+    /// </summary>
     public ViewMode ViewMode { get; init; } = ViewMode.List;
 
     public double? WindowWidth { get; init; }
@@ -41,6 +60,29 @@ public sealed record AppSettingsData
     public double? WindowHeight { get; init; }
 
     public bool WindowMaximized { get; init; }
+
+    /// <summary>
+    /// The same settings with any pre-list workspace path folded into the list.
+    /// </summary>
+    public AppSettingsData Migrated()
+    {
+        if (WorkspacePath is not { Length: > 0 } path || Workspaces.Count > 0) return this;
+
+        return this with
+        {
+            Workspaces =
+            [
+                new RememberedWorkspace
+                {
+                    Path = path,
+                    Name = RememberedWorkspace.NameFor(path),
+                    View = new WorkspaceViewState { ViewMode = ViewMode },
+                },
+            ],
+            CurrentWorkspacePath = path,
+            WorkspacePath = null,
+        };
+    }
 }
 
 /// <summary>
@@ -109,7 +151,7 @@ public sealed class AppSettings
             {
                 var data = JsonSerializer.Deserialize<AppSettingsData>(
                     File.ReadAllText(path), Options);
-                if (data is not null) return new AppSettings(path, data);
+                if (data is not null) return new AppSettings(path, data.Migrated());
             }
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
@@ -120,20 +162,153 @@ public sealed class AppSettings
         return new AppSettings(path, new AppSettingsData());
     }
 
+    // ------------------------------------------------------------- workspaces
+
+    /// <summary>Every workspace the user has added, in the order they added them.</summary>
+    public IReadOnlyList<RememberedWorkspace> Workspaces => _data.Workspaces;
+
+    /// <summary>The workspace that is open, or null if none has been chosen.</summary>
+    public RememberedWorkspace? CurrentWorkspace => Find(_data.CurrentWorkspacePath);
+
     /// <summary>
     /// The chosen workspace folder, or null if none has been picked or the
     /// folder has since gone — an unmounted drive, a moved OneDrive folder.
     /// </summary>
     public string? WorkspacePath =>
-        RememberedWorkspacePath is { } remembered && Directory.Exists(remembered)
-            ? remembered
-            : null;
+        CurrentWorkspace is { Exists: true } workspace ? workspace.Path : null;
 
     /// <summary>
     /// The stored path even if it no longer resolves, so the app can say
     /// "couldn't find your workspace at X" rather than silently starting over.
     /// </summary>
-    public string? RememberedWorkspacePath => _data.WorkspacePath;
+    public string? RememberedWorkspacePath => CurrentWorkspace?.Path;
+
+    /// <summary>
+    /// Adds a workspace if it is new, and makes it the current one either way.
+    /// </summary>
+    /// <remarks>
+    /// Adding a folder that is already in the list switches to it rather than
+    /// listing it twice. Picking the same folder from the folder picker a second
+    /// time is a switch, however the user thought of it, and a duplicate entry
+    /// would be two rows that cannot be told apart and one stale copy of the
+    /// view state.
+    /// </remarks>
+    public RememberedWorkspace AddWorkspace(string path, string? name = null)
+    {
+        var full = System.IO.Path.GetFullPath(path);
+
+        if (Find(full) is { } existing)
+        {
+            Save(_data with { CurrentWorkspacePath = existing.Path });
+            return existing;
+        }
+
+        var added = new RememberedWorkspace
+        {
+            Path = full,
+            Name = name is { Length: > 0 } given ? given : RememberedWorkspace.NameFor(full),
+            View = new WorkspaceViewState { ViewMode = _data.ViewMode },
+        };
+
+        Save(_data with
+        {
+            Workspaces = [.. _data.Workspaces, added],
+            CurrentWorkspacePath = added.Path,
+        });
+
+        return added;
+    }
+
+    /// <summary>Opens one of the remembered workspaces.</summary>
+    public void SetCurrentWorkspace(string path)
+    {
+        if (Find(path) is not { } workspace)
+        {
+            throw new ArgumentException($"Not a remembered workspace: '{path}'", nameof(path));
+        }
+
+        Save(_data with { CurrentWorkspacePath = workspace.Path });
+    }
+
+    public void RenameWorkspace(string path, string name)
+    {
+        var trimmed = name.Trim();
+        if (trimmed.Length == 0) return;
+
+        Replace(path, workspace => workspace with { Name = trimmed });
+    }
+
+    /// <summary>
+    /// Drops a workspace from the list. The folder and everything in it is left
+    /// exactly where it is.
+    /// </summary>
+    /// <remarks>
+    /// Forgetting the current workspace closes it and leaves nothing open,
+    /// rather than jumping to a neighbour. Which workspace is on screen is the
+    /// user's choice to make, and quietly loading a different set of tasks into
+    /// a window they were reading is a worse surprise than an empty one.
+    /// </remarks>
+    public void ForgetWorkspace(string path)
+    {
+        if (Find(path) is not { } workspace) return;
+
+        Save(_data with
+        {
+            Workspaces = [.. _data.Workspaces.Where(w => w.Path != workspace.Path)],
+            CurrentWorkspacePath =
+                _data.CurrentWorkspacePath == workspace.Path ? null : _data.CurrentWorkspacePath,
+        });
+    }
+
+    /// <summary>Closes the current workspace without forgetting it.</summary>
+    public void CloseWorkspace() => Save(_data with { CurrentWorkspacePath = null });
+
+    // ------------------------------------------------------------- view state
+
+    /// <summary>
+    /// How the given workspace was left, or a default for one not in the list.
+    /// </summary>
+    /// <remarks>
+    /// A workspace nobody has stored state for starts in whichever view was
+    /// last used anywhere, so adding a second workspace does not throw a board
+    /// user back to the list.
+    /// </remarks>
+    public WorkspaceViewState ViewStateFor(string path) =>
+        Find(path)?.View ?? new WorkspaceViewState { ViewMode = _data.ViewMode };
+
+    /// <summary>Records how a workspace has been left.</summary>
+    public void SaveViewState(string path, WorkspaceViewState state)
+    {
+        if (Find(path) is not { } workspace) return;
+        if (workspace.View.SameAs(state) && _data.ViewMode == state.ViewMode) return;
+
+        Replace(path, w => w with { View = state }, _data with { ViewMode = state.ViewMode });
+    }
+
+    private RememberedWorkspace? Find(string? path)
+    {
+        if (path is not { Length: > 0 }) return null;
+
+        // Compared as written, not case-folded: the app stores full paths it was
+        // handed, and on a case-sensitive filesystem two spellings really are
+        // two folders.
+        return _data.Workspaces.FirstOrDefault(w => w.Path == path)
+            ?? _data.Workspaces.FirstOrDefault(w => w.Path == System.IO.Path.GetFullPath(path));
+    }
+
+    private void Replace(
+        string path, Func<RememberedWorkspace, RememberedWorkspace> edit, AppSettingsData? onto = null)
+    {
+        if (Find(path) is not { } workspace) return;
+
+        var data = onto ?? _data;
+        Save(data with
+        {
+            Workspaces = [.. data.Workspaces.Select(w => w.Path == workspace.Path ? edit(w) : w)],
+        });
+    }
+
+    // ------------------------------------------------------------------ the rest
 
     public ViewMode ViewMode => _data.ViewMode;
 
@@ -157,10 +332,19 @@ public sealed class AppSettings
     private static bool IsALength(double? value) =>
         value is { } length && double.IsFinite(length) && length > 0;
 
-    public void SetWorkspacePath(string path) => Save(_data with { WorkspacePath = path });
+    /// <summary>Adds a workspace and opens it. See <see cref="AddWorkspace"/>.</summary>
+    public void SetWorkspacePath(string path) => AddWorkspace(path);
 
-    public void ForgetWorkspace() => Save(_data with { WorkspacePath = null });
+    /// <summary>Drops the open workspace from the list, leaving nothing open.</summary>
+    public void ForgetWorkspace()
+    {
+        if (_data.CurrentWorkspacePath is { } path) ForgetWorkspace(path);
+    }
 
+    /// <summary>
+    /// Sets the view a newly added workspace will start in. An open workspace
+    /// records its own through <see cref="SaveViewState"/>.
+    /// </summary>
     public void SetViewMode(ViewMode mode) => Save(_data with { ViewMode = mode });
 
     public void SetWindowPlacement(WindowPlacement placement) => Save(_data with
