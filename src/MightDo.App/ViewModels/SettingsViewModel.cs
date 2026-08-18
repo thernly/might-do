@@ -47,11 +47,13 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _session = session;
         _session.Changed += OnWorkspaceChanged;
         Refresh();
+        _ = RefreshTrashAsync();
     }
 
     public ObservableCollection<StatusRowViewModel> Statuses { get; } = [];
     public ObservableCollection<CategoryRowViewModel> Categories { get; } = [];
     public ObservableCollection<TagRowViewModel> Tags { get; } = [];
+    public ObservableCollection<TrashRowViewModel> TrashedTasks { get; } = [];
 
     public ObservableCollection<StatusOption> StatusReassignOptions { get; } = [];
     public ObservableCollection<CategoryOption> CategoryReassignOptions { get; } = [];
@@ -286,7 +288,48 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // ---- plumbing ----------------------------------------------------------
 
-    private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e) => Refresh();
+    private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e)
+    {
+        Refresh();
+        // Trashing from the detail pane while this window is open should show
+        // up here, and the trash lives on disk, not in the snapshot.
+        _ = RefreshTrashAsync();
+    }
+
+    // ---- trash -------------------------------------------------------------
+
+    /// <summary>
+    /// Guards overlapping refreshes: the Changed handler and an explicit
+    /// command can run at once, and interleaved Clear/Add duplicates rows.
+    /// Only the newest call gets to write.
+    /// </summary>
+    private int _trashRefreshStamp;
+
+    [RelayCommand]
+    private async Task RefreshTrashAsync()
+    {
+        var stamp = ++_trashRefreshStamp;
+        var tasks = await _session.LoadTrashAsync();
+        if (stamp != _trashRefreshStamp) return;
+
+        var config = _session.Snapshot.Config;
+
+        var rows = tasks
+            .OrderBy(task => task.Summary, StringComparer.CurrentCultureIgnoreCase)
+            .Select(task => new TrashRowViewModel(task, config))
+            .ToList();
+
+        TrashedTasks.Clear();
+        foreach (var row in rows) TrashedTasks.Add(row);
+    }
+
+    [RelayCommand]
+    private async Task RestoreTaskAsync(TrashRowViewModel? row)
+    {
+        if (row is null) return;
+        await _session.RestoreTaskAsync(row.Id);
+        await RefreshTrashAsync();
+    }
 
     private void Refresh()
     {
@@ -425,3 +468,16 @@ public sealed partial class TagRowViewModel : ObservableObject
     public int TaskCount { get; }
     public string TaskCountLabel => TaskCount == 1 ? "1 task" : $"{TaskCount} tasks";
 }
+
+/// <summary>One task in the trash, as the settings window lists it.</summary>
+public sealed class TrashRowViewModel(MightDoTask task, WorkspaceConfig config)
+{
+    public string Id { get; } = task.Id;
+
+    public string Summary { get; } = task.Summary;
+
+    /// <summary>The status may itself have been deleted since.</summary>
+    public string StatusName { get; } =
+        config.StatusById(task.StatusId)?.Name ?? "Deleted status";
+}
+

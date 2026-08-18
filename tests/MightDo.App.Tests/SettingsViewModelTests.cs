@@ -30,6 +30,34 @@ public class SettingsViewModelTests : IAsyncLifetime
 
     private WorkspaceConfig Config => _session.Snapshot.Config;
 
+    // ---- trash -------------------------------------------------------------
+
+    [Fact]
+    public async Task TheTrashSectionListsTrashedTasks()
+    {
+        var task = await _session.CreateTaskAsync("Threw it out");
+        await _session.TrashTaskAsync(task);
+
+        await _vm.RefreshTrashCommand.ExecuteAsync(null!);
+
+        var row = Assert.Single(_vm.TrashedTasks);
+        Assert.Equal("Threw it out", row.Summary);
+        Assert.Equal("Not Started", row.StatusName);
+    }
+
+    [Fact]
+    public async Task RestoringReturnsTheTaskAndEmptiesTheList()
+    {
+        var task = await _session.CreateTaskAsync("Wanted after all");
+        await _session.TrashTaskAsync(task);
+        await _vm.RefreshTrashCommand.ExecuteAsync(null!);
+
+        await _vm.RestoreTaskCommand.ExecuteAsync(_vm.TrashedTasks.Single());
+
+        Assert.Empty(_vm.TrashedTasks);
+        Assert.NotNull(_session.Snapshot.TaskById(task.Id));
+    }
+
     private StatusRowViewModel Row(string name) => _vm.Statuses.First(s => s.Name == name);
 
     // ---- statuses ----------------------------------------------------------

@@ -248,6 +248,32 @@
           <Button Grid.Column="1" Margin="6,0,0,0" Content="Add"
                   Command="{Binding AddTagCommand}" />
         </Grid>
+
+        <!-- Trash -->
+        <TextBlock Classes="section" Text="Trash" />
+        <TextBlock Classes="hint"
+                   Text="Tasks you moved to the trash. They sit as files in the workspace's .trash folder — nothing empties it automatically — and restoring brings the task and its attachments back." />
+
+        <ItemsControl ItemsSource="{Binding TrashedTasks}" Margin="0,8,0,0">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:TrashRowViewModel">
+              <Border Classes="row">
+                <Grid ColumnDefinitions="*,Auto,Auto">
+                  <TextBlock Grid.Column="0" Text="{Binding Summary}"
+                             VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Grid.Column="1" Classes="hint" Margin="8,0"
+                             VerticalAlignment="Center" Text="{Binding StatusName}" />
+                  <Button Grid.Column="2" Classes="tiny" Content="Restore"
+                          Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).RestoreTaskCommand}"
+                          CommandParameter="{Binding}" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <TextBlock Classes="hint" Margin="0,8,0,0" Text="The trash is empty."
+                   IsVisible="{Binding !TrashedTasks.Count}" />
       </StackPanel>
     </ScrollViewer>
 

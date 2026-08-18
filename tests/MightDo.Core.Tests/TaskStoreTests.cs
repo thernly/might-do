@@ -169,6 +169,12 @@ public class TaskStoreTests : IDisposable
         var restored = await store.RestoreTaskAsync(task.Id);
         Assert.Equal(task.Id, restored!.Id);
         Assert.True(File.Exists(store.Workspace.TaskFile(task.Id)));
+
+        // The attachment travels both ways: trashing took it, restoring must
+        // bring it back, or the restored task points at nothing.
+        Assert.True(File.Exists(store.Workspace.AttachmentFile(storedName)));
+        Assert.False(File.Exists(
+            Path.Combine(store.Workspace.TrashAttachmentsDir, storedName)));
     }
 
     [Fact]

@@ -435,6 +435,28 @@ public class WorkspaceSessionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task TheTrashCanBeListedAndRestoredFrom()
+    {
+        var task = await _session.CreateTaskAsync("Trashed by accident");
+        await _session.TrashTaskAsync(task);
+
+        var trashed = await _session.LoadTrashAsync();
+        Assert.Equal(task.Id, Assert.Single(trashed).Id);
+
+        var restored = await _session.RestoreTaskAsync(task.Id);
+
+        Assert.Equal(task.Id, restored!.Id);
+        Assert.NotNull(_session.Snapshot.TaskById(task.Id));
+        Assert.Empty(await _session.LoadTrashAsync());
+    }
+
+    [Fact]
+    public async Task RestoringNothingIsANoOp()
+    {
+        Assert.Null(await _session.RestoreTaskAsync("not-a-task-id"));
+    }
+
+    [Fact]
     public async Task ChangesSurviveAReloadFromDisk()
     {
         var task = await _session.CreateTaskAsync("Persisted");

@@ -127,7 +127,17 @@ public sealed class TaskStore(Workspace workspace)
         if (!File.Exists(trashed)) return null;
 
         MoveInto(trashed, Workspace.TasksDir);
-        return await LoadTaskAsync(taskId, cancellationToken);
+        var task = await LoadTaskAsync(taskId, cancellationToken);
+
+        // Trashing took the attachments with the task, and the copies in
+        // .trash are the only copies there are.
+        foreach (var attachment in task?.Attachments ?? [])
+        {
+            var file = Path.Combine(Workspace.TrashAttachmentsDir, attachment.StoredName);
+            if (File.Exists(file)) MoveInto(file, Workspace.AttachmentsDir);
+        }
+
+        return task;
     }
 
     public async Task<IReadOnlyList<MightDoTask>> LoadTrashAsync(

@@ -325,6 +325,28 @@ public sealed class WorkspaceSession : IDisposable
             return (Rebuild(snapshot, snapshot.Tasks.Where(t => t.Id != task.Id).ToList()), true);
         }, cancellationToken);
 
+    /// <summary>
+    /// The tasks sitting in the trash. Read-only: the snapshot never holds
+    /// them, so this is a fresh look at the folder each time.
+    /// </summary>
+    public Task<IReadOnlyList<MightDoTask>> LoadTrashAsync(
+        CancellationToken cancellationToken = default) =>
+        _store.LoadTrashAsync(cancellationToken);
+
+    /// <summary>
+    /// Brings a trashed task back into the workspace, or returns null if
+    /// nothing in the trash has that id.
+    /// </summary>
+    public Task<MightDoTask?> RestoreTaskAsync(
+        string taskId, CancellationToken cancellationToken = default) =>
+        MutateAsync<MightDoTask?>(async snapshot =>
+        {
+            var restored = await _store.RestoreTaskAsync(taskId, cancellationToken);
+            return restored is null
+                ? (snapshot, null)
+                : (WithTask(snapshot, restored), restored);
+        }, cancellationToken);
+
     // ----------------------------------------------------------- config writes
 
     public Task<Status> AddStatusAsync(
