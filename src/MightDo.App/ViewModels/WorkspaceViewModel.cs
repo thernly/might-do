@@ -384,6 +384,19 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         if (task is not null) await _session.TrashTaskAsync(task);
     }
 
+    /// <summary>
+    /// Moves the task the detail pane is showing to the workspace's trash
+    /// folder. Off the pane rather than the row, because the pane can show a
+    /// task no list row holds — completed, or hidden by the filter.
+    /// </summary>
+    [RelayCommand]
+    private async Task TrashOpenTaskAsync()
+    {
+        if (Detail is null) return;
+        var task = _session.Snapshot.TaskById(Detail.TaskId);
+        if (task is not null) await _session.TrashTaskAsync(task);
+    }
+
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e) =>
         OnUiThread(Project);
 

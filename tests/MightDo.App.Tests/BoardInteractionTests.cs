@@ -212,6 +212,43 @@ public class BoardInteractionTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task TheOpenTaskCanBeTrashedFromThePane()
+    {
+        var (window, workspace) = await OpenBoardAsync(("Bin me too", null));
+
+        ClickCard(window, "Bin me too");
+
+        // The button must actually be drawn in the pane, not just the command
+        // exist — an unbound command is exactly the gap this closes.
+        Assert.Contains(
+            Descendants<TextBlock>(window),
+            block => block.Text == "Move to Trash");
+
+        await workspace.TrashOpenTaskCommand.ExecuteAsync(null!);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(workspace.HasSelection);
+        Assert.Empty(workspace.Columns.SelectMany(column => column.Cards));
+    }
+
+    [AvaloniaFact]
+    public async Task ATaskTheListHidesCanStillBeTrashed()
+    {
+        // The pane can show a task no list row holds, so the command works
+        // from the pane's task, not the list's selection.
+        var (window, workspace) = await OpenBoardAsync(("Shipped and done", "Done"));
+
+        ClickCard(window, "Shipped and done");
+        Assert.Null(workspace.SelectedTask);
+
+        await workspace.TrashOpenTaskCommand.ExecuteAsync(null!);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.False(workspace.HasSelection);
+        Assert.Empty(workspace.Columns.SelectMany(column => column.Cards));
+    }
+
+    [AvaloniaFact]
     public async Task ClosingThePaneClearsTheCardMarking()
     {
         var (window, workspace) = await OpenBoardAsync(("Close me", null));
