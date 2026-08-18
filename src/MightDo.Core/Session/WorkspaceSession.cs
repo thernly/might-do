@@ -156,9 +156,29 @@ public sealed class WorkspaceSession : IDisposable
             return (WithTask(snapshot, task), task);
         }, cancellationToken);
 
-    public Task<MightDoTask> UpdateTaskAsync(
-        MightDoTask task, CancellationToken cancellationToken = default) =>
-        PersistAsync(task, cancellationToken);
+    /// <summary>
+    /// Applies a field-level edit to the session's own copy of the task.
+    /// </summary>
+    /// <remarks>
+    /// The caller supplies the change, not a finished record, so an edit built
+    /// from a stale snapshot alters only the field it means to and cannot
+    /// revert another edit that landed first. A change that leaves the task's
+    /// content as it was writes nothing.
+    /// </remarks>
+    public Task<MightDoTask> EditTaskAsync(
+        MightDoTask task,
+        Func<MightDoTask, MightDoTask> edit,
+        CancellationToken cancellationToken = default) =>
+        MutateAsync(async snapshot =>
+        {
+            var current = Current(snapshot, task);
+            var edited = edit(current);
+            if (edited.HasSameContentAs(current)) return (snapshot, current);
+
+            var updated = edited.Touch();
+            await SaveAsync(updated, cancellationToken);
+            return (WithTask(snapshot, updated), updated);
+        }, cancellationToken);
 
     /// <summary>Moves a task to another status, applying the completion-date rule.</summary>
     public Task<MightDoTask> MoveToStatusAsync(
@@ -606,14 +626,6 @@ public sealed class WorkspaceSession : IDisposable
             var updated = edit(Current(snapshot, task));
             await SaveAsync(updated, cancellationToken);
             return (WithTask(snapshot, updated), updated);
-        }, cancellationToken);
-
-    private Task<MightDoTask> PersistAsync(
-        MightDoTask task, CancellationToken cancellationToken) =>
-        MutateAsync(async snapshot =>
-        {
-            await SaveAsync(task, cancellationToken);
-            return (WithTask(snapshot, task), task);
         }, cancellationToken);
 
     private Task ConfigAsync(

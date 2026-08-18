@@ -129,6 +129,35 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task AStatusMoveIsNotUndoneByAnEditTypedRightAfterIt()
+    {
+        // The pane has not been told about the move yet when the summary
+        // changes, so the summary save is built from the pre-move task.
+        var done = StatusOfType(StatusType.Final);
+
+        _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
+        _vm.Summary = "Edited after moving";
+        await _vm.PendingSave;
+        await Settle();
+
+        Assert.Equal(done.Id, Current.StatusId);
+        Assert.NotNull(Current.CompletedAt);
+        Assert.Equal("Edited after moving", Current.Summary);
+    }
+
+    [Fact]
+    public async Task TwoQuickFieldEditsBothLand()
+    {
+        _vm.Summary = "Renamed";
+        _vm.EstimateMinutes = "45";
+        await _vm.PendingSave;
+        await Settle();
+
+        Assert.Equal("Renamed", Current.Summary);
+        Assert.Equal(45, Current.EstimateMinutes);
+    }
+
+    [Fact]
     public async Task NonNumericEstimatesAreTreatedAsUnset()
     {
         _vm.EstimateMinutes = "not a number";

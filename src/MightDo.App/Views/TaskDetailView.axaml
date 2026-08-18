@@ -10,6 +10,13 @@
   <ScrollViewer>
     <StackPanel Margin="16,8,16,16">
 
+      <!-- A save that failed is the one thing the pane cannot show by simply
+           re-reading the task, so it says so here. -->
+      <Border Classes="banner"
+              IsVisible="{Binding SaveError, Converter={x:Static ObjectConverters.IsNotNull}}">
+        <TextBlock Text="{Binding SaveError}" TextWrapping="Wrap" />
+      </Border>
+
       <!-- Summary and description. Both commit on losing focus, because each
            commit is a file write into a synced folder. -->
       <TextBlock Classes="label" Text="Summary" />
