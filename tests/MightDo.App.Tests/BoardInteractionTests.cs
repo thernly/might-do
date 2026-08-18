@@ -262,6 +262,25 @@ public class BoardInteractionTests : IDisposable
             workspace.Columns.SelectMany(column => column.Cards), card => card.IsSelected);
     }
 
+    [AvaloniaFact]
+    public async Task TheSelectedCardIsOutlinedInTheAccent()
+    {
+        // The marking is a BorderBrush, and a BorderBrush painted from a
+        // <Color> resource resolves to nothing rather than failing — the card
+        // just quietly stops being outlined. Checking IsSelected would not
+        // catch that; checking the brush arrived does.
+        var (window, _) = await OpenBoardAsync(("Mark me", null));
+
+        ClickCard(window, "Mark me");
+        window.Measure(window.ClientSize);
+        window.Arrange(new Rect(window.ClientSize));
+
+        Application.Current!.TryGetResource(
+            "AppAccentBrush", Application.Current.ActualThemeVariant, out var accent);
+
+        Assert.Same(accent, CardFor(window, "Mark me").BorderBrush);
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     /// <summary>

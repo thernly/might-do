@@ -7,6 +7,7 @@ using MightDo.App.ViewModels;
 using MightDo.App.Views;
 using MightDo.Core.Session;
 using MightDo.Core.Storage;
+using MightDo.Platform;
 
 namespace MightDo.App.Tests;
 
@@ -42,7 +43,8 @@ public class TrashSettingsTests : IDisposable
         var task = await session.CreateTaskAsync("Take me back");
         await session.TrashTaskAsync(task);
 
-        var vm = new SettingsViewModel(session);
+        var vm = new SettingsViewModel(
+            session, AppSettings.Load(Path.Combine(_root, "settings.json")));
         _disposables.Add(vm);
         await vm.RefreshTrashCommand.ExecuteAsync(null!);
 

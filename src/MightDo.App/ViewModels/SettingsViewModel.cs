@@ -4,6 +4,7 @@ using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MightDo.Core.Domain;
 using MightDo.Core.Session;
+using MightDo.Platform;
 
 namespace MightDo.App.ViewModels;
 
@@ -20,13 +21,14 @@ namespace MightDo.App.ViewModels;
 public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly WorkspaceSession _session;
+    private readonly AppSettings _settings;
     private bool _loading;
     private bool _disposed;
 
     [ObservableProperty] private string _newStatusName = "";
     [ObservableProperty] private StatusType _newStatusType = StatusType.Active;
     [ObservableProperty] private string _newCategoryName = "";
-    [ObservableProperty] private string _newCategoryColor = "FF4C7DF0";
+    [ObservableProperty] private string _newCategoryColor = "FF4F6D7A";
     [ObservableProperty] private string _newTagName = "";
     [ObservableProperty] private string? _error;
 
@@ -42,9 +44,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private StatusOption? _statusReassignTarget;
     [ObservableProperty] private CategoryOption? _categoryReassignTarget;
 
-    public SettingsViewModel(WorkspaceSession session)
+    public SettingsViewModel(WorkspaceSession session, AppSettings settings)
     {
         _session = session;
+        _settings = settings;
         _session.Changed += OnWorkspaceChanged;
         Refresh();
         _ = RefreshTrashAsync();
@@ -62,6 +65,42 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     public bool IsConfirmingStatusDelete => StatusPendingDelete is not null;
     public bool IsConfirmingCategoryDelete => CategoryPendingDelete is not null;
+
+    // ---- appearance --------------------------------------------------------
+
+    /// <summary>
+    /// The colour scheme. Unlike everything else on this page it belongs to the
+    /// machine rather than to the workspace, so switching workspace leaves it
+    /// alone.
+    /// </summary>
+    public ThemePreference Theme => _settings.Theme;
+
+    public bool IsAutoTheme => Theme == ThemePreference.Auto;
+
+    public bool IsLightTheme => Theme == ThemePreference.Light;
+
+    public bool IsDarkTheme => Theme == ThemePreference.Dark;
+
+    /// <summary>
+    /// Chooses a colour scheme, applies it and remembers it.
+    /// </summary>
+    /// <remarks>
+    /// Applied before it is announced so the window has already repainted by
+    /// the time the radio buttons update, rather than the other way round.
+    /// </remarks>
+    [RelayCommand]
+    private void SetTheme(ThemePreference theme)
+    {
+        if (Theme == theme) return;
+
+        _settings.SetTheme(theme);
+        MightDo.App.Theme.Apply(theme);
+
+        OnPropertyChanged(nameof(Theme));
+        OnPropertyChanged(nameof(IsAutoTheme));
+        OnPropertyChanged(nameof(IsLightTheme));
+        OnPropertyChanged(nameof(IsDarkTheme));
+    }
 
     // ---- statuses ----------------------------------------------------------
 
@@ -179,7 +218,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         if (!TryParseColor(NewCategoryColor, out var color))
         {
-            Error = "A colour is eight hex digits, alpha first — FF4C7DF0.";
+            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
             return;
         }
 
@@ -210,7 +249,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         if (!TryParseColor(row.ColorHex, out var color))
         {
-            Error = "A colour is eight hex digits, alpha first — FF4C7DF0.";
+            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
             return;
         }
 

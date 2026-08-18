@@ -440,7 +440,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// A settings view model over this workspace's session. Created per window
     /// so it can unsubscribe when that window closes.
     /// </summary>
-    public SettingsViewModel CreateSettingsViewModel() => new(_session);
+    public SettingsViewModel CreateSettingsViewModel() => new(_session, _settings);
 
     [RelayCommand]
     private void ClearFilters()

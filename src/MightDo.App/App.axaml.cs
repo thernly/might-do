@@ -22,6 +22,11 @@ public partial class App : Application
             // has a top level to hang off, then the view model is given to it.
             var window = new MainWindow();
             var settings = AppSettings.Load();
+
+            // Before the window is shown, so it does not appear in one scheme
+            // and flip to the other.
+            Theme.Apply(settings.Theme);
+
             var viewModel = new MainViewModel(
                 settings,
                 new StorageFolderPicker(window),
