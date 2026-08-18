@@ -123,7 +123,16 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<BoardColumnViewModel> Columns { get; } = [];
 
-    public IReadOnlyList<TaskSort> SortOptions { get; } = Enum.GetValues<TaskSort>();
+    /// <summary>
+    /// The sorts, carrying the text to show for each.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="TaskSortExtensions.Label"/> has always existed and was never
+    /// reached from here, so the drop-down offered "Smart" and "DueDate" — enum
+    /// names, not something a user is meant to read.
+    /// </remarks>
+    public IReadOnlyList<SortOption> SortOptions { get; } =
+        [.. Enum.GetValues<TaskSort>().Select(sort => new SortOption(sort, sort.Label()))];
 
     [ObservableProperty]
     private string _summaryLine = "";
@@ -578,3 +587,6 @@ public sealed record DueReminderViewModel(
 {
     public string When => RemindAt.ToLocalTime().ToString("g");
 }
+
+/// <summary>One entry in the sort drop-down: the value, and what to show for it.</summary>
+public sealed record SortOption(TaskSort Value, string Label);

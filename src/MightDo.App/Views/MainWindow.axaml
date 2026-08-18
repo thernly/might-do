@@ -72,8 +72,19 @@
           </StackPanel>
         </ToggleButton>
 
-        <ComboBox Grid.Column="2" Margin="8,0,0,0" MinWidth="150"
-                  ItemsSource="{Binding SortOptions}" SelectedItem="{Binding Sort}" />
+        <!-- Disabled rather than hidden on the board, whose order is the user's
+             own drag-and-drop one and cannot also be a computed sort. Hiding it
+             would reshuffle the toolbar on every view switch. -->
+        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"
+                    IsEnabled="{Binding IsListView}">
+          <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0" Opacity="0.6" />
+          <ComboBox MinWidth="150"
+                    ItemsSource="{Binding SortOptions}"
+                    DisplayMemberBinding="{Binding Label}"
+                    SelectedValueBinding="{Binding Value}"
+                    SelectedValue="{Binding Sort}"
+                    ToolTip.Tip="How the list is ordered. The board keeps the order you drag cards into." />
+        </StackPanel>
 
         <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear"
                 Command="{Binding ClearFiltersCommand}"
