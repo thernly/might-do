@@ -17,15 +17,15 @@
       <Setter Property="CornerRadius" Value="6" />
       <Setter Property="Padding" Value="10,8" />
       <Setter Property="Margin" Value="0,0,0,6" />
-      <Setter Property="BoxShadow" Value="0 1 2 0 #1A000000" />
+      <Setter Property="BoxShadow" Value="0 1 2 0 #1F280004" />
     </Style>
     <Style Selector="Border.card:pointerover">
-      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
-      <Setter Property="BoxShadow" Value="0 2 6 0 #26000000" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+      <Setter Property="BoxShadow" Value="0 2 6 0 #2E280004" />
     </Style>
     <!-- The card the detail pane is showing. -->
     <Style Selector="Border.card.selected">
-      <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
     <Style Selector="Border.column">

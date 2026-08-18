@@ -163,7 +163,7 @@
                       VerticalAlignment="Center" />
             <TextBlock Text="Filters" VerticalAlignment="Center" />
             <Border CornerRadius="9" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
-                    Background="{DynamicResource SystemAccentColor}">
+                    Background="{DynamicResource AppAccentBrush}">
               <TextBlock Text="{Binding PanelFilterCount}" FontSize="11"
                          Foreground="{DynamicResource OnAccentBrush}" />
             </Border>
@@ -408,7 +408,7 @@
               IsVisible="{Binding HasSelection}"
               Background="{DynamicResource AppCardBrush}"
               BorderBrush="{DynamicResource AppCardBorderBrush}"
-              BoxShadow="0 1 4 0 #22000000">
+              BoxShadow="0 1 4 0 #28280004">
         <Grid RowDefinitions="Auto,Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="8,8,8,0">
             <!-- Trash, not delete: the file moves to the workspace's .trash

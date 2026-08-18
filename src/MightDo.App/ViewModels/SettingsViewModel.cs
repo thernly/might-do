@@ -26,7 +26,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string _newStatusName = "";
     [ObservableProperty] private StatusType _newStatusType = StatusType.Active;
     [ObservableProperty] private string _newCategoryName = "";
-    [ObservableProperty] private string _newCategoryColor = "FF4C7DF0";
+    [ObservableProperty] private string _newCategoryColor = "FF4F6D7A";
     [ObservableProperty] private string _newTagName = "";
     [ObservableProperty] private string? _error;
 
@@ -179,7 +179,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         if (!TryParseColor(NewCategoryColor, out var color))
         {
-            Error = "A colour is eight hex digits, alpha first — FF4C7DF0.";
+            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
             return;
         }
 
@@ -210,7 +210,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         if (!TryParseColor(row.ColorHex, out var color))
         {
-            Error = "A colour is eight hex digits, alpha first — FF4C7DF0.";
+            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
             return;
         }
 
