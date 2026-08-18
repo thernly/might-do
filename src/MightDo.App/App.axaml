@@ -177,6 +177,21 @@
           <Setter Property="Fill" Value="{DynamicResource StatusFinalBrush}" />
         </Style>
 
+        <!-- List rows. A hairline between them gives the eye somewhere to
+             stop; without it a screenful of tasks reads as one block of text.
+             The rule goes on the item rather than into the row template so
+             the selection highlight sits over it rather than under it, and
+             nth-last-child keeps the final row from drawing a line into the
+             list's own bottom border. -->
+        <Style Selector="ListBox.rows > ListBoxItem">
+          <Setter Property="Padding" Value="10,3" />
+          <Setter Property="CornerRadius" Value="0" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        </Style>
+        <Style Selector="ListBox.rows > ListBoxItem:not(:nth-last-child(1))">
+          <Setter Property="BorderThickness" Value="0,0,0,1" />
+        </Style>
+
         <Style Selector="Border.banner">
           <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
           <Setter Property="CornerRadius" Value="8" />

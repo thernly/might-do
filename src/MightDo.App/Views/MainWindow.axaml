@@ -225,8 +225,8 @@
               IsVisible="{Binding IsListView}"
               Background="{DynamicResource AppCardBrush}"
               BorderBrush="{DynamicResource AppBorderBrush}">
-        <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
-                 Background="Transparent">
+        <ListBox Classes="rows" ItemsSource="{Binding Tasks}"
+                 SelectedItem="{Binding SelectedTask}" Background="Transparent">
           <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:TaskRowViewModel">
               <Grid ColumnDefinitions="*,Auto" Margin="4,6">
