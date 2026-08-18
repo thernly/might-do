@@ -132,6 +132,71 @@ public class BoardInteractionTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task TheListSaysWhyItHasNothingSelected()
+    {
+        // Staying open leaves a pane with an empty list behind it and no reason
+        // given. The board explains itself by marking the card; the list cannot.
+        var (window, workspace) = await OpenBoardAsync(("Filtered away", null));
+
+        ClickCard(window, "Filtered away");
+        workspace.Search = "matches nothing at all";
+        workspace.ShowListCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Null(workspace.SelectedTask);
+        Assert.True(workspace.SelectionHiddenFromList);
+    }
+
+    [AvaloniaFact]
+    public async Task TheListSaysNothingWhileTheTaskIsInIt()
+    {
+        var (window, workspace) = await OpenBoardAsync(("Right there", null));
+
+        ClickCard(window, "Right there");
+        workspace.ShowListCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(workspace.SelectedTask);
+        Assert.False(workspace.SelectionHiddenFromList);
+    }
+
+    [AvaloniaFact]
+    public async Task TheExplanationIsActuallyDrawn()
+    {
+        // The assertions above are on the view model, which a mistyped binding
+        // would sail past. IsEffectivelyVisible rather than IsVisible: an
+        // element hidden by a binding is still in the tree.
+        var (window, workspace) = await OpenBoardAsync(("Filtered away", null));
+
+        ClickCard(window, "Filtered away");
+        workspace.Search = "matches nothing at all";
+        workspace.ShowListCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+        window.Measure(window.ClientSize);
+        window.Arrange(new Rect(window.ClientSize));
+
+        Assert.Contains(
+            Descendants<TextBlock>(window),
+            block => block.Text?.Contains("the current filter hides it") == true);
+    }
+
+    [AvaloniaFact]
+    public async Task TheBoardDoesNotBorrowTheListsExplanation()
+    {
+        // The board shows completed and filtered-out work regardless, so the
+        // hint would be answering a question nobody asked.
+        var (window, workspace) = await OpenBoardAsync(("Filtered away", null));
+
+        ClickCard(window, "Filtered away");
+        workspace.Search = "matches nothing at all";
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(workspace.IsBoardView);
+        Assert.Null(workspace.SelectedTask);
+        Assert.False(workspace.SelectionHiddenFromList);
+    }
+
+    [AvaloniaFact]
     public async Task ThePaneClosesWhenTheTaskLeavesTheWorkspace()
     {
         var (window, workspace) = await OpenBoardAsync(("Bin me", null));

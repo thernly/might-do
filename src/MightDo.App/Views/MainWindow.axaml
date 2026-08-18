@@ -259,10 +259,17 @@
       <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="6"
               IsVisible="{Binding HasSelection}"
               BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
-        <Grid RowDefinitions="Auto,*">
+        <Grid RowDefinitions="Auto,Auto,*">
           <Button Grid.Row="0" Content="Close" HorizontalAlignment="Right" Margin="8,8,8,0"
                   Command="{Binding CloseDetailCommand}" />
-          <views:TaskDetailView Grid.Row="1" DataContext="{Binding Detail}" />
+
+          <!-- Why the list behind this pane has nothing selected. -->
+          <TextBlock Grid.Row="1" Margin="16,8,16,0" TextWrapping="Wrap"
+                     FontSize="11" Opacity="0.6"
+                     IsVisible="{Binding SelectionHiddenFromList}"
+                     Text="Not in the list — the current filter hides it." />
+
+          <views:TaskDetailView Grid.Row="2" DataContext="{Binding Detail}" />
         </Grid>
       </Border>
       </Grid>

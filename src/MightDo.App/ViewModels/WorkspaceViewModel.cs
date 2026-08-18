@@ -47,10 +47,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private bool _filtersOpen;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(SelectionHiddenFromList))]
     private TaskRowViewModel? _selectedTask;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasSelection))]
+    [NotifyPropertyChangedFor(nameof(SelectionHiddenFromList))]
     private TaskDetailViewModel? _detail;
 
     [ObservableProperty]
@@ -62,6 +64,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(IsListView))]
     [NotifyPropertyChangedFor(nameof(IsBoardView))]
+    [NotifyPropertyChangedFor(nameof(SelectionHiddenFromList))]
     private ViewMode _viewMode = ViewMode.List;
 
     private WorkspaceViewModel(
@@ -227,6 +230,23 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// select a task the list is not showing — a completed one, most obviously.
     /// </remarks>
     public bool HasSelection => Detail is not null;
+
+    /// <summary>
+    /// Whether the open task is absent from the rows the list is showing.
+    /// </summary>
+    /// <remarks>
+    /// The pane closes only when a task leaves the workspace, so it outlives the
+    /// filter that used to hide it — marking something Done no longer shuts the
+    /// pane mid-edit. The cost is a pane with nothing selected behind it and no
+    /// reason given, which this exists to explain.
+    /// <para>
+    /// List view only. The board carries completed work regardless of the
+    /// filter and marks the open card itself, so there is nothing unexplained
+    /// there.
+    /// </para>
+    /// </remarks>
+    public bool SelectionHiddenFromList =>
+        Detail is not null && SelectedTask is null && IsListView;
 
     /// <summary>
     /// Opening a task in the detail pane. Keyed by id rather than by row, so a
