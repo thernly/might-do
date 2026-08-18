@@ -51,6 +51,13 @@
                  a near-white card has nothing to be lighter than. -->
             <SolidColorBrush x:Key="AppCardBorderBrush">#DAD7BF</SolidColorBrush>
 
+            <!-- The one place grey is allowed. Everything else on screen
+                 carries the palette, so a control that has gone properly
+                 neutral reads as switched off without needing a second cue. -->
+            <SolidColorBrush x:Key="AppDisabledBrush">#E4E4E4</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDisabledBorderBrush">#D2D2D2</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDisabledTextBrush">#757575</SolidColorBrush>
+
             <SolidColorBrush x:Key="OverdueBrush">#A53F2B</SolidColorBrush>
             <!-- High takes Dark Walnut on a sand tint, Critical takes the
                  Reddish Brown family: the same warmth, one step louder. -->
@@ -107,6 +114,10 @@
               <GradientStop Offset="0.28" Color="#4C3428" />
             </LinearGradientBrush>
 
+            <SolidColorBrush x:Key="AppDisabledBrush">#2B2B2B</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDisabledBorderBrush">#3B3B3B</SolidColorBrush>
+            <SolidColorBrush x:Key="AppDisabledTextBrush">#8A8A8A</SolidColorBrush>
+
             <SolidColorBrush x:Key="OverdueBrush">#E27A5F</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#40290F</SolidColorBrush>
             <SolidColorBrush x:Key="PriorityHighForegroundBrush">#DFB77A</SolidColorBrush>
@@ -138,15 +149,75 @@
     </Application.Resources>
 
     <Application.Styles>
-        <!-- Fluent derives every accent state — the Add button, the view
-             radios, selection, focus — from one colour per variant, and it
-             takes it from here rather than from a SystemAccentColor in the
-             dictionaries above. Setting it there instead is the quiet way to
-             end up with stock Windows blue in half the controls. -->
+        <!-- Fluent builds every stock control — button fills, field grounds,
+             hover states, the accent — from this one palette per variant, and
+             it reads it from here rather than from the dictionaries above.
+             Leaving it out is how the accent ends up stock Windows blue and
+             every button ends up grey.
+
+             Grey is the point of the exercise. Fluent's defaults are pure
+             black and pure white at low alpha, and an overlay of neutral over
+             a tinted ground averages the tint away — which is why a button on
+             warm paper came out #C7C6BF, three percent from dead neutral, no
+             matter what the surface under it was. The fills below are opaque
+             and carry the palette themselves rather than being mixed from it.
+
+             The exceptions are deliberate: ChromeDisabled* and ChromeGray
+             stay neutral, so grey means disabled and nothing else. -->
         <FluentTheme>
           <FluentTheme.Palettes>
-            <fluent:ColorPaletteResources x:Key="Light" Accent="#4F6D7A" />
-            <fluent:ColorPaletteResources x:Key="Dark" Accent="#83AABA" />
+            <fluent:ColorPaletteResources x:Key="Light"
+                                          Accent="#4F6D7A"
+                                          RegionColor="#F8F7EF"
+                                          AltHigh="#FFFEF9"
+                                          AltLow="#33FFFEF9"
+                                          AltMedium="#99FFFEF9"
+                                          AltMediumHigh="#CCFFFEF9"
+                                          AltMediumLow="#66FFFEF9"
+                                          BaseHigh="#280004"
+                                          BaseLow="#E6E3CD"
+                                          BaseMedium="#99280004"
+                                          BaseMediumHigh="#CC280004"
+                                          BaseMediumLow="#66280004"
+                                          ChromeAltLow="#280004"
+                                          ChromeBlackHigh="#280004"
+                                          ChromeBlackLow="#33280004"
+                                          ChromeBlackMedium="#CC280004"
+                                          ChromeBlackMediumLow="#66280004"
+                                          ChromeHigh="#DAD7BF"
+                                          ChromeLow="#F0EEDE"
+                                          ChromeMedium="#E6E3CD"
+                                          ChromeMediumLow="#EFEDDE"
+                                          ChromeWhite="#FFFEF9"
+                                          ListLow="#19280004"
+                                          ListMedium="#33280004"
+                                          ErrorText="#A53F2B" />
+            <fluent:ColorPaletteResources x:Key="Dark"
+                                          Accent="#83AABA"
+                                          RegionColor="#180D0C"
+                                          AltHigh="#180D0C"
+                                          AltLow="#33180D0C"
+                                          AltMedium="#99180D0C"
+                                          AltMediumHigh="#CC180D0C"
+                                          AltMediumLow="#66180D0C"
+                                          BaseHigh="#EDEBD9"
+                                          BaseLow="#3D2A20"
+                                          BaseMedium="#99EDEBD9"
+                                          BaseMediumHigh="#CCEDEBD9"
+                                          BaseMediumLow="#66EDEBD9"
+                                          ChromeAltLow="#EDEBD9"
+                                          ChromeBlackHigh="#100807"
+                                          ChromeBlackLow="#33100807"
+                                          ChromeBlackMedium="#CC100807"
+                                          ChromeBlackMediumLow="#66100807"
+                                          ChromeHigh="#4C3428"
+                                          ChromeLow="#180D0C"
+                                          ChromeMedium="#221513"
+                                          ChromeMediumLow="#2C1D18"
+                                          ChromeWhite="#EDEBD9"
+                                          ListLow="#19EDEBD9"
+                                          ListMedium="#33EDEBD9"
+                                          ErrorText="#E27A5F" />
           </FluentTheme.Palettes>
         </FluentTheme>
 
@@ -245,7 +316,49 @@
           <Setter Property="BorderThickness" Value="0,0,0,1" />
         </Style>
 
-        <Style Selector="Border.banner">
+<!-- Disabled. Fluent leaves a disabled button the same fill as a live
+             one and only fades the label, which on a palette this warm reads
+             as "slightly quieter" rather than "you cannot press this". These
+             take the control all the way to neutral instead: grey is reserved
+             for switched off, so switched off is the one thing that goes grey.
+
+             The fills have to be set on the template part rather than on the
+             control, because Fluent's own disabled styles target those parts
+             and would otherwise win. -->
+        <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+          <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+        </Style>
+        <Style Selector="ToggleButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+          <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+          <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+        </Style>
+        <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
+          <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        </Style>
+        <Style Selector="ComboBox:disabled /template/ Border#Background">
+          <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        </Style>
+        <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+          <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+          <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        </Style>
+        <!-- The tick is a Path, so it takes a Fill rather than a Foreground,
+             and greying the box without it leaves a disabled checkbox with no
+             way to say it is ticked. -->
+        <Style Selector="CheckBox:disabled /template/ Path#CheckGlyph">
+          <Setter Property="Fill" Value="{DynamicResource AppDisabledTextBrush}" />
+        </Style>
+        <!-- Text and glyphs, which live outside the parts painted above. -->
+        <Style Selector=":is(TemplatedControl):disabled">
+          <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+        </Style>
+
+                <Style Selector="Border.banner">
           <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
           <Setter Property="CornerRadius" Value="8" />
           <Setter Property="Padding" Value="12,10" />

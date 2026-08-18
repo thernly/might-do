@@ -121,6 +121,70 @@ public class PaletteContrastTests
         }
     }
 
+    public static TheoryData<string> PaletteTokens() =>
+        new()
+        {
+            "AppWindowBrush", "AppSurfaceBrush", "AppCardBrush", "AppChipBrush",
+            "AppBorderBrush", "AppTextBrush", "AppTextSecondaryBrush", "AppAccentBrush",
+            "OverdueBrush", "PriorityHighBackgroundBrush", "PriorityHighForegroundBrush",
+            "PriorityCriticalBackgroundBrush", "PriorityCriticalForegroundBrush",
+            "StatusInitialBrush", "StatusActiveBrush", "StatusFinalBrush",
+        };
+
+    [AvaloniaTheory]
+    [MemberData(nameof(PaletteTokens))]
+    public void NothingLiveIsGrey(string token)
+    {
+        // Grey is the disabled signal, so nothing that paints a live control
+        // may be neutral. The palette is warm throughout and the narrowest
+        // token still spreads six, so a stock #F5F5F5 wandering back in fails
+        // here rather than three screens away.
+        foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            Assert.True(
+                Spread(Colour(token, variant)) >= 4,
+                $"{token} is neutral in {variant}, and grey means disabled.");
+        }
+    }
+
+    [AvaloniaTheory]
+    [InlineData("AppDisabledBrush")]
+    [InlineData("AppDisabledBorderBrush")]
+    [InlineData("AppDisabledTextBrush")]
+    public void OnlyTheDisabledTokensAreGrey(string token)
+    {
+        foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            Assert.True(
+                Spread(Colour(token, variant)) == 0,
+                $"{token} carries a tint in {variant}, which blunts the one cue for off.");
+        }
+    }
+
+    [AvaloniaFact]
+    public void FluentsControlFillsAreTintedToo()
+    {
+        // The fill behind every stock button. Fluent's default is pure black
+        // or white at low alpha, and a neutral overlay averages away whatever
+        // tint is under it — which is how the toolbar came out grey while
+        // every token above was warm.
+        var palettes = Application.Current!.Styles.OfType<FluentTheme>().Single().Palettes;
+
+        foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            var fill = palettes[variant].BaseLow;
+
+            Assert.True(fill.A == 255, $"the {variant} control fill is translucent, so it will "
+                + "take its colour from whatever sits behind it rather than from the palette.");
+            Assert.True(Spread(fill) >= 4, $"the {variant} control fill is neutral.");
+        }
+    }
+
+    /// <summary>How far a colour sits from neutral, where zero is pure grey.</summary>
+    private static int Spread(Color colour) =>
+        Math.Max(colour.R, Math.Max(colour.G, colour.B))
+        - Math.Min(colour.R, Math.Min(colour.G, colour.B));
+
     private static Color Colour(string key, ThemeVariant variant)
     {
         Assert.True(
