@@ -22,7 +22,7 @@
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="Border.row">
-      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
       <Setter Property="BorderThickness" Value="0,0,0,1" />
       <Setter Property="Padding" Value="0,7" />
     </Style>
@@ -102,7 +102,7 @@
         <!-- Deleting a status needs somewhere for its tasks to go. -->
         <Border IsVisible="{Binding IsConfirmingStatusDelete}" Margin="0,10,0,0"
                 Padding="12" CornerRadius="6"
-                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+                Background="{DynamicResource AppSurfaceBrush}">
           <StackPanel Spacing="8">
             <TextBlock TextWrapping="Wrap"
                        Text="Deleting a status never deletes its tasks. Where should they go?" />
@@ -177,7 +177,7 @@
 
         <Border IsVisible="{Binding IsConfirmingCategoryDelete}" Margin="0,10,0,0"
                 Padding="12" CornerRadius="6"
-                Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+                Background="{DynamicResource AppSurfaceBrush}">
           <StackPanel Spacing="8">
             <TextBlock TextWrapping="Wrap"
                        Text="Tasks using this category keep everything else. What should happen to their category?" />
@@ -252,7 +252,7 @@
     </ScrollViewer>
 
     <Border Grid.Row="1" Padding="18,10" BorderThickness="0,1,0,0"
-            BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+            BorderBrush="{DynamicResource AppBorderBrush}">
       <Grid ColumnDefinitions="*,Auto">
         <TextBlock Grid.Column="0" Text="{Binding Error}" TextWrapping="Wrap"
                    VerticalAlignment="Center"

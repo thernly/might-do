@@ -9,26 +9,8 @@
         x:DataType="vm:MainViewModel"
         Title="might-do"
         Width="1000" Height="700"
-        MinWidth="640" MinHeight="420">
-
-  <Window.Styles>
-    <Style Selector="TextBlock.hint">
-      <Setter Property="Opacity" Value="0.6" />
-      <Setter Property="FontSize" Value="12" />
-    </Style>
-    <Style Selector="Border.chip">
-      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
-      <Setter Property="CornerRadius" Value="10" />
-      <Setter Property="Padding" Value="8,2" />
-      <Setter Property="VerticalAlignment" Value="Center" />
-    </Style>
-    <Style Selector="Border.banner">
-      <Setter Property="CornerRadius" Value="6" />
-      <Setter Property="Padding" Value="12,8" />
-      <Setter Property="Margin" Value="0,0,0,8" />
-      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundListLowBrush}" />
-    </Style>
-  </Window.Styles>
+        MinWidth="640" MinHeight="420"
+        Background="{DynamicResource AppWindowBrush}">
 
   <Panel>
     <!-- No workspace yet: ask for one. -->
@@ -60,10 +42,17 @@
            does not, which is why the count on that button ignores it. -->
       <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
         <TextBox Grid.Column="0" PlaceholderText="Search summaries, notes and steps"
-                 Text="{Binding Search}" MinWidth="200" />
+                 Text="{Binding Search}" MinWidth="200">
+          <TextBox.InnerLeftContent>
+            <PathIcon Data="{StaticResource IconSearch}" Width="14" Height="14"
+                      Margin="10,0,2,0" Opacity="0.5" />
+          </TextBox.InnerLeftContent>
+        </TextBox>
 
         <ToggleButton Grid.Column="1" Margin="8,0,0,0" IsChecked="{Binding FiltersOpen}">
           <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconFilter}" Width="13" Height="13"
+                      VerticalAlignment="Center" />
             <TextBlock Text="Filters" VerticalAlignment="Center" />
             <Border CornerRadius="9" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
                     Background="{DynamicResource SystemAccentColor}">
@@ -91,11 +80,23 @@
                 IsVisible="{Binding IsFiltered}" />
 
         <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="12,0,0,0">
-          <RadioButton GroupName="ViewMode" Content="List" IsChecked="{Binding IsListView}"
-                       Command="{Binding ShowListCommand}" VerticalAlignment="Center" />
-          <RadioButton GroupName="ViewMode" Content="Board" IsChecked="{Binding IsBoardView}"
+          <RadioButton GroupName="ViewMode" IsChecked="{Binding IsListView}"
+                       Command="{Binding ShowListCommand}" VerticalAlignment="Center">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <PathIcon Data="{StaticResource IconList}" Width="13" Height="13"
+                        VerticalAlignment="Center" />
+              <TextBlock Text="List" VerticalAlignment="Center" />
+            </StackPanel>
+          </RadioButton>
+          <RadioButton GroupName="ViewMode" IsChecked="{Binding IsBoardView}"
                        Command="{Binding ShowBoardCommand}" VerticalAlignment="Center"
-                       Margin="8,0,0,0" />
+                       Margin="8,0,0,0">
+            <StackPanel Orientation="Horizontal" Spacing="5">
+              <PathIcon Data="{StaticResource IconBoard}" Width="13" Height="13"
+                        VerticalAlignment="Center" />
+              <TextBlock Text="Board" VerticalAlignment="Center" />
+            </StackPanel>
+          </RadioButton>
         </StackPanel>
       </Grid>
 
@@ -105,7 +106,7 @@
           <StackPanel Spacing="10">
             <WrapPanel>
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Status" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Status" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Statuses}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -116,7 +117,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Status Type" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Status Type" Classes="group" />
                 <ItemsControl ItemsSource="{Binding StatusTypes}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -127,7 +128,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Priority" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Priority" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Priorities}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -138,7 +139,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Category" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Category" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Categories}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -151,7 +152,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Tags" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Tags" Classes="group" />
                 <ItemsControl ItemsSource="{Binding TagFilters}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -164,7 +165,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Show" FontWeight="SemiBold" FontSize="12" Margin="0,0,0,3" />
+                <TextBlock Text="Show" Classes="group" />
                 <CheckBox Content="Overdue only" IsChecked="{Binding OverdueOnly}" />
                 <CheckBox Content="Completed" IsChecked="{Binding IncludeCompleted}" />
               </StackPanel>
@@ -219,9 +220,10 @@
 
       <!-- The list, and the detail pane for whatever is selected -->
       <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
-      <Border Grid.Column="0" BorderThickness="1" CornerRadius="6"
+      <Border Grid.Column="0" BorderThickness="1" CornerRadius="8"
               IsVisible="{Binding IsListView}"
-              BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+              Background="{DynamicResource AppCardBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}">
         <ListBox ItemsSource="{Binding Tasks}" SelectedItem="{Binding SelectedTask}"
                  Background="Transparent">
           <ListBox.ItemTemplate>
@@ -232,13 +234,26 @@
                              TextTrimming="CharacterEllipsis" />
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <Border Classes="chip">
-                      <TextBlock Text="{Binding StatusName}" FontSize="12" />
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Classes="statusdot"
+                                 Classes.initial="{Binding IsInitialStatus}"
+                                 Classes.active="{Binding IsActiveStatus}"
+                                 Classes.final="{Binding IsFinalStatus}" />
+                        <TextBlock Text="{Binding StatusName}" FontSize="12" />
+                      </StackPanel>
                     </Border>
-                    <Border Classes="chip">
+                    <Border Classes="chip"
+                            Classes.low="{Binding IsLowPriority}"
+                            Classes.high="{Binding IsHighPriority}"
+                            Classes.critical="{Binding IsCriticalPriority}">
                       <TextBlock Text="{Binding PriorityLabel}" FontSize="12" />
                     </Border>
                     <Border Classes="chip" IsVisible="{Binding HasCategory}">
-                      <TextBlock Text="{Binding CategoryName}" FontSize="12" />
+                      <StackPanel Orientation="Horizontal" Spacing="5">
+                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
+                                 Fill="{Binding CategoryBrush}" />
+                        <TextBlock Text="{Binding CategoryName}" FontSize="12" />
+                      </StackPanel>
                     </Border>
                     <Border Classes="chip" IsVisible="{Binding HasSteps}">
                       <TextBlock Text="{Binding StepsLabel}" FontSize="12" />
@@ -249,13 +264,8 @@
                 </StackPanel>
                 <TextBlock Grid.Column="1" Text="{Binding DueLabel}"
                            IsVisible="{Binding HasDue}" VerticalAlignment="Center"
-                           Margin="12,0,0,0" FontSize="12">
-                  <TextBlock.Styles>
-                    <Style Selector="TextBlock">
-                      <Setter Property="Opacity" Value="0.7" />
-                    </Style>
-                  </TextBlock.Styles>
-                </TextBlock>
+                           Margin="12,0,0,0" Classes="due"
+                           Classes.overdue="{Binding IsOverdue}" />
               </Grid>
             </DataTemplate>
           </ListBox.ItemTemplate>
@@ -267,16 +277,18 @@
       <GridSplitter Grid.Column="1" Width="6" Background="Transparent"
                     IsVisible="{Binding HasSelection}" />
 
-      <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="6"
+      <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="8"
               IsVisible="{Binding HasSelection}"
-              BorderBrush="{DynamicResource SystemControlBackgroundListLowBrush}">
+              Background="{DynamicResource AppCardBrush}"
+              BorderBrush="{DynamicResource AppBorderBrush}"
+              BoxShadow="0 1 4 0 #22000000">
         <Grid RowDefinitions="Auto,Auto,*">
           <Button Grid.Row="0" Content="Close" HorizontalAlignment="Right" Margin="8,8,8,0"
                   Command="{Binding CloseDetailCommand}" />
 
           <!-- Why the list behind this pane has nothing selected. -->
           <TextBlock Grid.Row="1" Margin="16,8,16,0" TextWrapping="Wrap"
-                     FontSize="11" Opacity="0.6"
+                     Classes="hint"
                      IsVisible="{Binding SelectionHiddenFromList}"
                      Text="Not in the list — the current filter hides it." />
 
@@ -293,11 +305,28 @@
             <KeyBinding Gesture="Enter" Command="{Binding CreateTaskCommand}" />
           </TextBox.KeyBindings>
         </TextBox>
-        <Button Grid.Column="1" Margin="8,0,0,0" Content="Add"
-                Command="{Binding CreateTaskCommand}" />
-        <Button Grid.Column="2" Margin="8,0,0,0" Content="Refresh"
-                Command="{Binding RefreshCommand}" />
-        <Button Grid.Column="3" Margin="8,0,0,0" Content="Settings" Click="OnOpenSettings" />
+        <Button Grid.Column="1" Margin="8,0,0,0" Classes="accent"
+                Command="{Binding CreateTaskCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="{StaticResource IconAdd}" Width="12" Height="12"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="Add" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding RefreshCommand}">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="{StaticResource IconRefresh}" Width="13" Height="13"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="Refresh" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
+        <Button Grid.Column="3" Margin="8,0,0,0" Click="OnOpenSettings">
+          <StackPanel Orientation="Horizontal" Spacing="5">
+            <PathIcon Data="{StaticResource IconSettings}" Width="13" Height="13"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="Settings" VerticalAlignment="Center" />
+          </StackPanel>
+        </Button>
         <TextBlock Grid.Column="4" Margin="12,0,0,0" Classes="hint"
                    VerticalAlignment="Center" Text="{Binding SummaryLine}" />
       </Grid>

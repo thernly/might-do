@@ -1,4 +1,6 @@
 using System.Collections.ObjectModel;
+using Avalonia.Media;
+using Avalonia.Media.Immutable;
 using CommunityToolkit.Mvvm.ComponentModel;
 using MightDo.Core.Domain;
 
@@ -10,6 +12,13 @@ public sealed class BoardColumnViewModel(Status status, IEnumerable<BoardCardVie
     public string StatusId { get; } = status.Id;
 
     public string Name { get; } = status.Name;
+
+    // Style-class hooks for the status-type dot in the column header.
+    public bool IsInitialStatus { get; } = status.Type == StatusType.Initial;
+
+    public bool IsActiveStatus { get; } = status.Type == StatusType.Active;
+
+    public bool IsFinalStatus { get; } = status.Type == StatusType.Final;
 
     public ObservableCollection<BoardCardViewModel> Cards { get; } = new(cards);
 
@@ -38,6 +47,12 @@ public sealed partial class BoardCardViewModel(MightDoTask task, WorkspaceConfig
 
     public string PriorityLabel { get; } = task.Priority.Label();
 
+    public bool IsLowPriority { get; } = task.Priority == Priority.Low;
+
+    public bool IsHighPriority { get; } = task.Priority == Priority.High;
+
+    public bool IsCriticalPriority { get; } = task.Priority == Priority.Critical;
+
     public string DueLabel { get; } = task.DueDate?.ToIso() ?? "";
 
     public bool HasDue { get; } = task.DueDate is not null;
@@ -45,6 +60,10 @@ public sealed partial class BoardCardViewModel(MightDoTask task, WorkspaceConfig
     public bool IsOverdue { get; } = task.IsOverdue;
 
     public string? CategoryName { get; } = config.CategoryById(task.CategoryId)?.Name;
+
+    /// <summary>The category's stored colour, shown as a dot in its chip.</summary>
+    public IBrush CategoryBrush { get; } =
+        new ImmutableSolidColorBrush(config.CategoryById(task.CategoryId)?.Color ?? 0);
 
     public bool HasCategory { get; } = task.CategoryId is not null;
 

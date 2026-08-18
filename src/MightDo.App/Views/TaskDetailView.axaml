@@ -7,22 +7,6 @@
              x:Class="MightDo.App.Views.TaskDetailView"
              x:DataType="vm:TaskDetailViewModel">
 
-  <UserControl.Styles>
-    <Style Selector="TextBlock.label">
-      <Setter Property="Opacity" Value="0.6" />
-      <Setter Property="FontSize" Value="11" />
-      <Setter Property="Margin" Value="0,8,0,2" />
-    </Style>
-    <Style Selector="TextBlock.hint">
-      <Setter Property="Opacity" Value="0.6" />
-      <Setter Property="FontSize" Value="11" />
-    </Style>
-    <Style Selector="TextBlock.section">
-      <Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Margin" Value="0,16,0,4" />
-    </Style>
-  </UserControl.Styles>
-
   <ScrollViewer>
     <StackPanel Margin="16,8,16,16">
 
@@ -150,8 +134,8 @@
       <ItemsControl ItemsSource="{Binding Notes}" Margin="0,4,0,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:NoteViewModel">
-            <Border Padding="8" Margin="0,3" CornerRadius="4"
-                    Background="{DynamicResource SystemControlBackgroundListLowBrush}">
+            <Border Padding="8" Margin="0,3" CornerRadius="6"
+                    Background="{DynamicResource AppSurfaceBrush}">
               <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding When}" Classes="hint" />
                 <Button Grid.Row="0" Grid.Column="1" Content="✕" FontSize="11" Padding="6,0"
