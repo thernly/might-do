@@ -8,9 +8,9 @@ one build of the app across synced machines, and — per
 readable in a text editor if might-do stops existing.
 
 The machine-readable half of this document is [`fixtures/`](../../fixtures/).
-Where prose and fixtures disagree, the fixtures win; they are generated from the
-running code by `dart run tool/generate_fixtures.dart` and held in place by
-`test/format/fixture_conformance_test.dart`.
+Where prose and fixtures disagree, the fixtures win. They were generated from
+the running Flutter implementation, which has since been removed; they are held
+in place by `tests/MightDo.Core.Tests/` and can no longer be regenerated.
 
 ## What compatibility means here
 
@@ -234,17 +234,19 @@ A port passes when it can load `workspace-v1/`, write it back without changing
 any value, normalise the `tolerance/` inputs to their expected forms, and
 reproduce the `vectors/` outputs.
 
-That only proves one direction, so the corpora are checked both ways. Each
-implementation reads what the other wrote:
+That only proves one direction, so the corpora were checked both ways while
+both implementations existed. Each read what the other wrote:
 
 | Direction | Written by | Read and checked by |
 |---|---|---|
 | Flutter → .NET | `tool/generate_fixtures.dart` → `workspace-v1/` | `tests/MightDo.Core.Tests/` |
 | .NET → Flutter | `tools/MightDo.FixtureWriter` → `interop/dotnet-written/` | `test/format/interop_test.dart` |
 
-Both corpora are committed, so neither toolchain is needed to run the other's
-tests. Regenerate after changing serialization on either side; the opposite
-implementation's tests fail loudly if the output drifts.
+Both corpora are committed, so they still run with the Flutter side gone — but
+only the first row can still be checked. `tools/MightDo.FixtureWriter` rewrites
+`interop/dotnet-written/`; nothing reads it now, so a change there is a change
+to what a future implementation is written against, and needs justifying rather
+than regenerating.
 
 In practice the two agree closely: of the seven files in the canonical
 workspace, six are byte-identical between implementations and the seventh

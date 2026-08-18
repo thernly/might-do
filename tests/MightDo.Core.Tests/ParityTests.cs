@@ -15,8 +15,10 @@ namespace MightDo.Core.Tests;
 /// operations, run through each, should leave workspaces that mean the same
 /// thing.
 /// <para>
-/// The expectation is written by <c>test/format/parity_test.dart</c> and
-/// committed, so this runs without the Flutter toolchain. Ids are ULIDs and
+/// The expectation was written by <c>test/format/parity_test.dart</c> and
+/// committed, so this still runs now that the Flutter implementation has been
+/// deleted — but it can no longer be regenerated, so a failure here is a
+/// behaviour change to justify, not a fixture to refresh. Ids are ULIDs and
 /// timestamps are real moments, so both are normalised away — what remains is
 /// what a user would see: names, ordering, completion, board ranks.
 /// </para>

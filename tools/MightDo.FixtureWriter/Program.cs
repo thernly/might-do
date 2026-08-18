@@ -3,15 +3,18 @@
 //
 // The rest of the conformance suite proves one direction: Flutter wrote
 // fixtures/workspace-v1/, and .NET reads it and writes it back without losing a
-// value. This closes the other direction. The Dart test
-// test/format/interop_test.dart reads what this writes and asserts it
+// value. This closed the other direction. The Dart test
+// test/format/interop_test.dart read what this writes and asserted it
 // normalises to the canonical form, so "the two implementations can share a
-// folder" is verified rather than assumed.
+// folder" was verified rather than assumed.
 //
 //   dotnet run --project tools/MightDo.FixtureWriter
 //
-// The output is committed. Regenerate it whenever the .NET serialization
-// changes; the Dart test will fail loudly if it drifts.
+// The Flutter implementation has since been deleted, so nothing reads this
+// output any more. It is kept because the committed fixtures document what this
+// implementation writes, for any future port written against
+// docs/format/workspace-v1.md. Regenerating it now changes that specification
+// rather than checking it against anything.
 
 using MightDo.Core.Domain;
 using MightDo.Core.Serialization;

@@ -4,9 +4,9 @@ A personal task tracker for people who find Microsoft To Do too limited but full
 project-management tools too heavy. Local-first, single-user, no server and no
 account. Runs on macOS, Windows and Linux.
 
-The application is C# on .NET 10 with an Avalonia front end. The original
-Flutter implementation is still in the tree as a reference while the port is
-verified against it — see [Two implementations](#two-implementations).
+The application is C# on .NET 10 with an Avalonia front end, ported from an
+earlier Flutter implementation that has now been removed — see
+[The format is verified, not the port](#the-format-is-verified-not-the-port).
 
 ## What a task has
 
@@ -78,37 +78,35 @@ MIGHTDO_SETTINGS=/tmp/might-do-dev.json dotnet run --project src/MightDo.App
 | `fixtures/` | The on-disk format's conformance corpus, shared by both implementations. |
 | `tools/` | The fixture writer. |
 | `spikes/` | Throwaway code backing the measurements in ADR-0003 and ADR-0004. |
-| `lib/`, `test/` | The Flutter implementation and its tests. |
 
-## Two implementations
+## The format is verified, not the port
 
-Both are here on purpose. The Flutter app is the reference the port is checked
-against, and it stays until that checking is finished. Three things are
-verified automatically, and none of them need both toolchains — every
-expectation is committed:
+The Flutter implementation was the reference this one was checked against. It
+has been removed now that the checking is finished, but what it pinned down
+survives as committed fixtures, and three things stay verified automatically:
 
-- **The format reads both ways.** Each implementation loads a corpus the other
-  wrote and writes it back without losing a value.
-- **The behaviour matches.** The same sixteen-step scenario run through each
-  leaves workspaces that mean the same thing, down to the board ranks.
+- **The format reads both ways.** `fixtures/workspace-v1/` is a corpus Flutter
+  wrote, loaded and written back without losing a value; `fixtures/interop/`
+  is what this implementation writes, which Flutter read the same way.
+- **The behaviour matches.** A sixteen-step scenario, and the workspace Flutter
+  left after running it, are committed in `fixtures/parity/` and replayed on
+  every test run — down to the board ranks.
 - **The views load.** Avalonia's headless platform builds the real visual tree
   with no display, so a XAML file naming a type that does not exist fails a test
   rather than a launch.
 
 ```sh
-dotnet test                                   # 244 tests
-flutter test                                  # 110 tests
-
-# Regenerating the shared corpora, after changing either side's serialization
-dart run tool/generate_fixtures.dart          # Flutter → fixtures/workspace-v1
-dotnet run --project tools/MightDo.FixtureWriter   # .NET → fixtures/interop
-REGENERATE_PARITY=1 flutter test test/format/parity_test.dart
+dotnet test                                        # 244 tests
+dotnet run --project tools/MightDo.FixtureWriter   # rewrites fixtures/interop
 ```
 
-Where the two deliberately differ, the divergence is recorded next to the code
-and named by a test. There is one today: selecting the `Final` **status type**
-reveals completed work in the .NET version, where the Flutter version shows an
-empty list.
+These expectations can no longer be regenerated — the oracle that produced them
+is gone. Treat a parity or conformance failure as a change in behaviour to
+justify, not a fixture to refresh.
+
+One divergence from Flutter is deliberate, recorded next to the code and named
+by a test: selecting the `Final` **status type** reveals completed work here,
+where Flutter showed an empty list. Flutter's behaviour was the bug.
 
 ## Documentation
 
