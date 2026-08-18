@@ -173,6 +173,13 @@ Be liberal, and never lose a task quietly.
   vanishes is worse than one that shows up broken.
 - **An empty file reads as absent**, not as an error.
 - Only files in `tasks/` whose names are ULIDs are loaded (see below).
+- **Names that become paths are checked, not trusted.** A file that parses is
+  still hand-editable input: `id` must be a ULID and must equal the filename,
+  and every `storedName` must be `<attachment-ulid>-<file name>` with no
+  separator (`/` or `\`, on every platform), drive or stream qualifier, or
+  `..`. A file breaking either rule is reported as a broken file rather than
+  loaded — otherwise the next save, delete, or trash of that task would write,
+  remove, or move a file outside the workspace.
 
 ## Writing
 

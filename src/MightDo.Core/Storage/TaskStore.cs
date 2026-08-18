@@ -72,7 +72,7 @@ public sealed class TaskStore(Workspace workspace)
             {
                 var task = await WorkspaceFiles
                     .ReadJsonAsync<MightDoTask>(path, cancellationToken);
-                if (task is not null) tasks.Add(task);
+                if (task is not null) tasks.Add(RequireSafeNames(name, task));
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -87,9 +87,18 @@ public sealed class TaskStore(Workspace workspace)
             WorkspaceFiles.FindConflictFiles(Workspace));
     }
 
+    /// <summary>Reads one task, or null if there is no such task.</summary>
+    /// <remarks>
+    /// An id that isn't a ULID names no file we could have written, so it reads
+    /// as absent rather than as an error — looking something up is allowed to
+    /// come back empty. Writing under such an id is not: that throws.
+    /// </remarks>
     public Task<MightDoTask?> LoadTaskAsync(
         string taskId, CancellationToken cancellationToken = default) =>
-        WorkspaceFiles.ReadJsonAsync<MightDoTask>(Workspace.TaskFile(taskId), cancellationToken);
+        Ulid.IsUlid(taskId)
+            ? WorkspaceFiles.ReadJsonAsync<MightDoTask>(
+                Workspace.TaskFile(taskId), cancellationToken)
+            : Task.FromResult<MightDoTask?>(null);
 
     public Task SaveTaskAsync(MightDoTask task, CancellationToken cancellationToken = default) =>
         WorkspaceFiles.WriteJsonAtomicAsync(Workspace.TaskFile(task.Id), task, cancellationToken);
@@ -106,6 +115,7 @@ public sealed class TaskStore(Workspace workspace)
     public Task TrashTaskAsync(MightDoTask task, CancellationToken cancellationToken = default)
     {
         Workspace.EnsureLayout();
+        RequireSafeNames($"{task.Id}.json", task);
 
         foreach (var attachment in task.Attachments)
         {
@@ -123,17 +133,23 @@ public sealed class TaskStore(Workspace workspace)
     public async Task<MightDoTask?> RestoreTaskAsync(
         string taskId, CancellationToken cancellationToken = default)
     {
+        if (!Ulid.IsUlid(taskId)) return null;
+
         var trashed = Workspace.TrashedTaskFile(taskId);
         if (!File.Exists(trashed)) return null;
 
+        // Read before moving: a task whose names would resolve outside the
+        // workspace is refused while everything is still in the trash.
+        var task = await WorkspaceFiles.ReadJsonAsync<MightDoTask>(trashed, cancellationToken);
+        if (task is not null) RequireSafeNames($"{taskId}.json", task);
+
         MoveInto(trashed, Workspace.TasksDir);
-        var task = await LoadTaskAsync(taskId, cancellationToken);
 
         // Trashing took the attachments with the task, and the copies in
         // .trash are the only copies there are.
         foreach (var attachment in task?.Attachments ?? [])
         {
-            var file = Path.Combine(Workspace.TrashAttachmentsDir, attachment.StoredName);
+            var file = Workspace.TrashedAttachmentFile(attachment.StoredName);
             if (File.Exists(file)) MoveInto(file, Workspace.AttachmentsDir);
         }
 
@@ -148,13 +164,14 @@ public sealed class TaskStore(Workspace workspace)
         var tasks = new List<MightDoTask>();
         foreach (var path in Directory.EnumerateFiles(Workspace.TrashTasksDir))
         {
-            if (!WorkspaceFiles.IsOwnTaskFile(Path.GetFileName(path))) continue;
+            var name = Path.GetFileName(path);
+            if (!WorkspaceFiles.IsOwnTaskFile(name)) continue;
 
             try
             {
                 var task = await WorkspaceFiles
                     .ReadJsonAsync<MightDoTask>(path, cancellationToken);
-                if (task is not null) tasks.Add(task);
+                if (task is not null) tasks.Add(RequireSafeNames(name, task));
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
@@ -202,6 +219,33 @@ public sealed class TaskStore(Workspace workspace)
     {
         var file = Workspace.AttachmentFile(storedName);
         if (File.Exists(file)) File.Delete(file);
+    }
+
+    /// <summary>
+    /// Checks that a loaded task's persisted names still address files inside
+    /// the workspace, and that it is the task its own file is named after.
+    /// </summary>
+    /// <remarks>
+    /// Parse failures are already treated as untrusted input; the strings inside
+    /// a file that parses are no more trustworthy. An id that disagrees with its
+    /// filename means the next save would write somewhere else entirely, so it
+    /// is a broken file rather than a task.
+    /// </remarks>
+    private static MightDoTask RequireSafeNames(string fileName, MightDoTask task)
+    {
+        var expected = Path.GetFileNameWithoutExtension(fileName);
+        if (!Workspace.RequireTaskId(task.Id).Equals(expected, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnsafeWorkspaceNameException(
+                $"Task id '{task.Id}' does not match its file name '{fileName}'.");
+        }
+
+        foreach (var attachment in task.Attachments)
+        {
+            Workspace.RequireStoredName(attachment.StoredName);
+        }
+
+        return task;
     }
 
     private static void MoveInto(string file, string targetDir)
