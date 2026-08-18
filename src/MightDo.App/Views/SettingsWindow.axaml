@@ -3,6 +3,7 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+        xmlns:platform="clr-namespace:MightDo.Platform;assembly=MightDo.Platform"
         mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="760"
         x:Class="MightDo.App.Views.SettingsWindow"
         x:DataType="vm:SettingsViewModel"
@@ -38,6 +39,28 @@
   <Grid RowDefinitions="*,Auto">
     <ScrollViewer Grid.Row="0" Padding="18,10,18,10">
       <StackPanel>
+
+        <!-- Appearance. First because it is the one thing on this page that
+             is not part of the workspace, and the first thing anyone opens
+             settings looking for. -->
+        <TextBlock Classes="section" Text="Appearance" Margin="0,4,0,2" />
+        <TextBlock Classes="hint"
+                   Text="Auto follows your operating system, so the app turns dark when the rest of your desktop does. This is a setting for this machine, not for the workspace — your tasks look the same wherever you open them." />
+
+        <StackPanel Orientation="Horizontal" Spacing="18" Margin="0,10,0,0">
+          <RadioButton GroupName="Theme" Content="Auto"
+                       IsChecked="{Binding IsAutoTheme, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="{x:Static platform:ThemePreference.Auto}" />
+          <RadioButton GroupName="Theme" Content="Light"
+                       IsChecked="{Binding IsLightTheme, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="{x:Static platform:ThemePreference.Light}" />
+          <RadioButton GroupName="Theme" Content="Dark"
+                       IsChecked="{Binding IsDarkTheme, Mode=OneWay}"
+                       Command="{Binding SetThemeCommand}"
+                       CommandParameter="{x:Static platform:ThemePreference.Dark}" />
+        </StackPanel>
 
         <!-- Statuses -->
         <TextBlock Classes="section" Text="Statuses" />

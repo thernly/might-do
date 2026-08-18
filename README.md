@@ -66,6 +66,16 @@ they sit at different paths on each machine, and a name is not part of the
 on-disk format. On macOS that is
 `~/Library/Application Support/might-do/settings.json`.
 
+## How it looks
+
+Settings has a light theme, a dark one, and Auto, which follows whatever your
+operating system is set to and changes with it — so a machine that goes dark in
+the evening takes might-do with it. Auto is the default.
+
+That choice is machine-local too, alongside the workspace list rather than in
+the workspace: your laptop can be dark and your desktop light while both are
+showing the same tasks.
+
 ## Running it
 
 Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).

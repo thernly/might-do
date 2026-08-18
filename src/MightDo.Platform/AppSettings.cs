@@ -14,6 +14,25 @@ public enum ViewMode
     Board,
 }
 
+/// <summary>Which colour scheme the user has asked for.</summary>
+/// <remarks>
+/// <see cref="Auto"/> is the default and means "whatever the operating system
+/// is doing", which is not a third colour scheme but an absence of a choice —
+/// so it follows the OS as it changes rather than being read once at startup.
+/// </remarks>
+[JsonConverter(typeof(JsonStringEnumConverter<ThemePreference>))]
+public enum ThemePreference
+{
+    [JsonStringEnumMemberName("auto")]
+    Auto,
+
+    [JsonStringEnumMemberName("light")]
+    Light,
+
+    [JsonStringEnumMemberName("dark")]
+    Dark,
+}
+
 /// <summary>
 /// How big the main window was left, and whether it was maximized.
 /// </summary>
@@ -54,6 +73,13 @@ public sealed record AppSettingsData
     /// anywhere. Each workspace then keeps its own in <see cref="WorkspaceViewState"/>.
     /// </summary>
     public ViewMode ViewMode { get; init; } = ViewMode.List;
+
+    /// <summary>
+    /// The colour scheme, which is machine-local for the same reason the
+    /// workspace path is: one person's laptop is dark and their desktop is
+    /// light, and a synced preference would be wrong on one of them.
+    /// </summary>
+    public ThemePreference Theme { get; init; } = ThemePreference.Auto;
 
     public double? WindowWidth { get; init; }
 
@@ -311,6 +337,17 @@ public sealed class AppSettings
     // ------------------------------------------------------------------ the rest
 
     public ViewMode ViewMode => _data.ViewMode;
+
+    /// <summary>The colour scheme the user has chosen.</summary>
+    public ThemePreference Theme => _data.Theme;
+
+    /// <summary>Records the colour scheme. Applying it is the app's business.</summary>
+    public void SetTheme(ThemePreference theme)
+    {
+        if (_data.Theme == theme) return;
+
+        Save(_data with { Theme = theme });
+    }
 
     /// <summary>
     /// The size the window was left at, or null if it has never been recorded

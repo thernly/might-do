@@ -2,6 +2,7 @@ using MightDo.App.ViewModels;
 using MightDo.Core.Domain;
 using MightDo.Core.Session;
 using MightDo.Core.Storage;
+using MightDo.Platform;
 
 namespace MightDo.App.Tests;
 
@@ -17,7 +18,7 @@ public class SettingsViewModelTests : IAsyncLifetime
     {
         _session = await WorkspaceSession.OpenAsync(
             new TaskStore(new Core.Storage.Workspace(_root)));
-        _vm = new SettingsViewModel(_session);
+        _vm = new SettingsViewModel(_session, AppSettings.Load(Path.Combine(_root, "settings.json")));
     }
 
     public ValueTask DisposeAsync()
