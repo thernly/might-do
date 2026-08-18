@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using MightDo.App.ViewModels;
 using MightDo.Platform;
 
@@ -92,6 +93,27 @@ public partial class MainWindow : Window
     /// </summary>
     private static double Clamp(double value, double min, double max) =>
         Math.Max(min, Math.Min(value, max));
+
+    /// <summary>
+    /// Closes the workspace switcher once the choice inside it is made.
+    /// </summary>
+    /// <remarks>
+    /// A flyout stays open when a button inside it is pressed, which is right
+    /// for the rename box — it appears in the flyout and needs it to stay — and
+    /// wrong for everything that finishes the job. Leaving it standing over the
+    /// workspace the user just switched to hides the very thing they asked to
+    /// see.
+    /// <para>
+    /// Posted rather than done here. A button raises Click before it runs its
+    /// own Command, and closing the flyout takes the rows out of the tree with
+    /// it — which leaves the row's command, bound by reaching up to the
+    /// ItemsControl, resolving to nothing. Closing after this click has been
+    /// dealt with lets the command run first.
+    /// </para>
+    /// </remarks>
+    private void OnSwitcherFinished(object? sender, RoutedEventArgs e) =>
+        Dispatcher.UIThread.Post(
+            () => WorkspaceSwitcher.Flyout?.Hide(), DispatcherPriority.Background);
 
     /// <summary>
     /// Opens settings, or brings the open one forward. The view model is built

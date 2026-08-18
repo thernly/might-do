@@ -44,8 +44,13 @@ Missing directories are created on load. A folder is recognised as an existing
 workspace by the presence of `config.json`; without it, one is seeded with six
 starter statuses and no categories or tags.
 
-The workspace folder does **not** record which machine it is on, the window
-layout, or the last-used view. Those are machine-local preferences and live in
+Several workspaces are simply several such folders. Nothing in one refers to
+another, none of them records that the others exist, and a workspace cannot
+tell whether it is the only one — so this format is the same whether the user
+keeps one or ten.
+
+The workspace folder does **not** record which machine it is on, its own name in
+the switcher, the window layout, or the last-used view. Those are machine-local preferences and live in
 the platform's own settings store — the folder is at a different path on every
 machine, so a path stored inside it would be wrong everywhere but where it was
 written. A port needs its own equivalent; nothing about it is part of this

@@ -27,7 +27,8 @@ Deleting a status in use is blocked until you say where its tasks should go.
 
 ## Where your data lives
 
-You choose a folder on first run. Everything is plain files beneath it:
+You choose a folder on first run. That folder is a **workspace**, and everything
+in it is plain files:
 
 ```
 <your folder>/
@@ -46,8 +47,23 @@ There is no database, so you can back the folder up, grep it, or read it in any
 text editor — and it stays readable if might-do stops existing. See
 [docs/adr/0001](docs/adr/0001-file-per-task-json-storage.md) for why not SQLite.
 
-Which folder you chose is remembered per machine, not in the folder — it sits at
-a different path on each one. On macOS that is
+You can keep several workspaces — work in one, home in another — and switch
+between them from the button at the left of the toolbar. Each is an ordinary
+folder of the shape above, with its own statuses, categories and tags; one is
+open at a time. Forgetting a workspace removes it from the switcher and leaves
+its folder untouched.
+
+Choosing a folder is what *creates* a workspace; reopening one never creates
+anything. If a remembered workspace's folder has gone — an unmounted drive, a
+synced folder that has not arrived — might-do says so and leaves the folder
+alone rather than seeding an empty workspace over the top of it. The workspace
+stays in the switcher, because it may come back, and whatever else you have
+is one click away.
+
+The list of workspaces, what you call each one, and how you left each one — the
+view, the sort, the filters — are remembered per machine, not in the folders:
+they sit at different paths on each machine, and a name is not part of the
+on-disk format. On macOS that is
 `~/Library/Application Support/might-do/settings.json`.
 
 ## Running it

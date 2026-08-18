@@ -26,6 +26,32 @@
         <Button Content="Choose a folder…"
                 Command="{Binding ChooseWorkspaceCommand}"
                 HorizontalAlignment="Center" />
+
+        <!-- Workspaces added before and not currently open: closing one, or
+             starting the app with none open, should not mean finding the
+             folder again. -->
+        <StackPanel Spacing="6" IsVisible="{Binding HasRememberedWorkspaces}"
+                    HorizontalAlignment="Center" Margin="0,10,0,0">
+          <TextBlock Text="Or reopen one of yours" Classes="group"
+                     HorizontalAlignment="Center" />
+          <ItemsControl ItemsSource="{Binding Workspaces}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:WorkspaceChoice">
+                <Button HorizontalAlignment="Stretch" Margin="0,2"
+                        Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SwitchWorkspaceCommand}"
+                        CommandParameter="{Binding}"
+                        ToolTip.Tip="{Binding Path}">
+                  <StackPanel Orientation="Horizontal" Spacing="8">
+                    <TextBlock Text="{Binding Name}" />
+                    <TextBlock Text="missing" Classes="hint"
+                               IsVisible="{Binding IsMissing}" />
+                  </StackPanel>
+                </Button>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+
         <TextBlock Text="{Binding Message}" Classes="hint"
                    IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}"
                    TextWrapping="Wrap" TextAlignment="Center" />
@@ -41,8 +67,89 @@
 
       <!-- Toolbar. The filter controls live behind a button; the search box
            does not, which is why the count on that button ignores it. -->
-      <Grid Grid.Row="0" ColumnDefinitions="*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
-        <TextBox Grid.Column="0" PlaceholderText="Search summaries, notes and steps"
+      <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto,Auto,Auto,Auto" Margin="0,0,0,10">
+
+        <!-- The workspace switcher. Bound to the shell rather than to the open
+             workspace, which is the thing it replaces — hence the reach up to
+             the window's own data context. It sits before the search box and
+             stays visible at all times: two workspaces look identical once you
+             are inside one, so which one you are in has to be on screen. -->
+        <Button Grid.Column="0" Margin="0,0,8,0"
+                x:Name="WorkspaceSwitcher"
+                x:DataType="vm:MainViewModel"
+                DataContext="{Binding $parent[Window].DataContext}"
+                ToolTip.Tip="Switch workspace">
+          <StackPanel Orientation="Horizontal" Spacing="6">
+            <PathIcon Data="{StaticResource IconWorkspace}" Width="14" Height="14"
+                      VerticalAlignment="Center" />
+            <TextBlock Text="{Binding CurrentWorkspaceName}" VerticalAlignment="Center"
+                       MaxWidth="140" TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+
+          <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedLeft">
+              <StackPanel MinWidth="240" Spacing="4">
+                <TextBlock Text="Workspaces" Classes="group" />
+
+                <ItemsControl ItemsSource="{Binding Workspaces}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:WorkspaceChoice">
+                      <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                              Margin="0,1"
+                              Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SwitchWorkspaceCommand}"
+                              CommandParameter="{Binding}"
+                              Click="OnSwitcherFinished"
+                              ToolTip.Tip="{Binding Path}">
+                        <Grid ColumnDefinitions="16,*,Auto">
+                          <PathIcon Grid.Column="0" Data="{StaticResource IconTick}"
+                                    Width="11" Height="11" VerticalAlignment="Center"
+                                    IsVisible="{Binding IsCurrent}" />
+                          <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="6,0,0,0"
+                                     VerticalAlignment="Center"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Grid.Column="2" Text="missing" Classes="hint"
+                                     Margin="8,0,0,0" VerticalAlignment="Center"
+                                     IsVisible="{Binding IsMissing}" />
+                        </Grid>
+                      </Button>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Separator Margin="0,4" />
+
+                <!-- Renaming happens in place rather than in a dialog: the name
+                     is machine-local decoration, and a modal window is more
+                     ceremony than relabelling a folder deserves. -->
+                <StackPanel IsVisible="{Binding !IsRenaming}" Spacing="2">
+                  <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                          Command="{Binding AddWorkspaceCommand}" Content="Add workspace…"
+                          Click="OnSwitcherFinished" />
+                  <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                          Command="{Binding BeginRenameCommand}" Content="Rename this one…"
+                          IsEnabled="{Binding HasWorkspace}" />
+                  <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                          Command="{Binding ForgetWorkspaceCommand}"
+                          IsEnabled="{Binding HasWorkspace}"
+                          Content="Forget this one"
+                          Click="OnSwitcherFinished"
+                          ToolTip.Tip="Removes it from this list. The folder and its tasks are left alone." />
+                </StackPanel>
+
+                <StackPanel IsVisible="{Binding IsRenaming}" Spacing="6">
+                  <TextBox Text="{Binding RenameText}" PlaceholderText="Workspace name" />
+                  <StackPanel Orientation="Horizontal" Spacing="6" HorizontalAlignment="Right">
+                    <Button Content="Cancel" Command="{Binding CancelRenameCommand}" />
+                    <Button Content="Rename" Command="{Binding CommitRenameCommand}"
+                            Click="OnSwitcherFinished" Classes="accent" />
+                  </StackPanel>
+                </StackPanel>
+              </StackPanel>
+            </Flyout>
+          </Button.Flyout>
+        </Button>
+
+        <TextBox Grid.Column="1" PlaceholderText="Search summaries, notes and steps"
                  Text="{Binding Search}" MinWidth="200">
           <TextBox.InnerLeftContent>
             <PathIcon Data="{StaticResource IconSearch}" Width="14" Height="14"
@@ -50,7 +157,7 @@
           </TextBox.InnerLeftContent>
         </TextBox>
 
-        <ToggleButton Grid.Column="1" Margin="8,0,0,0" IsChecked="{Binding FiltersOpen}">
+        <ToggleButton Grid.Column="2" Margin="8,0,0,0" IsChecked="{Binding FiltersOpen}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconFilter}" Width="13" Height="13"
                       VerticalAlignment="Center" />
@@ -66,7 +173,7 @@
         <!-- Disabled rather than hidden on the board, whose order is the user's
              own drag-and-drop one and cannot also be a computed sort. Hiding it
              would reshuffle the toolbar on every view switch. -->
-        <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="8,0,0,0"
+        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="8,0,0,0"
                     IsEnabled="{Binding IsListView}">
           <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0"
                      Foreground="{DynamicResource AppTextSecondaryBrush}" />
@@ -78,11 +185,11 @@
                     ToolTip.Tip="How the list is ordered. The board keeps the order you drag cards into." />
         </StackPanel>
 
-        <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear"
+        <Button Grid.Column="4" Margin="8,0,0,0" Content="Clear"
                 Command="{Binding ClearFiltersCommand}"
                 IsVisible="{Binding IsFiltered}" />
 
-        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="12,0,0,0">
+        <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="12,0,0,0">
           <RadioButton GroupName="ViewMode" IsChecked="{Binding IsListView}"
                        Command="{Binding ShowListCommand}" VerticalAlignment="Center">
             <StackPanel Orientation="Horizontal" Spacing="5">
@@ -105,6 +212,23 @@
 
       <!-- Banners: reminders, sync conflicts, missing folder -->
       <StackPanel Grid.Row="1">
+
+        <!-- The shell's own message — a workspace that could not be reopened,
+             most often. It belongs here as well as on the no-workspace screen:
+             a switch that was refused happens while another workspace is open,
+             and would otherwise fail silently. -->
+        <Border Classes="banner"
+                x:DataType="vm:MainViewModel"
+                DataContext="{Binding $parent[Window].DataContext}"
+                IsVisible="{Binding Message, Converter={x:Static ObjectConverters.IsNotNull}}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Grid.Column="0" Text="{Binding Message}" TextWrapping="Wrap"
+                       VerticalAlignment="Center" />
+            <Button Grid.Column="1" Content="Dismiss" Margin="8,0,0,0"
+                    Command="{Binding ClearMessageCommand}" />
+          </Grid>
+        </Border>
+
         <Border Classes="banner" IsVisible="{Binding FiltersOpen}">
           <StackPanel Spacing="10">
             <WrapPanel>
