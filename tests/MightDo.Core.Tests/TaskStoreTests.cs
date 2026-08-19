@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MightDo.Core.Domain;
@@ -161,7 +161,7 @@ public class TaskStoreTests : IDisposable
         };
         await store.SaveTaskAsync(task);
 
-        store.TrashTask(task);
+        await store.TrashTaskAsync(task);
 
         Assert.False(File.Exists(store.Workspace.TaskFile(task.Id)));
         Assert.False(File.Exists(store.Workspace.AttachmentFile(storedName)));
@@ -204,7 +204,7 @@ public class TaskStoreTests : IDisposable
         // leaves the operation half done.
         Block(store.Workspace.TrashedTaskFile(task.Id));
 
-        Assert.ThrowsAny<Exception>(() => store.TrashTask(task));
+        await Assert.ThrowsAnyAsync<Exception>(() => store.TrashTaskAsync(task));
 
         // An active task whose attachment is already in .trash is the failure
         // worth preventing: the attachment came back with it.
@@ -231,7 +231,7 @@ public class TaskStoreTests : IDisposable
             ],
         };
         await store.SaveTaskAsync(task);
-        store.TrashTask(task);
+        await store.TrashTaskAsync(task);
 
         // The task moves back first; block its attachment so the restore fails
         // partway.
@@ -262,9 +262,9 @@ public class TaskStoreTests : IDisposable
         var task = MightDoTask.Create("Recreated after trashing", "s", Rank.First);
 
         await store.SaveTaskAsync(task);
-        store.TrashTask(task);
+        await store.TrashTaskAsync(task);
         await store.SaveTaskAsync(task with { Summary = "Second version" });
-        store.TrashTask(task);
+        await store.TrashTaskAsync(task);
 
         var trashed = Directory.GetFiles(store.Workspace.TrashTasksDir);
         Assert.Equal(2, trashed.Length);
@@ -415,7 +415,8 @@ public class TaskStoreTests : IDisposable
 
         Assert.Empty(loaded.Tasks);
         Assert.IsType<UnsafeWorkspaceNameException>(Assert.Single(loaded.Failures).Error);
-        Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashAttachment(storedName));
+        await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(
+            () => store.TrashAttachmentAsync(storedName));
     }
 
     [Fact]
@@ -428,9 +429,10 @@ public class TaskStoreTests : IDisposable
         await File.WriteAllTextAsync(outsider, "must survive");
         try
         {
-            Assert.Throws<UnsafeWorkspaceNameException>(
-                () => store.TrashAttachment($"../../{Path.GetFileName(outsider)}"));
-            Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashAttachment(outsider));
+            await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(
+                () => store.TrashAttachmentAsync($"../../{Path.GetFileName(outsider)}"));
+            await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(
+                () => store.TrashAttachmentAsync(outsider));
             Assert.True(File.Exists(outsider));
         }
         finally
@@ -458,7 +460,7 @@ public class TaskStoreTests : IDisposable
         };
         await store.SaveTaskAsync(task);
 
-        Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashTask(task));
+        await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(() => store.TrashTaskAsync(task));
 
         // Nothing was moved: the check happens before the first rename, so the
         // task is not left half in the trash.

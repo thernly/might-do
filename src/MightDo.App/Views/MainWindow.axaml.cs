@@ -12,6 +12,12 @@ public partial class MainWindow : Window
 {
     private SettingsWindow? _settings;
 
+    /// <summary>
+    /// The shell this window is showing, kept so the workspace it is closing can
+    /// be heard about.
+    /// </summary>
+    private MainViewModel? _shell;
+
     private readonly WindowSizeMemory _size = new();
 
     public MainWindow()
@@ -26,6 +32,10 @@ public partial class MainWindow : Window
     protected override void OnDataContextChanged(EventArgs e)
     {
         base.OnDataContextChanged(e);
+
+        if (_shell is not null) _shell.WorkspaceClosing -= OnWorkspaceClosing;
+        _shell = DataContext as MainViewModel;
+        if (_shell is not null) _shell.WorkspaceClosing += OnWorkspaceClosing;
 
         if (DataContext is not MainViewModel { WindowPlacement: { } placement }) return;
 
@@ -114,6 +124,19 @@ public partial class MainWindow : Window
     private void OnSwitcherFinished(object? sender, RoutedEventArgs e) =>
         Dispatcher.UIThread.Post(
             () => WorkspaceSwitcher.Flyout?.Hide(), DispatcherPriority.Background);
+
+    /// <summary>
+    /// Closes settings when the workspace it belongs to is being closed.
+    /// </summary>
+    /// <remarks>
+    /// The page is a view onto one workspace's session, so it cannot outlive
+    /// it: left standing it would show the workspace the user has just left and
+    /// send its edits to a disposed session, which it treats as shutdown and
+    /// swallows. Closing runs the handler below, which disposes the view model
+    /// and forgets the window, so the next press of Settings builds a fresh one
+    /// on whichever workspace is open by then.
+    /// </remarks>
+    private void OnWorkspaceClosing(object? sender, EventArgs e) => _settings?.Close();
 
     /// <summary>
     /// Opens settings, or brings the open one forward. The view model is built

@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace MightDo.Platform;
@@ -86,6 +86,30 @@ public sealed record AppSettingsData
     public double? WindowHeight { get; init; }
 
     public bool WindowMaximized { get; init; }
+
+    /// <summary>
+    /// The same settings with anything the file could not be trusted to hold
+    /// replaced by the default.
+    /// </summary>
+    /// <remarks>
+    /// A key being present is all <c>required</c> and a default initialiser
+    /// guarantee. <c>"workspaces": null</c> parses fine and then throws from the
+    /// first <c>.Count</c> — which is <see cref="Migrated"/>, called during
+    /// framework initialisation, so a hand-edited settings file takes the
+    /// application down before there is a window to report it in. Everything
+    /// here is machine-local and rebuildable, so a value that cannot be believed
+    /// is dropped rather than refused: the cost is re-adding a workspace, and
+    /// the file is the app's own, not the user's data.
+    /// </remarks>
+    public AppSettingsData Sanitised() => this with
+    {
+        Workspaces =
+        [
+            .. (Workspaces ?? [])
+                .Where(workspace => workspace is { Path.Length: > 0, Name.Length: > 0 })
+                .Select(workspace => workspace with { View = workspace.View ?? new() }),
+        ],
+    };
 
     /// <summary>
     /// The same settings with any pre-list workspace path folded into the list.
@@ -204,7 +228,11 @@ public sealed class AppSettings
     /// <remarks>
     /// A corrupt or unreadable file yields defaults rather than throwing. Losing
     /// a remembered folder path is a small annoyance; refusing to start over it
-    /// would not be.
+    /// would not be — and this runs during framework initialisation, where
+    /// "refusing" means the application never draws a window to explain itself
+    /// in. That covers a file that parses into a shape the code cannot use as
+    /// well as one that does not parse, so the catch is by outcome rather than
+    /// by exception type. See <see cref="AppSettingsData.Sanitised"/>.
     /// </remarks>
     public static AppSettings Load(string? path = null)
     {
@@ -216,10 +244,13 @@ public sealed class AppSettings
             {
                 var data = JsonSerializer.Deserialize<AppSettingsData>(
                     File.ReadAllText(path), Options);
-                if (data is not null) return new AppSettings(path, data.Migrated());
+                if (data is not null)
+                {
+                    return new AppSettings(path, data.Sanitised().Migrated());
+                }
             }
         }
-        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
+        catch (Exception e) when (e is not OutOfMemoryException)
         {
             // Fall through to defaults.
         }

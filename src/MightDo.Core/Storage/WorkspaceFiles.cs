@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
 using MightDo.Core.Domain;
@@ -254,6 +254,8 @@ public static partial class WorkspaceFiles
         where T : class
     {
         if (!File.Exists(path)) return (null, NoFile);
+
+        PersistedShape.RequireReadableSize(path);
 
         var contents = await File.ReadAllTextAsync(path, cancellationToken);
         return string.IsNullOrWhiteSpace(contents)

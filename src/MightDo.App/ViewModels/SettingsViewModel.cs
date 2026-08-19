@@ -500,6 +500,15 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         foreach (var item in items) target.Add(item);
     }
 
+    /// <summary>
+    /// Whether this page has let go of its session.
+    /// </summary>
+    /// <remarks>
+    /// The page is owned by the workspace it was opened on and is disposed with
+    /// it, so this is how that ownership can be asserted from outside.
+    /// </remarks>
+    public bool IsDisposed => _disposed;
+
     public void Dispose()
     {
         if (_disposed) return;

@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using MightDo.Core.Domain;
 
 namespace MightDo.Core.Storage;
@@ -277,15 +277,23 @@ public sealed class TaskStore(Workspace workspace)
     /// Nothing purges the trash automatically — silently destroying data on a
     /// timer is worse than a folder that grows.
     /// <para>
-    /// Synchronous, and says so: moving the files is the whole of the work. A
-    /// <c>Task</c>-returning signature with a <c>CancellationToken</c> would
-    /// promise an await and a cancellation point, neither of which exists here.
+    /// Holds the workspace's <see cref="WorkspaceLock"/> for the whole batch.
+    /// Moving several files is no more atomic than compare-and-replace is: a
+    /// save in another process that lands between the attachment moves and the
+    /// task move republishes the task file this has just taken away, leaving an
+    /// active task whose attachments are all in <c>.trash/</c>.
+    /// <see cref="MoveBatch"/> can undo this process's own failures; it cannot
+    /// undo another process's success.
     /// </para>
     /// </remarks>
-    public void TrashTask(MightDoTask task)
+    public async Task TrashTaskAsync(
+        MightDoTask task, CancellationToken cancellationToken = default)
     {
         Workspace.EnsureLayout();
         RequireSafeNames($"{task.Id}.json", task);
+
+        using var writing = await WorkspaceLock.AcquireAsync(
+            Workspace.Root, cancellationToken);
 
         var moves = new MoveBatch();
         try
@@ -314,6 +322,13 @@ public sealed class TaskStore(Workspace workspace)
         if (!Ulid.IsUlid(taskId)) return null;
 
         Workspace.RequireWritable();
+
+        // Held across the whole restore for the same reason trashing holds it:
+        // the canonical file is checked, preserved and then replaced, and a save
+        // in another process landing between those steps leaves the task in both
+        // tasks/ and .trash/tasks/.
+        using var writing = await WorkspaceLock.AcquireAsync(
+            Workspace.Root, cancellationToken);
 
         var trashed = Workspace.TrashedTaskFile(taskId);
         if (!File.Exists(trashed)) return null;
@@ -551,9 +566,13 @@ public sealed class TaskStore(Workspace workspace)
     /// that no longer exist anywhere cannot be repaired. Trashing them gives
     /// the same recovery story a trashed task has.
     /// </remarks>
-    public void TrashAttachment(string storedName)
+    public async Task TrashAttachmentAsync(
+        string storedName, CancellationToken cancellationToken = default)
     {
         Workspace.RequireWritable();
+
+        using var writing = await WorkspaceLock.AcquireAsync(
+            Workspace.Root, cancellationToken);
 
         var file = Workspace.AttachmentFile(storedName);
         MoveInto(file, Workspace.TrashAttachmentsDir);
@@ -585,7 +604,10 @@ public sealed class TaskStore(Workspace workspace)
             Workspace.RequireStoredName(attachment.StoredName);
         }
 
-        return task;
+        // After the names, not before: a task whose id would write outside the
+        // workspace is that failure and should say so, rather than being
+        // reported as a blank field.
+        return PersistedShape.RequireWellFormed(task);
     }
 
     /// <summary>
@@ -619,6 +641,8 @@ public sealed class TaskStore(Workspace workspace)
     /// </remarks>
     private static void RequireUsableConfig(WorkspaceConfig config)
     {
+        PersistedShape.RequireWellFormed(config);
+
         if (config.Statuses.Count == 0)
         {
             throw new InvalidOperationException("it defines no statuses.");

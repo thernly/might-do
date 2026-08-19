@@ -845,6 +845,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         foreach (var item in items) target.Add(item);
     }
 
+    /// <summary>
+    /// Whether this workspace has been closed: its watcher, reminder clock and
+    /// session all stopped.
+    /// </summary>
+    /// <remarks>
+    /// The shell owns exactly one live workspace, and everything a workspace
+    /// runs keeps running until it is disposed, so whether the one being
+    /// replaced was let go of is worth being able to ask.
+    /// </remarks>
+    public bool IsDisposed => _disposed;
+
     public void Dispose()
     {
         if (_disposed) return;
