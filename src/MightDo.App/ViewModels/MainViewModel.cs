@@ -34,6 +34,30 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly IFolderPicker _picker;
     private readonly IFilePicker _filePicker;
     private readonly WorkspaceServices _services;
+    private readonly Func<TaskStore, Task<WorkspaceViewModel>> _open;
+
+    /// <summary>
+    /// Held for the whole of an open, so only one is ever in flight.
+    /// </summary>
+    /// <remarks>
+    /// Opening is several awaits long — the session reads the folder, and the
+    /// view model that comes back has already started a watcher and a reminder
+    /// clock — and the ways in are not exclusive of one another: startup opens
+    /// the remembered workspace from the window's Opened event while Add and
+    /// Switch stay pressable. Two opens interleaving used to build two live
+    /// workspaces and assign both, which left the first one's watcher, timer,
+    /// scheduler and session running on a folder nothing was showing any more.
+    /// <para>
+    /// A gate rather than a flag, so a second open queues behind the first and
+    /// still happens, rather than being dropped on the floor. The controls are
+    /// disabled while one is in flight as well, but that is feedback, not the
+    /// guarantee: nothing about a disabled button stops the Opened event.
+    /// </para>
+    /// </remarks>
+    private readonly SemaphoreSlim _opening = new(1, 1);
+
+    /// <summary>How many opens are in flight, including the ones still queued.</summary>
+    private int _opens;
 
     /// <summary>
     /// Whether each remembered folder was there the last time anything looked.
@@ -58,6 +82,7 @@ public sealed partial class MainViewModel : ViewModelBase
     private string? _message;
 
     [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanOpenWorkspace))]
     private bool _isBusy;
 
     /// <summary>Whether the switcher is offering to rename the open workspace.</summary>
@@ -67,11 +92,18 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _renameText = "";
 
+    /// <param name="open">
+    /// How a workspace is opened, defaulting to really opening one. A test that
+    /// needs two opens overlapping has nowhere else to stand: with the real one
+    /// the awaits inside are over before a second call can be made, so the
+    /// overlap it is trying to create never exists.
+    /// </param>
     public MainViewModel(
         AppSettings settings,
         IFolderPicker picker,
         IFilePicker filePicker,
-        WorkspaceServices? services = null)
+        WorkspaceServices? services = null,
+        Func<TaskStore, Task<WorkspaceViewModel>>? open = null)
     {
         _settings = settings;
         _picker = picker;
@@ -80,6 +112,9 @@ public sealed partial class MainViewModel : ViewModelBase
         // The composition root, which is what this type already was for
         // everything else the app is made of.
         _services = services ?? WorkspaceServices.Real;
+
+        _open = open ?? (store => WorkspaceViewModel.OpenAsync(
+            store, _settings, _filePicker, _services));
     }
 
     /// <summary>A parameterless constructor for the XAML designer.</summary>
@@ -89,6 +124,33 @@ public sealed partial class MainViewModel : ViewModelBase
     }
 
     public bool HasWorkspace => Workspace is not null;
+
+    /// <summary>Whether a workspace can be opened, added or switched to now.</summary>
+    /// <remarks>
+    /// For the controls to grey themselves out while an open is running, so the
+    /// user is told rather than left pressing a button that appears to do
+    /// nothing. What actually keeps two opens apart is the gate in
+    /// <see cref="OpenAsync"/>; this is only how that is shown.
+    /// </remarks>
+    public bool CanOpenWorkspace => !IsBusy;
+
+    /// <summary>
+    /// Raised while the open workspace is still alive, immediately before it is
+    /// disposed.
+    /// </summary>
+    /// <remarks>
+    /// Anything the view opened onto a workspace — the Settings window is the
+    /// one there is — belongs to that workspace and has to go with it.
+    /// Otherwise it stays on screen showing the workspace the user has left,
+    /// sending commands to a session that has been disposed, which the page
+    /// reads as shutdown and quietly swallows: the user edits a status and
+    /// nothing happens, with no explanation.
+    /// <para>
+    /// An event rather than the shell owning the window, because a window is
+    /// the view layer's to build and close; the shell only says when.
+    /// </para>
+    /// </remarks>
+    public event EventHandler? WorkspaceClosing;
 
     // ------------------------------------------------------------- the switcher
 
@@ -404,25 +466,32 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     private void CloseOpenWorkspace()
     {
-        Workspace?.Dispose();
+        if (Workspace is null) return;
+
+        WorkspaceClosing?.Invoke(this, EventArgs.Empty);
+        Workspace.Dispose();
         Workspace = null;
     }
 
     public async Task OpenAsync(string path)
     {
+        _opens++;
         IsBusy = true;
         IsRenaming = false;
+
+        await _opening.WaitAsync();
         try
         {
             // The workspace being left is disposed before the next is opened, so
             // its view state is written and its watcher stopped before another
             // starts. Two live sessions on two folders is a state nothing else
-            // in the app is written to expect.
+            // in the app is written to expect — which is exactly why the gate
+            // above is held across the open as well as the close: a second open
+            // arriving mid-await would otherwise have made that pair.
             CloseOpenWorkspace();
 
             var store = new TaskStore(new Core.Storage.Workspace(path));
-            Workspace = await WorkspaceViewModel.OpenAsync(
-                store, _settings, _filePicker, _services);
+            Workspace = await _open(store);
             Message = null;
         }
         catch (Exception e) when (e is not OperationCanceledException)
@@ -439,8 +508,13 @@ public sealed partial class MainViewModel : ViewModelBase
         }
         finally
         {
+            _opening.Release();
+
             RefreshWorkspaces();
-            IsBusy = false;
+
+            // Still busy while another open is queued behind this one: the last
+            // one to finish is the one that says so, not the first.
+            IsBusy = --_opens > 0;
         }
     }
 

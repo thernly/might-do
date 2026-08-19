@@ -26,6 +26,7 @@
                    Text="Choose a folder for your tasks. Everything is kept as plain JSON files beneath it, one per task — put it inside OneDrive, Dropbox or iCloud Drive and your tasks follow you between machines." />
         <Button Content="Choose a folder…"
                 Command="{Binding ChooseWorkspaceCommand}"
+                IsEnabled="{Binding CanOpenWorkspace}"
                 HorizontalAlignment="Center" />
 
         <!-- Workspaces added before and not currently open: closing one, or
@@ -41,6 +42,7 @@
                 <Button HorizontalAlignment="Stretch" Margin="0,2"
                         Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SwitchWorkspaceCommand}"
                         CommandParameter="{Binding}"
+                        IsEnabled="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).CanOpenWorkspace}"
                         ToolTip.Tip="{Binding Path}">
                   <StackPanel Orientation="Horizontal" Spacing="8">
                     <TextBlock Text="{Binding Name}" />
@@ -99,6 +101,7 @@
                               Margin="0,1"
                               Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SwitchWorkspaceCommand}"
                               CommandParameter="{Binding}"
+                              IsEnabled="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).CanOpenWorkspace}"
                               Click="OnSwitcherFinished"
                               ToolTip.Tip="{Binding Path}">
                         <Grid ColumnDefinitions="16,*,Auto">
@@ -125,6 +128,7 @@
                 <StackPanel IsVisible="{Binding !IsRenaming}" Spacing="2">
                   <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                           Command="{Binding AddWorkspaceCommand}" Content="Add workspace…"
+                          IsEnabled="{Binding CanOpenWorkspace}"
                           Click="OnSwitcherFinished" />
                   <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                           Command="{Binding BeginRenameCommand}" Content="Rename this one…"

@@ -495,6 +495,99 @@ public class WorkspaceSwitchingTests : IDisposable
         Assert.False(((Flyout)switcher.Flyout!).IsOpen);
     }
 
+    // ---- what a workspace owns ---------------------------------------------
+
+    /// <summary>
+    /// The Settings window is a view onto one workspace's session. Left open
+    /// across a switch it would show the workspace the user has left and post
+    /// its edits into a disposed session, which is swallowed as shutdown — the
+    /// user would see their edits do nothing at all.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task SwitchingWorkspaceClosesSettingsAndTheNextOneOpensOnTheNewWorkspace()
+    {
+        var main = Shell(Settings(), Folder("work"), Folder("home"));
+        var window = Showing(main);
+
+        await AddAsync(main);
+        Settle(window);
+
+        Click(window, SettingsButton(window));
+        var settings = (SettingsViewModel)Assert.Single(window.OwnedWindows).DataContext!;
+
+        // Something only this workspace has, so the page that comes back after
+        // the switch can be shown to be looking somewhere else.
+        settings.NewStatusName = "Waiting on the plumber";
+        await settings.AddStatusCommand.ExecuteAsync(null!);
+        Settle(window);
+        Assert.Contains(settings.Statuses, status => status.Name == "Waiting on the plumber");
+
+        await AddAsync(main);
+        Settle(window);
+
+        Assert.True(settings.IsDisposed);
+        Assert.Empty(window.OwnedWindows);
+
+        Click(window, SettingsButton(window));
+        var reopened = (SettingsViewModel)Assert.Single(window.OwnedWindows).DataContext!;
+
+        Assert.NotSame(settings, reopened);
+        Assert.DoesNotContain(reopened.Statuses, status => status.Name == "Waiting on the plumber");
+    }
+
+    /// <summary>
+    /// Startup opens the remembered workspace from the window's Opened event
+    /// while Add and Switch stay pressable, so two opens can be in flight at
+    /// once. Both used to be built and both assigned, and the one that lost kept
+    /// its watcher, reminder clock and session running on a folder nothing was
+    /// showing.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task OverlappingOpensLeaveOneLiveWorkspaceAndCloseTheOther()
+    {
+        var settings = Settings();
+        var opened = new List<WorkspaceViewModel>();
+        var held = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var main = new MainViewModel(settings, new NoPicker(), new NoPicker(), open: async store =>
+        {
+            // Held open so the second request arrives while the first is still
+            // building, which is the overlap the real thing is too quick to
+            // reproduce.
+            await held.Task;
+
+            var workspace = await WorkspaceViewModel.OpenAsync(store, settings, new NoPicker());
+            opened.Add(workspace);
+            return workspace;
+        });
+        _disposables.Add(new Closer(main));
+
+        var work = Folder("work");
+        var home = Folder("home");
+
+        var first = main.OpenAsync(work);
+        var second = main.OpenAsync(home);
+
+        Assert.False(main.CanOpenWorkspace);
+
+        held.SetResult();
+        await Task.WhenAll(first, second);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(2, opened.Count);
+        Assert.Same(opened[1], main.Workspace);
+        Assert.Equal(home, main.Workspace!.Root);
+        Assert.True(opened[0].IsDisposed);
+        Assert.False(opened[1].IsDisposed);
+        Assert.True(main.CanOpenWorkspace);
+    }
+
+    /// <summary>The Settings button, which is labelled rather than named.</summary>
+    private static Button SettingsButton(Window window) =>
+        window.GetVisualDescendants().OfType<Button>()
+            .First(button => button.GetVisualDescendants().OfType<TextBlock>()
+                .Any(text => text.Text == "Settings"));
+
     /// <summary>Shows the window and keeps it laid out, so clicks land.</summary>
     private MainWindow Showing(MainViewModel main)
     {
