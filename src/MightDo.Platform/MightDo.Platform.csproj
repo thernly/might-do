@@ -2,14 +2,15 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MightDo.Core\MightDo.Core.csproj" />
+
+    <!-- ShellNotifier is an implementation detail, but the one thing worth
+         asserting about it — that a flood of helper output cannot wedge the
+         reminder gate — can only be asserted from outside. -->
+    <InternalsVisibleTo Include="MightDo.Platform.Tests" />
   </ItemGroup>
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>MightDo.Platform</RootNamespace>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
 </Project>

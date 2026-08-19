@@ -142,11 +142,15 @@ public class WriteFailureTests : IAsyncLifetime
         // The only caller is a drop handler, which is an async void: anything
         // this throws ends the process rather than the gesture.
         var workspace = await OpenWorkspaceAsync();
-        var target = workspace.Columns.Last();
+
+        // The status is read from the filter list rather than from a board
+        // column: only the view on screen is projected, and this workspace opens
+        // on the list.
+        var target = workspace.Statuses.Last();
 
         BlockWritesTo(_task);
 
-        await workspace.MoveOnBoardAsync(_task.Id, target.StatusId, beforeTaskId: null);
+        await workspace.MoveOnBoardAsync(_task.Id, target.Id, beforeTaskId: null);
 
         Assert.NotNull(workspace.Banner);
         Assert.Contains("could not be moved", workspace.Banner);
@@ -177,7 +181,7 @@ public class WriteFailureTests : IAsyncLifetime
         BlockWritesTo(_task);
 
         await workspace.MoveOnBoardAsync(
-            _task.Id, workspace.Columns.Last().StatusId, beforeTaskId: null);
+            _task.Id, workspace.Statuses.Last().Id, beforeTaskId: null);
 
         Assert.NotNull(workspace.Banner);
         Assert.DoesNotContain("press Refresh", workspace.Banner);

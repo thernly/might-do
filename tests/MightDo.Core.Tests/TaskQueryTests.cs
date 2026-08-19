@@ -215,6 +215,30 @@ public class TaskQueryTests
         Assert.Single(new TaskQuery { Search = "electrician" }.Apply(tasks, _config));
     }
 
+    /// <summary>
+    /// The text a task is searched over is cached per task, so an edit has to
+    /// produce a different answer rather than the one held for what it replaced.
+    /// </summary>
+    /// <remarks>
+    /// Safe because a task is immutable: an edit is a new record, and the cache
+    /// is keyed on identity. This is the test that says so out loud.
+    /// </remarks>
+    [Fact]
+    public void SearchFollowsAnEditRatherThanTheTextItReplaced()
+    {
+        var original = Task("Renew passport");
+
+        Assert.Single(new TaskQuery { Search = "passport" }.Apply([original], _config));
+
+        var edited = original with { Summary = "Renew library card" };
+
+        Assert.Empty(new TaskQuery { Search = "passport" }.Apply([edited], _config));
+        Assert.Single(new TaskQuery { Search = "library" }.Apply([edited], _config));
+
+        // And the task it was made from still answers for itself.
+        Assert.Single(new TaskQuery { Search = "passport" }.Apply([original], _config));
+    }
+
     [Fact]
     public void SearchIsCaseInsensitiveAndRequiresEveryTerm()
     {

@@ -241,7 +241,8 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     [Fact]
     public async Task TypingTagNamesReusesExistingTagsRatherThanDuplicating()
     {
-        var existing = await _session.AddTagAsync("urgent");
+        var existing = await _session.AddTagAsync(
+            "urgent", TestContext.Current.CancellationToken);
 
         _vm.TagNames = "urgent, Urgent, waiting";
         await _vm.CommitTagsCommand.ExecuteAsync(null!);
@@ -265,8 +266,10 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     public async Task SaysSoWhenAnAttachmentsBytesHaveGone()
     {
         var source = Path.Combine(_root, "original.txt");
-        await File.WriteAllTextAsync(source, "the original bytes");
-        var attached = await _session.AttachFileAsync(_task, source);
+        await File.WriteAllTextAsync(
+            source, "the original bytes", TestContext.Current.CancellationToken);
+        var attached = await _session.AttachFileAsync(
+            _task, source, cancellationToken: TestContext.Current.CancellationToken);
         var stored = attached.Attachments[0].StoredName;
 
         _vm.Refresh(attached);
@@ -345,7 +348,8 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         var vm = PaneWith(FileOf("holiday.mov", TaskDetailViewModel.LargeAttachmentBytes + 1));
         await vm.AttachFileCommand.ExecuteAsync(null!);
 
-        vm.Refresh(await _session.CreateTaskAsync("Another task"));
+        vm.Refresh(await _session.CreateTaskAsync(
+            "Another task", cancellationToken: TestContext.Current.CancellationToken));
 
         Assert.False(vm.IsConfirmingAttachment);
     }

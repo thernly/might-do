@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Runtime.CompilerServices;
 using MightDo.Core.Domain;
 
 namespace MightDo.Core.Query;
@@ -7,7 +8,9 @@ namespace MightDo.Core.Query;
 /// A filter and sort over the workspace, driving the list view.
 /// </summary>
 /// <remarks>
-/// A pure function of <c>(tasks, config)</c>: no I/O, no session, no caching.
+/// A pure function of <c>(tasks, config)</c>: no I/O and no session. The one
+/// piece of state is a cache of the text each task is searched over, which is
+/// derived from the task itself and so cannot change the answer.
 /// The workspace holds state; this answers questions about it, and keeping the
 /// two apart is what lets the list view be tested without a folder on disk.
 /// <para>
@@ -164,7 +167,24 @@ public sealed record TaskQuery
     /// <summary>
     /// Everything the user typed, joined so a term cannot span two fields.
     /// </summary>
+    /// <remarks>
+    /// Kept per task rather than rebuilt per call. Every keystroke in the search
+    /// box re-runs the whole query, and building this means lowercasing a
+    /// summary, a description, every note and every step — for every task, on
+    /// every key. The tasks are immutable, so an entry can never go stale: an
+    /// edit produces a different task, which gets an entry of its own, and the
+    /// old one is collected along with the task it belonged to.
+    /// </remarks>
     private static string SearchText(MightDoTask task) =>
+        Haystacks.GetValue(task, Build);
+
+    /// <remarks>
+    /// Keyed on the task's identity rather than on its id, so an entry cannot
+    /// outlive the version of the task it describes, and holds no task alive.
+    /// </remarks>
+    private static readonly ConditionalWeakTable<MightDoTask, string> Haystacks = new();
+
+    private static string Build(MightDoTask task) =>
         string.Join(
             '\n',
             new[] { task.Summary, task.Description }

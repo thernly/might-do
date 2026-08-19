@@ -35,3 +35,38 @@ public abstract class ViewModelBase : ObservableObject
     protected static bool IsShutdown(Exception error) =>
         error is OperationCanceledException or ObjectDisposedException;
 }
+
+/// <summary>
+/// Every guarded task a view model has in flight, as one task to wait on.
+/// </summary>
+/// <remarks>
+/// A single <c>Pending = DoAsync()</c> slot is last-writer-wins: two quick
+/// edits leave the first task untracked, and a caller waiting on the slot is
+/// waiting on the wrong write. Waiting on all of them is what "the pane has
+/// finished saving" actually means, and it is what tests are asking for when
+/// they await it.
+/// <para>
+/// The work is not serialised, only tracked — each task still starts when it is
+/// added, and the session's own gate decides what order the writes land in.
+/// Every task added here has already been guarded, so none of them faults and
+/// the combined task cannot either.
+/// </para>
+/// </remarks>
+public sealed class PendingWork
+{
+    private Task _all = Task.CompletedTask;
+
+    /// <summary>Everything added so far, completing when the last of it does.</summary>
+    public Task All => Volatile.Read(ref _all);
+
+    /// <summary>Tracks <paramref name="work"/> and hands it straight back.</summary>
+    public Task Add(Task work)
+    {
+        Volatile.Write(ref _all, Both(Volatile.Read(ref _all), work));
+        return work;
+    }
+
+    private static async Task Both(Task earlier, Task later) =>
+        await Task.WhenAll(earlier, later);
+}
+

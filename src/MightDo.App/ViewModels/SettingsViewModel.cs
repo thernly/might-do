@@ -363,10 +363,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// <summary>
     /// Reloads the trash without a caller to fail to. See <see cref="Guarded"/>.
     /// </summary>
-    private void RefreshTrashInBackground() => PendingTrashRefresh = RefreshTrashAsync();
+    private void RefreshTrashInBackground() => _pending.Add(RefreshTrashAsync());
 
     /// <summary>The trash reload in flight, for tests to await.</summary>
-    public Task PendingTrashRefresh { get; private set; } = Task.CompletedTask;
+    public Task PendingTrashRefresh => _pending.All;
+
+    private readonly PendingWork _pending = new();
 
     [RelayCommand]
     private Task RefreshTrashAsync() => Guarded(async () =>
