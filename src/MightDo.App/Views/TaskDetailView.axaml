@@ -24,7 +24,8 @@
                AcceptsReturn="False" />
 
       <TextBlock Classes="label" Text="Description" />
-      <TextBox Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
+      <TextBox Name="DescriptionBox"
+               Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
                AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"
                MaxHeight="200" />
 
