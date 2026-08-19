@@ -751,5 +751,49 @@ public class WorkspaceSessionTests : IAsyncLifetime
         Assert.True(File.Exists(_session.Workspace.AttachmentFile(attachment.StoredName)));
     }
 
+    [Fact]
+    public async Task AFailedAttachLeavesNoCopyBehind()
+    {
+        var source = Path.Combine(_root, "original.txt");
+        await File.WriteAllTextAsync(source, "the original bytes");
+        var task = await _session.CreateTaskAsync("Save will fail");
+
+        // The bytes are copied before the record that points at them, so the
+        // save is the step that has to be made to fail.
+        BlockTaskFile(task.Id);
+
+        await Assert.ThrowsAnyAsync<Exception>(() => _session.AttachFileAsync(task, source));
+
+        Assert.Empty(Directory.GetFiles(_session.Workspace.AttachmentsDir));
+        Assert.Empty(Reload(task).Attachments);
+    }
+
+    [Fact]
+    public async Task DeletingAnAttachmentKeepsItsBytesInTheTrash()
+    {
+        var source = Path.Combine(_root, "original.txt");
+        await File.WriteAllTextAsync(source, "the original bytes");
+        var task = await _session.CreateTaskAsync("Has a file");
+        var attached = await _session.AttachFileAsync(task, source);
+        var stored = Assert.Single(attached.Attachments).StoredName;
+
+        var updated = await _session.DeleteAttachmentAsync(attached, attached.Attachments[0].Id);
+
+        Assert.Empty(updated.Attachments);
+        Assert.False(File.Exists(_session.Workspace.AttachmentFile(stored)));
+        Assert.True(File.Exists(_session.Workspace.TrashedAttachmentFile(stored)));
+    }
+
+    /// <summary>
+    /// Makes every write to a task's file fail, by putting a directory where
+    /// the file goes. Nothing can rename onto it or read it as a file.
+    /// </summary>
+    private void BlockTaskFile(string taskId)
+    {
+        var path = _session.Workspace.TaskFile(taskId);
+        File.Delete(path);
+        Directory.CreateDirectory(path);
+    }
+
     private static IReadOnlySet<string> Ids(params string[] ids) => new HashSet<string>(ids);
 }

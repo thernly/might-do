@@ -121,7 +121,8 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             Replace(Steps, task.Steps.Select(step => new StepViewModel(step)));
             Replace(Notes, task.Notes.Select(note => new NoteViewModel(note)));
             Replace(Reminders, task.Reminders.Select(r => new ReminderViewModel(r)));
-            Replace(Attachments, task.Attachments.Select(a => new AttachmentViewModel(a)));
+            Replace(Attachments, task.Attachments.Select(a => new AttachmentViewModel(
+                a, File.Exists(_session.Workspace.AttachmentFile(a.StoredName)))));
         }
         finally
         {
@@ -427,9 +428,19 @@ public sealed class ReminderViewModel(Reminder reminder)
     public bool CanDismiss { get; } = reminder.IsOutstanding;
 }
 
-public sealed class AttachmentViewModel(Attachment attachment)
+public sealed class AttachmentViewModel(Attachment attachment, bool present)
 {
     public string Id { get; } = attachment.Id;
     public string OriginalName { get; } = attachment.OriginalName;
-    public string Size { get; } = $"{attachment.SizeBytes / 1024.0:F0} KB";
+
+    /// <summary>
+    /// The file's size, or why it has none — a record whose bytes are gone
+    /// looks exactly like a working attachment until you try to open it, so the
+    /// pane says so where the size would be.
+    /// </summary>
+    public string Size { get; } = present
+        ? $"{attachment.SizeBytes / 1024.0:F0} KB"
+        : "file missing";
+
+    public bool IsMissing { get; } = !present;
 }

@@ -181,6 +181,79 @@ public class TaskStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task AFailedTrashLeavesTheTaskWhereItWas()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        const string storedName = "01m07z000000000000000000a1-plan.pdf";
+        await File.WriteAllTextAsync(
+            store.Workspace.AttachmentFile(storedName), "attachment bytes");
+
+        var task = MightDoTask.Create("Has an attachment", "s", Rank.First) with
+        {
+            Attachments =
+            [
+                new Attachment(Ulid.New(), "plan.pdf", storedName, 15, DateTime.UtcNow),
+            ],
+        };
+        await store.SaveTaskAsync(task);
+
+        // The attachment moves first, so blocking the task's own move is what
+        // leaves the operation half done.
+        Block(store.Workspace.TrashedTaskFile(task.Id));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => store.TrashTaskAsync(task));
+
+        // An active task whose attachment is already in .trash is the failure
+        // worth preventing: the attachment came back with it.
+        Assert.True(File.Exists(store.Workspace.TaskFile(task.Id)));
+        Assert.True(File.Exists(store.Workspace.AttachmentFile(storedName)));
+        Assert.False(File.Exists(store.Workspace.TrashedAttachmentFile(storedName)));
+    }
+
+    [Fact]
+    public async Task AFailedRestoreLeavesTheTaskInTheTrash()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        const string storedName = "01m07z000000000000000000a1-plan.pdf";
+        await File.WriteAllTextAsync(
+            store.Workspace.AttachmentFile(storedName), "attachment bytes");
+
+        var task = MightDoTask.Create("Has an attachment", "s", Rank.First) with
+        {
+            Attachments =
+            [
+                new Attachment(Ulid.New(), "plan.pdf", storedName, 15, DateTime.UtcNow),
+            ],
+        };
+        await store.SaveTaskAsync(task);
+        await store.TrashTaskAsync(task);
+
+        // The task moves back first; block its attachment so the restore fails
+        // partway.
+        Block(store.Workspace.AttachmentFile(storedName));
+
+        await Assert.ThrowsAnyAsync<Exception>(() => store.RestoreTaskAsync(task.Id));
+
+        Assert.True(File.Exists(store.Workspace.TrashedTaskFile(task.Id)));
+        Assert.False(File.Exists(store.Workspace.TaskFile(task.Id)));
+        Assert.True(File.Exists(store.Workspace.TrashedAttachmentFile(storedName)));
+    }
+
+    /// <summary>
+    /// Makes any move onto <paramref name="path"/> fail, by putting a directory
+    /// there. Nothing can be renamed or copied onto a folder.
+    /// </summary>
+    private static void Block(string path)
+    {
+        if (File.Exists(path)) File.Delete(path);
+        Directory.CreateDirectory(path);
+    }
+
+    [Fact]
     public async Task TrashingTwiceDoesNotClobberTheFirstCopy()
     {
         var store = new TaskStore(new Workspace(_root));
@@ -288,11 +361,11 @@ public class TaskStoreTests : IDisposable
 
         Assert.Empty(loaded.Tasks);
         Assert.IsType<UnsafeWorkspaceNameException>(Assert.Single(loaded.Failures).Error);
-        Assert.Throws<UnsafeWorkspaceNameException>(() => store.DeleteAttachment(storedName));
+        Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashAttachment(storedName));
     }
 
     [Fact]
-    public async Task DoesNotDeleteAFileOutsideTheWorkspaceOnAttachmentDelete()
+    public async Task DoesNotTouchAFileOutsideTheWorkspaceOnAttachmentDelete()
     {
         var store = new TaskStore(new Workspace(_root));
         await store.InitialiseAsync();
@@ -302,8 +375,8 @@ public class TaskStoreTests : IDisposable
         try
         {
             Assert.Throws<UnsafeWorkspaceNameException>(
-                () => store.DeleteAttachment($"../../{Path.GetFileName(outsider)}"));
-            Assert.Throws<UnsafeWorkspaceNameException>(() => store.DeleteAttachment(outsider));
+                () => store.TrashAttachment($"../../{Path.GetFileName(outsider)}"));
+            Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashAttachment(outsider));
             Assert.True(File.Exists(outsider));
         }
         finally

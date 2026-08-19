@@ -261,6 +261,28 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         Assert.Equal(MightDoTask.MaxTags, Current.TagIds.Count);
     }
 
+    [Fact]
+    public async Task SaysSoWhenAnAttachmentsBytesHaveGone()
+    {
+        var source = Path.Combine(_root, "original.txt");
+        await File.WriteAllTextAsync(source, "the original bytes");
+        var attached = await _session.AttachFileAsync(_task, source);
+        var stored = attached.Attachments[0].StoredName;
+
+        _vm.Refresh(attached);
+        Assert.False(Assert.Single(_vm.Attachments).IsMissing);
+
+        // Something else in the sync folder removed the file. The record is
+        // still there, and looks exactly like a working attachment until it
+        // says otherwise.
+        File.Delete(_session.Workspace.AttachmentFile(stored));
+        _vm.Refresh(attached);
+
+        var attachment = Assert.Single(_vm.Attachments);
+        Assert.True(attachment.IsMissing);
+        Assert.Equal("file missing", attachment.Size);
+    }
+
     private sealed class NoFilePicker : IFilePicker
     {
         public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(null);
