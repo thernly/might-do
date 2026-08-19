@@ -247,21 +247,32 @@ public sealed partial class MainViewModel : ViewModelBase
     /// </summary>
     public async Task InitialiseAsync()
     {
-        RefreshWorkspaces();
-
-        var remembered = _settings.RememberedWorkspacePath;
-        if (remembered is null) return;
-
-        if (WhyUnavailable(remembered) is { } problem)
+        try
         {
-            // Remembered but not there: say so rather than silently starting
-            // over on top of it. The switcher is still on the no-workspace
-            // screen, so another workspace is one click away.
-            Message = problem;
-            return;
-        }
+            RefreshWorkspaces();
 
-        await OpenAsync(remembered);
+            var remembered = _settings.RememberedWorkspacePath;
+            if (remembered is null) return;
+
+            if (WhyUnavailable(remembered) is { } problem)
+            {
+                // Remembered but not there: say so rather than silently starting
+                // over on top of it. The switcher is still on the no-workspace
+                // screen, so another workspace is one click away.
+                Message = problem;
+                return;
+            }
+
+            await OpenAsync(remembered);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            // Startup is driven from the window's Opened event, an async void:
+            // anything thrown here goes nowhere except the process's unhandled
+            // exception. The app comes up with no workspace and an explanation
+            // instead, which is a state it already knows how to be in.
+            Message = $"Couldn't start up: {e.Message}";
+        }
     }
 
     /// <summary>Adds the first workspace, from the screen shown when none is open.</summary>
@@ -307,13 +318,16 @@ public sealed partial class MainViewModel : ViewModelBase
             Workspace = await WorkspaceViewModel.OpenAsync(store, _settings, _filePicker);
             Message = null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException
-                                      or Core.Storage.UnsupportedSchemaVersionException)
+        catch (Exception e) when (e is not OperationCanceledException)
         {
-            // A workspace written by a newer MightDo is refused rather than
-            // opened: its config.json defines the statuses every task refers to,
-            // and saving it back from here would strip whatever that version
-            // added. The message says so; the folder is left untouched.
+            // Every way a workspace can refuse to open ends here, as a message.
+            // A newer config.json is refused on purpose — it defines the
+            // statuses every task refers to, and saving it back from here would
+            // strip whatever that version added — and an unreadable one is
+            // refused for the same reason. Anything else is a surprise, and a
+            // surprise that escapes is a surprise that closes the application:
+            // this runs under the window's Opened event, which is an
+            // async void. The folder is left untouched either way.
             Message = $"Couldn't open {path}: {e.Message}";
         }
         finally

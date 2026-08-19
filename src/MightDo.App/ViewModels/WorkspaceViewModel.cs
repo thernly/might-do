@@ -43,6 +43,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private bool _projecting;
     private bool _restoring;
     private WorkspaceViewState? _pendingViewState;
+
+    /// <summary>The banner text this view model put up for a background failure.</summary>
+    /// <remarks>
+    /// Kept so a later success can take down its own message without also
+    /// clearing one somebody else raised — the missing-folder banner, most
+    /// obviously, which a failing rescan does not disprove.
+    /// </remarks>
+    private string? _backgroundBanner;
+
     private bool _disposed;
 
     [ObservableProperty]
@@ -97,7 +106,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // and cannot write, and RefreshAsync is the same path the manual refresh
         // button uses.
         _watcher = new WorkspaceWatcher(session.Workspace);
-        _watcher.RescanRequested += (_, _) => _ = RefreshAsync();
+        _watcher.RescanRequested += (_, _) => RefreshInBackground();
         _watcher.RootVanished += (_, _) => OnUiThread(() =>
             Banner = "This workspace folder is no longer there. "
                      + "If it is on a drive or a synced folder, it may come back.");
@@ -105,6 +114,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         _reminders = new ReminderScheduler(session, ReminderNotifiers.ForCurrentPlatform());
         _reminders.Fired += (_, _) => OnUiThread(Project);
+        _reminders.Failed += (_, error) => Report(error, "Reminders could not be updated");
         _reminders.Start();
 
         // Written on a threadpool tick from state captured on the UI thread, so
@@ -120,7 +130,18 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         TaskStore store, AppSettings settings, IFilePicker filePicker)
     {
         var session = await WorkspaceSession.OpenAsync(store);
-        return new WorkspaceViewModel(session, settings, filePicker, store.Workspace.Root);
+        try
+        {
+            return new WorkspaceViewModel(session, settings, filePicker, store.Workspace.Root);
+        }
+        catch
+        {
+            // Nothing else holds the session yet, so a view model that fails to
+            // come up would leave a watcher and a reminder clock running on a
+            // workspace with no window.
+            session.Dispose();
+            throw;
+        }
     }
 
     public string Root { get; }
@@ -443,6 +464,64 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private Task RefreshAsync() => _session.RefreshAsync();
 
+    /// <summary>
+    /// The rescan the watcher asks for, which has no caller to fail to.
+    /// </summary>
+    /// <remarks>
+    /// A rescan launched and forgotten fails silently, leaving the list showing
+    /// state that is quietly out of date — the one thing live reload exists to
+    /// prevent. The task is therefore kept, so a failure reaches the banner and
+    /// tests can wait for it.
+    /// </remarks>
+    public void RefreshInBackground() => PendingBackgroundWork = ReloadAsync();
+
+    /// <summary>The background rescan in flight, for tests to await.</summary>
+    public Task PendingBackgroundWork { get; private set; } = Task.CompletedTask;
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            await _session.RefreshAsync();
+            OnUiThread(ClearBackgroundBanner);
+        }
+        catch (Exception error)
+        {
+            Report(error, "This workspace could not be reloaded");
+        }
+    }
+
+    /// <summary>
+    /// Puts a background failure where the user can see it.
+    /// </summary>
+    /// <remarks>
+    /// Everything that runs without a caller — the watcher's rescan, the
+    /// reminder clock — reports here, so there is one place a failure can
+    /// surface rather than one per producer. Shutting down is not reported: a
+    /// cancelled or disposed session is this workspace closing, which the user
+    /// asked for.
+    /// </remarks>
+    private void Report(Exception error, string what)
+    {
+        if (error is OperationCanceledException or ObjectDisposedException) return;
+
+        OnUiThread(() =>
+        {
+            if (_disposed) return;
+
+            _backgroundBanner = $"{what}: {error.Message} "
+                                + "What you see may be out of date — press Refresh to try again.";
+            Banner = _backgroundBanner;
+        });
+    }
+
+    private void ClearBackgroundBanner()
+    {
+        if (_backgroundBanner is null) return;
+        if (Banner == _backgroundBanner) Banner = null;
+        _backgroundBanner = null;
+    }
+
     [RelayCommand]
     private void CloseDetail() => SelectTaskById(null);
 
@@ -630,9 +709,14 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         FlushViewState();
         _saveViewState.Dispose();
 
-        _session.Changed -= OnWorkspaceChanged;
+        // Producers first, then the thing they drive. Stopping the watcher and
+        // the reminder clock before the session means nothing new is handed to
+        // a session that is closing, and disposing the session then tells
+        // whatever is still queued behind its gate to give up rather than write
+        // to a workspace the user has left.
         _watcher.Dispose();
         _reminders.Dispose();
+        _session.Changed -= OnWorkspaceChanged;
         _session.Dispose();
     }
 }

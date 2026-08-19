@@ -50,8 +50,7 @@ public sealed class TaskStore(Workspace workspace)
     {
         Workspace.EnsureLayout();
 
-        var (existing, version) = await WorkspaceFiles
-            .ReadJsonVersionedAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
+        var (existing, version) = await ReadConfigAsync(cancellationToken);
         if (existing is not null)
         {
             RequireSupportedSchema(
@@ -63,6 +62,37 @@ public sealed class TaskStore(Workspace workspace)
         var seed = WorkspaceConfig.Seed();
         await SaveConfigAsync(seed, cancellationToken);
         return seed;
+    }
+
+    /// <summary>
+    /// Reads <c>config.json</c>, turning anything unparseable into a refusal
+    /// that names the file.
+    /// </summary>
+    /// <remarks>
+    /// A raw <see cref="System.Text.Json.JsonException"/> from here escapes as
+    /// far as the window event that opened the workspace, which is an
+    /// <c>async void</c> and so takes the application down with it. It also says
+    /// nothing about which of the workspace's files is at fault. Both are fixed
+    /// by refusing here, in the same shape as a config from a newer version.
+    /// </remarks>
+    private async Task<(WorkspaceConfig? Config, string Version)> ReadConfigAsync(
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await WorkspaceFiles
+                .ReadJsonVersionedAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
+        }
+        catch (Exception error) when (error is not OperationCanceledException
+                                          and not IOException
+                                          and not UnauthorizedAccessException)
+        {
+            throw new UnreadableConfigException(
+                $"config.json in {Workspace.Root} could not be read: {error.Message} "
+                + "Nothing has been changed. Repair or restore that file — or move it "
+                + "aside to start the workspace's settings again — and reopen.",
+                error);
+        }
     }
 
     public async Task SaveConfigAsync(
