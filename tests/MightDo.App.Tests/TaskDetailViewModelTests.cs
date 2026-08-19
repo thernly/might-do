@@ -308,7 +308,7 @@ public class TaskDetailViewModelTests : IAsyncLifetime
 
         Assert.True(vm.IsConfirmingAttachment);
         Assert.Contains("holiday.mov", vm.AttachmentConfirmation);
-        Assert.Contains("100", vm.AttachmentConfirmation);
+        Assert.Contains("50 MB", vm.AttachmentConfirmation);
         Assert.Empty(Current.Attachments);
         Assert.Empty(Directory.GetFiles(_session.Workspace.AttachmentsDir));
     }

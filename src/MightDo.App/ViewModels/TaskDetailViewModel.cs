@@ -86,11 +86,12 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// <remarks>
     /// The workspace is a folder the user is deliberately syncing to a cloud
     /// provider (ADR-0001), so attaching is not only a copy — it is an upload,
-    /// on their connection, out of their quota. A hundred megabytes is small
-    /// enough that a stray video or disk image is caught and large enough that
-    /// ordinary documents never see the question.
+    /// on their connection, out of their quota. Fifty megabytes is where an
+    /// attachment stops being a document and starts being a video, an archive
+    /// or a disk image: past it, asking first is worth the interruption, and
+    /// below it the question would only ever be in the way.
     /// </remarks>
-    public const long LargeAttachmentBytes = 100L * 1024 * 1024;
+    public const long LargeAttachmentBytes = 50L * 1024 * 1024;
 
     /// <summary>Whether a file is waiting for the user to agree to its size.</summary>
     public bool IsConfirmingAttachment => AttachmentAwaitingConfirmation is not null;
