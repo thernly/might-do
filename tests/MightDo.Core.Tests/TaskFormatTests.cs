@@ -7,7 +7,7 @@ namespace MightDo.Core.Tests;
 /// <summary>
 /// Conformance against <c>fixtures/workspace-v1/</c> and
 /// <c>fixtures/tolerance/</c>. A port passes when it reads every value the
-/// Flutter implementation wrote and writes values that survive the trip back.
+/// original implementation wrote and writes values that survive the trip back.
 /// </summary>
 public class TaskFormatTests
 {
@@ -111,7 +111,7 @@ public class TaskFormatTests
         Assert.DoesNotContain("\\u0026", written); // &
 
         // Two things System.Text.Json escapes no matter which encoder we pick,
-        // both semantically identical to what Flutter writes:
+        // both semantically identical to what the canonical corpus holds:
         //   - control characters, which JSON requires escaped
         //   - astral-plane characters, emitted as surrogate pairs
         // See the "Notes for the .NET port" section of the format spec.

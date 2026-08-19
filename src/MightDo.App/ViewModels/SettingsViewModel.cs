@@ -459,6 +459,12 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         {
             OnUiThread(() => Error = e.Message);
         }
+        catch (PartiallyAppliedException e)
+        {
+            // Also written for the user, and its whole point is that part of the
+            // change *was* saved — "could not be saved" would be wrong.
+            OnUiThread(() => Error = e.Message);
+        }
         catch (Exception e)
         {
             OnUiThread(() => Error = $"That change could not be saved: {e.Message}");

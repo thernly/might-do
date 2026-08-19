@@ -74,9 +74,9 @@ public sealed class WorkspaceWatcher : IDisposable
 
             if (_watcher is not null || !Directory.Exists(_workspace.Root)) return;
 
-            // The whole root, not just tasks/: the Flutter implementation
-            // watches only the tasks folder and so never notices an external
-            // edit to config.json, even though it reloads it.
+            // The whole root, not just tasks/: watching only the tasks folder
+            // would never notice an external edit to config.json, even though a
+            // rescan reloads it.
             _watcher = new FileSystemWatcher(_workspace.Root)
             {
                 IncludeSubdirectories = true,
@@ -93,7 +93,7 @@ public sealed class WorkspaceWatcher : IDisposable
 
             // Watching is a convenience; losing it shouldn't take the app down,
             // and the manual refresh and the existence poll both still work.
-            _watcher.Error += (_, _) => { };
+            _watcher.Error += (_, _) => OnWatcherError();
 
             _watcher.EnableRaisingEvents = true;
         }
@@ -101,6 +101,30 @@ public sealed class WorkspaceWatcher : IDisposable
 
     /// <summary>Requests a rescan as though the filesystem had reported one.</summary>
     public void Poke() => OnChanged(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Recovers from a watcher error by taking a fresh handle and rescanning.
+    /// </summary>
+    /// <remarks>
+    /// The usual cause is the watcher's internal buffer overflowing, which is
+    /// what a sync client landing a few hundred files at once produces. After
+    /// that the watcher never raises another change event, so merely declining
+    /// to crash would leave live reload dead for the rest of the session in the
+    /// exact case it matters most. The rescan covers whatever was missed.
+    /// </remarks>
+    private void OnWatcherError()
+    {
+        lock (_gate)
+        {
+            if (_disposed) return;
+
+            // The root may be gone, in which case Start() takes no handle and
+            // the existence poll picks it up when it comes back.
+            Restart();
+        }
+
+        Poke();
+    }
 
     private void OnChanged(object? sender, EventArgs args)
     {

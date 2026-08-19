@@ -213,9 +213,9 @@ public class ReminderSchedulerTests : IAsyncLifetime
     [Fact]
     public async Task TwoRemindersDueOnOneTaskBothFireAndNeitherRefires()
     {
-        // Regression test for the Flutter bug: it applies each firing to a task
-        // captured before the loop, so the second write discards the first's
-        // firedAt and that reminder re-fires on every tick forever.
+        // Applying each firing to a task captured before the loop would have
+        // the second write discard the first's firedAt, and that reminder would
+        // re-fire on every tick forever.
         var task = await _session.CreateTaskAsync("Two at once");
         await _session.AddReminderAsync(_session.Snapshot.TaskById(task.Id)!, Now.AddMinutes(-2));
         await _session.AddReminderAsync(_session.Snapshot.TaskById(task.Id)!, Now.AddMinutes(-1));

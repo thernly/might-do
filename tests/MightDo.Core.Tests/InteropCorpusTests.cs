@@ -10,11 +10,11 @@ namespace MightDo.Core.Tests;
 /// <c>docs/format/workspace-v1.md</c>.
 /// </summary>
 /// <remarks>
-/// The other corpora were written by the Flutter implementation, so reading
+/// The other corpora were written by the original implementation, so reading
 /// them proves something about a foreign writer. This one this implementation
 /// wrote itself, so round-tripping it proves nothing about correctness — it is
-/// a change detector, and deliberately so. The Dart test that used to read
-/// these files is gone, which left a directory of committed JSON that nothing
+/// a change detector, and deliberately so. The test that used to read these
+/// files is gone, which left a directory of committed JSON that nothing
 /// checked and that serialization changes could silently invalidate.
 /// <para>
 /// A failure here means the format this implementation writes has moved away

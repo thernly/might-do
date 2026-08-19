@@ -4,7 +4,7 @@ namespace MightDo.Core.Tests;
 
 /// <summary>
 /// Conformance against <c>fixtures/vectors/</c> — the expected outputs of the
-/// pure functions, generated from the Flutter implementation. These are the
+/// pure functions, generated from the original implementation. These are the
 /// cheapest possible proof that the port behaves identically.
 /// </summary>
 public class RankTests

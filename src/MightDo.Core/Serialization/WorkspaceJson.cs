@@ -12,8 +12,8 @@ namespace MightDo.Core.Serialization;
 /// See <c>docs/format/workspace-v1.md</c>. Compatibility is semantic — any
 /// implementation that reads the same values and writes values that survive the
 /// trip back is correct — but these options keep our output looking like the
-/// Flutter implementation's, so a folder edited by both stays greppable and
-/// produces one-line diffs for the sync client to resolve.
+/// canonical corpus, so a folder edited by more than one implementation stays
+/// greppable and produces one-line diffs for the sync client to resolve.
 /// </remarks>
 public static class WorkspaceJson
 {

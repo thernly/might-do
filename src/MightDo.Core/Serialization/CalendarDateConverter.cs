@@ -33,9 +33,9 @@ public sealed class CalendarDateConverter : JsonConverter<CalendarDate>
 /// <remarks>
 /// Written with a <c>Z</c> suffix and three or six fractional digits, matching
 /// what is already on disk. .NET's round-trip ("O") format would emit seven,
-/// which the Flutter implementation reads correctly but truncates — so we emit
-/// what both sides represent exactly, and a folder edited by either
-/// implementation stays diff-clean.
+/// which other readers of this format truncate — so we emit what everything
+/// represents exactly, and a folder edited by more than one implementation
+/// stays diff-clean.
 /// <para>
 /// On read, any valid ISO-8601 instant is accepted — a zone offset instead of
 /// <c>Z</c>, no fractional part, or more digits than we write — and converted
