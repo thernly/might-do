@@ -135,6 +135,29 @@ public class WorkspaceSessionTests : IAsyncLifetime
         Assert.Equal(before, Reload(task).UpdatedAt);
     }
 
+    // ---- where a status move puts the card ---------------------------------
+
+    [Fact]
+    public async Task AStatusMoveKeepsTheCardsRank()
+    {
+        // Pinned rather than assumed: the parity fixture records that a status
+        // move carries the card's rank into the new column, so two cards in one
+        // column can end up sharing a rank — which is why BoardProjection has to
+        // place a drop between two of them without asking for the impossible.
+        var initial = StatusOfType(StatusType.Initial);
+        var active = StatusOfType(StatusType.Active);
+
+        var here = await _session.CreateTaskAsync("First of its column", active.Id);
+        var arriving = await _session.CreateTaskAsync("First of another", initial.Id);
+        Assert.Equal(here.BoardRank, arriving.BoardRank);
+
+        await _session.MoveToStatusAsync(arriving, active.Id);
+
+        var column = BoardProjection.Column(_session.Snapshot.Tasks, active.Id);
+        Assert.Equal(2, column.Count);
+        Assert.Equal(column[0].BoardRank, column[1].BoardRank);
+    }
+
     // ---- the completion-date rule ------------------------------------------
 
     [Fact]

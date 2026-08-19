@@ -281,6 +281,98 @@ public class BoardInteractionTests : IDisposable
         Assert.Same(accent, CardFor(window, "Mark me").BorderBrush);
     }
 
+    // ---- dragging across columns -------------------------------------------
+
+    [AvaloniaFact]
+    public async Task ACardDroppedOntoTwoCardsSharingARankStillChangesColumn()
+    {
+        // How two cards come to share a rank: a status change from the detail
+        // pane carries the card's rank into the new column, and the first card
+        // of every column is given the same first rank. Dropping onto the
+        // second of the pair then asked for a rank between a value and itself,
+        // which threw out of the drop handler — the card simply stayed put.
+        var (window, workspace) = await OpenBoardAsync(
+            ("Already there", "In Progress"), ("Arriving by pane", null), ("Dragged", null));
+
+        var target = workspace.Statuses.First(status => status.Name == "In Progress");
+
+        ClickCard(window, "Arriving by pane");
+        workspace.Detail!.SelectedStatus =
+            workspace.Detail.Statuses.First(status => status.Id == target.Id);
+        await workspace.Detail.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+
+        var column = workspace.Columns.First(c => c.StatusId == target.Id);
+        Assert.Equal(2, column.Cards.Count);
+
+        var dragged = workspace.Columns.SelectMany(c => c.Cards)
+            .First(card => card.Summary == "Dragged");
+
+        await workspace.MoveOnBoardAsync(dragged.Id, target.Id, column.Cards[1].Id);
+        Dispatcher.UIThread.RunJobs();
+
+        var moved = workspace.Columns.First(c => c.StatusId == target.Id).Cards;
+        Assert.Equal(3, moved.Count);
+        Assert.Contains(moved, card => card.Summary == "Dragged");
+    }
+
+    // ---- an edit still in a field when the next card is clicked -------------
+
+    [AvaloniaFact]
+    public async Task ClickingAnotherCardCommitsTheDescriptionBeingTyped()
+    {
+        // A card is a Border, which does not take focus, so a click on one used
+        // to leave the description box focused and its LostFocus binding
+        // uncommitted — the edit was dropped on the floor. The list has never
+        // had the problem: its rows take focus.
+        var (window, workspace) = await OpenBoardAsync(("First", null), ("Second", null));
+
+        ClickCard(window, "First");
+        var first = workspace.Detail!;
+
+        TypeDescription(window, "typed but not tabbed out of");
+        ClickCard(window, "Second");
+        await first.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+
+        ClickCard(window, "First");
+
+        Assert.Equal("First", workspace.Detail!.Summary);
+        Assert.Equal("typed but not tabbed out of", workspace.Detail.Description);
+    }
+
+    [AvaloniaFact]
+    public async Task TheTypedDescriptionDoesNotFollowTheClickToTheNextCard()
+    {
+        // The worse half of the same bug: the box kept its text, so the edit
+        // read as belonging to the card just opened and would land on it.
+        var (window, workspace) = await OpenBoardAsync(("First", null), ("Second", null));
+
+        ClickCard(window, "First");
+        TypeDescription(window, "belongs to First");
+        ClickCard(window, "Second");
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal("Second", workspace.Detail!.Summary);
+        Assert.Equal("", workspace.Detail.Description);
+        Assert.Equal("", DescriptionBox(window).Text ?? "");
+    }
+
+    /// <summary>Types into the pane's description box, leaving it focused.</summary>
+    private static void TypeDescription(Window window, string text)
+    {
+        var box = DescriptionBox(window);
+        box.Focus();
+        Dispatcher.UIThread.RunJobs();
+        box.Text = text;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(box.IsFocused);
+    }
+
+    private static TextBox DescriptionBox(Window window) =>
+        Descendants<TextBox>(window).First(box => box.Name == "DescriptionBox");
+
     // ---- helpers -----------------------------------------------------------
 
     /// <summary>

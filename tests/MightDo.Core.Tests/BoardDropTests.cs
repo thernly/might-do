@@ -131,4 +131,46 @@ public class BoardDropTests
         Assert.Equal(before, _column.Select(t => t.BoardRank));
         Assert.DoesNotContain(moved, before);
     }
+
+    [Fact]
+    public void ADropBetweenTwoCardsSharingARankStillPlacesTheCard()
+    {
+        // Ranks are meant to be unique, and mostly are — but a sync conflict, or
+        // a status move made by a build that carried the old rank across, can
+        // leave two cards in a column holding the same one. Asking for a rank
+        // between a value and itself used to throw, out of the board's drop
+        // handler, where the only visible effect was that the card did not move.
+        var twins = new List<MightDoTask>
+        {
+            MightDoTask.Create("x", _active.Id, "i"),
+            MightDoTask.Create("y", _active.Id, "i"),
+        };
+
+        var dragged = MightDoTask.Create("z", _done.Id, "i");
+        var sorted = BoardProjection.Column(twins, _active.Id);
+
+        var target = BoardProjection.DropTarget(
+            [.. twins, dragged], _active.Id, dragged.Id, sorted[1].Id);
+
+        Assert.NotNull(target);
+        var rank = BoardProjection.RankBetween(target!.Value.Above, target.Value.Below);
+
+        Assert.True(Rank.IsValid(rank));
+        Assert.True(string.CompareOrdinal("i", rank) < 0);
+    }
+
+    [Fact]
+    public void ARankTooDamagedToPlaceAgainstIsIgnoredRatherThanThrown()
+    {
+        // Nothing this application writes is malformed, but a task file is a
+        // plain JSON file in a synced folder, so a rank can arrive that is not
+        // one. It still has to be possible to drop a card next to it.
+        var broken = MightDoTask.Create("broken", _active.Id, "i") with { BoardRank = "not a rank" };
+        var dragged = MightDoTask.Create("z", _done.Id, "i");
+
+        var rank = BoardProjection.RankBetween(broken, null);
+
+        Assert.True(Rank.IsValid(rank));
+        Assert.NotNull(BoardProjection.DropTarget([broken, dragged], _active.Id, dragged.Id, null));
+    }
 }

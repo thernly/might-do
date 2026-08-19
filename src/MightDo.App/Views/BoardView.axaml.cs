@@ -51,6 +51,12 @@ public partial class BoardView : UserControl
     {
         InitializeComponent();
 
+        // Focusable so that clicking a card can take focus off whatever field
+        // the user was typing in; not a tab stop, because the board is not a
+        // place keyboard navigation should land.
+        Focusable = true;
+        IsTabStop = false;
+
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerMovedEvent, OnPointerMoved, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Tunnel);
@@ -113,6 +119,14 @@ public partial class BoardView : UserControl
 
         if (taskId is null || e.InitialPressMouseButton != MouseButton.Left) return;
         if (DataContext is not WorkspaceViewModel workspace) return;
+
+        // Take focus before switching the pane. A card is a Border, which does
+        // not take focus by being clicked, so a field the user is still typing
+        // in never raises LostFocus — and the pane's text fields commit on
+        // losing focus. Without this the edit is dropped, and the text stays in
+        // a box now pointed at the card just opened. The list has never needed
+        // it: its rows take focus themselves.
+        Focus();
 
         // A single click, matching the list: there is nothing else a click on a
         // card could mean, so making it a double-click would only be ceremony.
