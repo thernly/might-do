@@ -1,3 +1,4 @@
+using Avalonia.Headless.XUnit;
 using MightDo.App.ViewModels;
 using MightDo.Core.Domain;
 using MightDo.Core.Session;
@@ -6,6 +7,13 @@ using MightDo.Platform;
 
 namespace MightDo.App.Tests;
 
+/// <remarks>
+/// Driven on Avalonia's UI thread, like the other view-model suites here. The
+/// settings page marshals onto it before touching the collections the window is
+/// bound to — a rescan arrives on a background thread — so a test running
+/// without a dispatcher would post its work into a loop nothing pumps and watch
+/// nothing happen.
+/// </remarks>
 public class SettingsViewModelTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(
@@ -33,7 +41,7 @@ public class SettingsViewModelTests : IAsyncLifetime
 
     // ---- trash -------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TheTrashSectionListsTrashedTasks()
     {
         var task = await _session.CreateTaskAsync("Threw it out");
@@ -46,7 +54,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Equal("Not Started", row.StatusName);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task RestoringReturnsTheTaskAndEmptiesTheList()
     {
         var task = await _session.CreateTaskAsync("Wanted after all");
@@ -63,13 +71,13 @@ public class SettingsViewModelTests : IAsyncLifetime
 
     // ---- statuses ----------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public void ShowsTheSeededStatusesInBoardOrder() =>
         Assert.Equal(
             ["Backlog", "Not Started", "In Progress", "Blocked", "Done", "Abandoned"],
             _vm.Statuses.Select(s => s.Name));
 
-    [Fact]
+    [AvaloniaFact]
     public async Task AddingAStatusAppendsIt()
     {
         _vm.NewStatusName = "In Review";
@@ -81,7 +89,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Equal("", _vm.NewStatusName);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task RenamingAStatusSavesIt()
     {
         var row = Row("Blocked");
@@ -92,7 +100,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Contains(Config.Statuses, s => s.Name == "Waiting on someone");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task HidingAStatusTakesItsColumnOffTheBoard()
     {
         var row = Row("Blocked");
@@ -103,7 +111,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.DoesNotContain(Config.BoardStatuses, s => s.Name == "Blocked");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ReorderingAStatusMovesTheBoardColumn()
     {
         var row = Row("Blocked");
@@ -118,7 +126,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Equal(Enumerable.Range(0, 6), Config.Statuses.Select(s => s.Order));
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ReorderingPastTheEndDoesNothing()
     {
         var first = _vm.Statuses[0];
@@ -128,7 +136,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Equal("Backlog", Config.Statuses[0].Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TheDefaultStatusCannotBeDeleted()
     {
         var row = _vm.Statuses.First(s => s.IsDefault);
@@ -137,7 +145,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Contains("new tasks start in", row.BlockerMessage);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TheLastStatusOfATypeCannotBeDeleted()
     {
         // Seed has two Active statuses; remove one and the other becomes stuck.
@@ -153,7 +161,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Contains("only Active status", last.BlockerMessage);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DeletingAStatusMovesItsTasksRatherThanDeletingThem()
     {
         var doomed = await _session.AddStatusAsync("Doomed", StatusType.Active);
@@ -173,7 +181,7 @@ public class SettingsViewModelTests : IAsyncLifetime
             Config.StatusById(_session.Snapshot.TaskById(task.Id)!.StatusId)!.Name);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public void TheReassignListNeverOffersTheStatusBeingDeleted()
     {
         var row = Row("Blocked");
@@ -184,7 +192,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.True(_vm.IsConfirmingStatusDelete);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MakingANonInitialStatusTheDefaultIsRefusedAndExplained()
     {
         await _vm.MakeDefaultCommand.ExecuteAsync(Row("In Progress"));
@@ -193,7 +201,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Contains("Initial", _vm.Error);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task MakingAnotherInitialStatusTheDefaultWorks()
     {
         await _vm.MakeDefaultCommand.ExecuteAsync(Row("Backlog"));
@@ -204,7 +212,7 @@ public class SettingsViewModelTests : IAsyncLifetime
 
     // ---- categories --------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public async Task AddingACategoryParsesItsColour()
     {
         _vm.NewCategoryName = "Work";
@@ -217,7 +225,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.True(category.Color > int.MaxValue, "an opaque colour must not overflow");
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task ABadColourIsExplainedRatherThanSwallowed()
     {
         _vm.NewCategoryName = "Work";
@@ -229,7 +237,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.NotNull(_vm.Error);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DeletingACategoryCanClearItFromTasks()
     {
         var category = await _session.AddCategoryAsync("Home", 0xFF00FF00);
@@ -245,7 +253,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Single(_session.Snapshot.Tasks);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DeletingACategoryCanReassignInstead()
     {
         var from = await _session.AddCategoryAsync("Old", 0xFF00FF00);
@@ -262,7 +270,7 @@ public class SettingsViewModelTests : IAsyncLifetime
 
     // ---- tags --------------------------------------------------------------
 
-    [Fact]
+    [AvaloniaFact]
     public async Task AddingATagTwiceReusesIt()
     {
         _vm.NewTagName = "urgent";
@@ -273,7 +281,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Single(Config.Tags);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task DeletingATagDetachesItWithoutAPrompt()
     {
         var tag = await _session.AddTagAsync("waiting");
@@ -288,7 +296,7 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Empty(_session.Snapshot.TaskById(task.Id)!.TagIds);
     }
 
-    [Fact]
+    [AvaloniaFact]
     public async Task TheViewFollowsChangesMadeElsewhere()
     {
         // Another window, or a rescan picking up an edit from another machine.

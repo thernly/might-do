@@ -50,7 +50,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         _settings = settings;
         _session.Changed += OnWorkspaceChanged;
         Refresh();
-        _ = RefreshTrashAsync();
+        RefreshTrashInBackground();
     }
 
     public ObservableCollection<StatusRowViewModel> Statuses { get; } = [];
@@ -105,17 +105,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // ---- statuses ----------------------------------------------------------
 
     [RelayCommand]
-    private async Task AddStatusAsync()
+    private Task AddStatusAsync() => Guarded(async () =>
     {
         var name = NewStatusName.Trim();
         if (name.Length == 0) return;
 
         NewStatusName = "";
         await _session.AddStatusAsync(name, NewStatusType);
-    }
+    });
 
     [RelayCommand]
-    private async Task RenameStatusAsync(StatusRowViewModel? row)
+    private Task RenameStatusAsync(StatusRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -124,10 +124,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         if (status is null || name.Length == 0 || status.Name == name) return;
 
         await _session.UpdateStatusAsync(status with { Name = name });
-    }
+    });
 
     [RelayCommand]
-    private async Task SetStatusTypeAsync(StatusRowViewModel? row)
+    private Task SetStatusTypeAsync(StatusRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -135,10 +135,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         if (status is null || status.Type == row.Type) return;
 
         await _session.UpdateStatusAsync(status with { Type = row.Type });
-    }
+    });
 
     [RelayCommand]
-    private async Task SetStatusHiddenAsync(StatusRowViewModel? row)
+    private Task SetStatusHiddenAsync(StatusRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -146,7 +146,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         if (status is null || status.HiddenFromBoard == row.HiddenFromBoard) return;
 
         await _session.UpdateStatusAsync(status with { HiddenFromBoard = row.HiddenFromBoard });
-    }
+    });
 
     [RelayCommand]
     private async Task MakeDefaultAsync(StatusRowViewModel? row)
@@ -163,7 +163,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     private Task MoveStatusDownAsync(StatusRowViewModel? row) => MoveStatusAsync(row, +1);
 
     /// <summary>Reordering statuses is also reordering the board's columns.</summary>
-    private async Task MoveStatusAsync(StatusRowViewModel? row, int offset)
+    private Task MoveStatusAsync(StatusRowViewModel? row, int offset) => Guarded(async () =>
     {
         if (row is null) return;
 
@@ -178,7 +178,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
         (ordered[index], ordered[target]) = (ordered[target], ordered[index]);
         await _session.ReorderStatusesAsync(ordered);
-    }
+    });
 
     [RelayCommand]
     private void BeginDeleteStatus(StatusRowViewModel? row)
@@ -211,7 +211,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // ---- categories --------------------------------------------------------
 
     [RelayCommand]
-    private async Task AddCategoryAsync()
+    private Task AddCategoryAsync() => Guarded(async () =>
     {
         var name = NewCategoryName.Trim();
         if (name.Length == 0) return;
@@ -223,12 +223,11 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
 
         NewCategoryName = "";
-        Error = null;
         await _session.AddCategoryAsync(name, color);
-    }
+    });
 
     [RelayCommand]
-    private async Task RenameCategoryAsync(CategoryRowViewModel? row)
+    private Task RenameCategoryAsync(CategoryRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -237,10 +236,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         if (category is null || name.Length == 0 || category.Name == name) return;
 
         await _session.UpdateCategoryAsync(category with { Name = name });
-    }
+    });
 
     [RelayCommand]
-    private async Task SetCategoryColorAsync(CategoryRowViewModel? row)
+    private Task SetCategoryColorAsync(CategoryRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -253,11 +252,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        Error = null;
         if (category.Color == color) return;
 
         await _session.UpdateCategoryAsync(category with { Color = color });
-    }
+    });
 
     [RelayCommand]
     private void BeginDeleteCategory(CategoryRowViewModel? row)
@@ -292,17 +290,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     // ---- tags --------------------------------------------------------------
 
     [RelayCommand]
-    private async Task AddTagAsync()
+    private Task AddTagAsync() => Guarded(async () =>
     {
         var name = NewTagName.Trim();
         if (name.Length == 0) return;
 
         NewTagName = "";
         await _session.AddTagAsync(name);
-    }
+    });
 
     [RelayCommand]
-    private async Task RenameTagAsync(TagRowViewModel? row)
+    private Task RenameTagAsync(TagRowViewModel? row) => Guarded(async () =>
     {
         if (_loading || row is null) return;
 
@@ -311,7 +309,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         if (tag is null || name.Length == 0 || tag.Name == name) return;
 
         await _session.UpdateTagAsync(tag with { Name = name });
-    }
+    });
 
     /// <summary>
     /// Deletes a tag outright. No prompt, unlike Statuses and Categories: tags
@@ -327,13 +325,26 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     // ---- plumbing ----------------------------------------------------------
 
-    private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e)
-    {
-        Refresh();
-        // Trashing from the detail pane while this window is open should show
-        // up here, and the trash lives on disk, not in the snapshot.
-        _ = RefreshTrashAsync();
-    }
+    /// <summary>
+    /// Rebuilds this window from a snapshot that may have arrived on any thread.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="WorkspaceSession.Changed"/> is raised on whichever thread
+    /// finished the work, and for a rescan that is a background one. Everything
+    /// below rebuilds collections this window is bound to, so it has to be put
+    /// back on the UI thread first — without this, a sync client touching a file
+    /// while the settings window is open mutates a live <c>ItemsControl</c> from
+    /// the threadpool.
+    /// </remarks>
+    private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e) =>
+        OnUiThread(() =>
+        {
+            Refresh();
+
+            // Trashing from the detail pane while this window is open should show
+            // up here, and the trash lives on disk, not in the snapshot.
+            RefreshTrashInBackground();
+        });
 
     // ---- trash -------------------------------------------------------------
 
@@ -342,33 +353,49 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// command can run at once, and interleaved Clear/Add duplicates rows.
     /// Only the newest call gets to write.
     /// </summary>
+    /// <remarks>
+    /// Stamped through <see cref="Interlocked"/> because the two callers are not
+    /// on the same thread — a rescan arrives on the threadpool, a command on the
+    /// UI thread — and a plain <c>++</c> is not one operation.
+    /// </remarks>
     private int _trashRefreshStamp;
 
+    /// <summary>
+    /// Reloads the trash without a caller to fail to. See <see cref="Guarded"/>.
+    /// </summary>
+    private void RefreshTrashInBackground() => PendingTrashRefresh = RefreshTrashAsync();
+
+    /// <summary>The trash reload in flight, for tests to await.</summary>
+    public Task PendingTrashRefresh { get; private set; } = Task.CompletedTask;
+
     [RelayCommand]
-    private async Task RefreshTrashAsync()
+    private Task RefreshTrashAsync() => Guarded(async () =>
     {
-        var stamp = ++_trashRefreshStamp;
+        var stamp = Interlocked.Increment(ref _trashRefreshStamp);
         var tasks = await _session.LoadTrashAsync();
-        if (stamp != _trashRefreshStamp) return;
 
-        var config = _session.Snapshot.Config;
+        // Reading the trash is I/O and finishes on whichever thread carried it,
+        // so the rows go back on the UI thread before they reach the window.
+        OnUiThread(() =>
+        {
+            if (_disposed || stamp != Volatile.Read(ref _trashRefreshStamp)) return;
 
-        var rows = tasks
-            .OrderBy(task => task.Summary, StringComparer.CurrentCultureIgnoreCase)
-            .Select(task => new TrashRowViewModel(task, config))
-            .ToList();
+            var config = _session.Snapshot.Config;
 
-        TrashedTasks.Clear();
-        foreach (var row in rows) TrashedTasks.Add(row);
-    }
+            Replace(TrashedTasks, tasks
+                .OrderBy(task => task.Summary, StringComparer.CurrentCultureIgnoreCase)
+                .Select(task => new TrashRowViewModel(task, config)));
+        });
+    });
 
     [RelayCommand]
-    private async Task RestoreTaskAsync(TrashRowViewModel? row)
+    private Task RestoreTaskAsync(TrashRowViewModel? row) => Guarded(async () =>
     {
         if (row is null) return;
+
         await _session.RestoreTaskAsync(row.Id);
         await RefreshTrashAsync();
-    }
+    });
 
     private void Refresh()
     {
@@ -399,9 +426,24 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>
-    /// Runs a command that the domain may refuse, showing the refusal rather
-    /// than letting it become an unhandled exception in an async void handler.
+    /// Runs a command that writes to the workspace, showing what went wrong
+    /// rather than letting it escape.
     /// </summary>
+    /// <remarks>
+    /// Every command on this page goes through here, not only the ones the
+    /// domain can refuse. An <c>AsyncRelayCommand</c> rethrows onto the UI
+    /// thread, so anything not caught here is an unhandled exception and the end
+    /// of the process — and the workspace lives in a folder that can be
+    /// unmounted, filled, or made read-only while the window is open, which is
+    /// the ordinary case rather than the exotic one.
+    /// <para>
+    /// A refusal the domain states — deleting the default status, reassigning to
+    /// one that does not exist — is already written for the user, so its message
+    /// is shown as it stands. Anything else is a surprise and is labelled as
+    /// one, because "Cannot delete this status: IsDefault" and "The device is
+    /// not ready" want reading very differently.
+    /// </para>
+    /// </remarks>
     private async Task Guarded(Func<Task> action)
     {
         try
@@ -409,9 +451,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
             Error = null;
             await action();
         }
+        catch (Exception e) when (IsShutdown(e))
+        {
+            // The workspace is closing. That is what the user asked for.
+        }
         catch (Exception e) when (e is InvalidOperationException or ArgumentException)
         {
-            Error = e.Message;
+            OnUiThread(() => Error = e.Message);
+        }
+        catch (Exception e)
+        {
+            OnUiThread(() => Error = $"That change could not be saved: {e.Message}");
         }
     }
 

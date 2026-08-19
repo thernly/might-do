@@ -119,8 +119,10 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         // Written on a threadpool tick from state captured on the UI thread, so
         // typing in the search box does not put a file write behind every
-        // keystroke.
-        _saveViewState = new Timer(_ => FlushViewState(), null, Timeout.Infinite, Timeout.Infinite);
+        // keystroke. A timer callback has no caller, so it must not be able to
+        // throw: losing a scroll position cannot be allowed to end the process.
+        _saveViewState = new Timer(
+            _ => SafelyFlushViewState(), null, Timeout.Infinite, Timeout.Infinite);
 
         Restore(settings.ViewStateFor(root));
         Project();
@@ -221,6 +223,32 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         if (Interlocked.Exchange(ref _pendingViewState, null) is { } state)
         {
             _settings.SaveViewState(Root, state);
+        }
+    }
+
+    /// <summary>
+    /// <see cref="FlushViewState"/> for the timer, which has nowhere to throw.
+    /// </summary>
+    /// <remarks>
+    /// An exception out of a <see cref="Timer"/> callback is unhandled and ends
+    /// the process. <see cref="AppSettings"/> already declines to throw on a
+    /// failed write, so this is the belt to that braces — the callback stays
+    /// incapable of taking the application down however the settings layer is
+    /// changed later.
+    /// </remarks>
+    private void SafelyFlushViewState()
+    {
+        try
+        {
+            FlushViewState();
+        }
+        catch (Exception error) when (!IsShutdown(error))
+        {
+            Report(error, "How this workspace was left could not be saved", background: false);
+        }
+        catch (Exception)
+        {
+            // Closing. Nothing to say.
         }
     }
 
@@ -341,23 +369,31 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// Moves a card, dropping it above <paramref name="beforeTaskId"/> or at the
     /// bottom of the column when that is null.
     /// </summary>
-    public async Task MoveOnBoardAsync(string taskId, string statusId, string? beforeTaskId)
-    {
-        var snapshot = _session.Snapshot;
-        var task = snapshot.TaskById(taskId);
-        if (task is null) return;
-
-        // Where the card lands is board logic, not view logic, so the view model
-        // only asks and then applies the answer. A null answer means the drop is
-        // a no-op or cannot be placed — do nothing rather than guess.
-        if (BoardProjection.DropTarget(snapshot.Tasks, statusId, taskId, beforeTaskId)
-            is not { } target)
+    /// <remarks>
+    /// Guarded, because the only caller is a drop handler — an <c>async void</c>
+    /// with nowhere to throw. A rank that a hand-edited or sync-merged file left
+    /// unusable, or a folder that has gone read-only under the drag, would
+    /// otherwise end the process rather than the gesture.
+    /// </remarks>
+    public Task MoveOnBoardAsync(string taskId, string statusId, string? beforeTaskId) =>
+        Guarded(async () =>
         {
-            return;
-        }
+            var snapshot = _session.Snapshot;
+            var task = snapshot.TaskById(taskId);
+            if (task is null) return;
 
-        await _session.ReorderOnBoardAsync(task, statusId, target.Above, target.Below);
-    }
+            // Where the card lands is board logic, not view logic, so the view
+            // model only asks and then applies the answer. A null answer means
+            // the drop is a no-op or cannot be placed — do nothing rather than
+            // guess.
+            if (BoardProjection.DropTarget(snapshot.Tasks, statusId, taskId, beforeTaskId)
+                is not { } target)
+            {
+                return;
+            }
+
+            await _session.ReorderOnBoardAsync(task, statusId, target.Above, target.Below);
+        }, "This card could not be moved");
 
     /// <summary>Whether the detail pane has anything to show.</summary>
     /// <remarks>
@@ -452,17 +488,46 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private async Task CreateTaskAsync()
+    private Task CreateTaskAsync() => Guarded(async () =>
     {
         var summary = NewTaskSummary.Trim();
         if (summary.Length == 0) return;
 
         NewTaskSummary = "";
-        await _session.CreateTaskAsync(summary);
-    }
 
+        try
+        {
+            await _session.CreateTaskAsync(summary);
+        }
+        catch
+        {
+            // Give the user back what they typed. Clearing the box before the
+            // write is what makes the field feel immediate, but a failed write
+            // that also swallows the summary makes them type it again.
+            OnUiThread(() => NewTaskSummary = summary);
+            throw;
+        }
+    }, "This task could not be created");
+
+    /// <remarks>
+    /// Reported as background work even though a button started it: what the
+    /// user asked for is precisely that the list be brought up to date, so
+    /// "what you see may be out of date" is the accurate thing to say when it
+    /// could not be.
+    /// </remarks>
     [RelayCommand]
-    private Task RefreshAsync() => _session.RefreshAsync();
+    private async Task RefreshAsync()
+    {
+        try
+        {
+            await _session.RefreshAsync();
+            OnUiThread(ClearBackgroundBanner);
+        }
+        catch (Exception error)
+        {
+            Report(error, "This workspace could not be reloaded");
+        }
+    }
 
     /// <summary>
     /// The rescan the watcher asks for, which has no caller to fail to.
@@ -501,18 +566,54 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// cancelled or disposed session is this workspace closing, which the user
     /// asked for.
     /// </remarks>
-    private void Report(Exception error, string what)
+    private void Report(Exception error, string what) => Report(error, what, background: true);
+
+    /// <param name="background">
+    /// Whether this failure came from work nobody is watching. A rescan that
+    /// fails leaves the list showing something that may no longer be true, which
+    /// is worth saying; a command that fails has already not happened, and
+    /// telling the user to press Refresh over it would be an instruction to fix
+    /// nothing.
+    /// </param>
+    private void Report(Exception error, string what, bool background)
     {
-        if (error is OperationCanceledException or ObjectDisposedException) return;
+        if (IsShutdown(error)) return;
 
         OnUiThread(() =>
         {
             if (_disposed) return;
 
-            _backgroundBanner = $"{what}: {error.Message} "
-                                + "What you see may be out of date — press Refresh to try again.";
+            _backgroundBanner = background
+                ? $"{what}: {error.Message} "
+                  + "What you see may be out of date — press Refresh to try again."
+                : $"{what}: {error.Message}";
             Banner = _backgroundBanner;
         });
+    }
+
+    /// <summary>
+    /// Runs a command that writes to the workspace, putting any failure in the
+    /// banner rather than letting it escape.
+    /// </summary>
+    /// <remarks>
+    /// An <c>AsyncRelayCommand</c> rethrows a failed command onto the UI thread,
+    /// where nothing catches it and the process ends. The workspace is a folder
+    /// that can be unmounted, filled or made read-only while the app is looking
+    /// at it — ordinary conditions for the storage this is designed for, and not
+    /// ones worth closing over. A success also takes down a banner it put up, so
+    /// a failure that has since been fixed does not sit there.
+    /// </remarks>
+    private async Task Guarded(Func<Task> work, string what)
+    {
+        try
+        {
+            await work();
+            OnUiThread(ClearBackgroundBanner);
+        }
+        catch (Exception error)
+        {
+            Report(error, what, background: false);
+        }
     }
 
     private void ClearBackgroundBanner()
@@ -548,7 +649,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private async Task DismissReminderAsync(DueReminderViewModel? reminder)
+    private Task DismissReminderAsync(DueReminderViewModel? reminder) => Guarded(async () =>
     {
         if (reminder is null) return;
         var task = _session.Snapshot.TaskById(reminder.TaskId);
@@ -556,15 +657,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
         await _session.DismissRemindersAsync(
             task, new HashSet<string> { reminder.ReminderId });
-    }
+    }, "This reminder could not be dismissed");
 
     [RelayCommand]
-    private async Task TrashTaskAsync(TaskRowViewModel? row)
+    private Task TrashTaskAsync(TaskRowViewModel? row) => Guarded(async () =>
     {
         if (row is null) return;
         var task = _session.Snapshot.TaskById(row.Id);
         if (task is not null) await _session.TrashTaskAsync(task);
-    }
+    }, "This task could not be moved to the trash");
 
     /// <summary>
     /// Moves the task the detail pane is showing to the workspace's trash
@@ -572,12 +673,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// task no list row holds — completed, or hidden by the filter.
     /// </summary>
     [RelayCommand]
-    private async Task TrashOpenTaskAsync()
+    private Task TrashOpenTaskAsync() => Guarded(async () =>
     {
         if (Detail is null) return;
         var task = _session.Snapshot.TaskById(Detail.TaskId);
         if (task is not null) await _session.TrashTaskAsync(task);
-    }
+    }, "This task could not be moved to the trash");
 
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e) =>
         OnUiThread(Project);
@@ -689,16 +790,6 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     {
         target.Clear();
         foreach (var item in items) target.Add(item);
-    }
-
-    /// <summary>
-    /// <see cref="WorkspaceSession.Changed"/> is raised on whichever thread
-    /// finished the work, which for a rescan is a background one.
-    /// </summary>
-    private static void OnUiThread(Action action)
-    {
-        if (Dispatcher.UIThread.CheckAccess()) action();
-        else Dispatcher.UIThread.Post(action);
     }
 
     public void Dispose()

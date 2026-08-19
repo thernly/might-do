@@ -88,6 +88,106 @@ public class AppSettingsTests : IDisposable
 
         Assert.Contains("\"board\"", File.ReadAllText(Path_));
     }
+
+    // ---- written from more than one thread ---------------------------------
+
+    /// <summary>
+    /// The theme is recorded from the UI thread and a workspace's view state
+    /// from a threadpool timer, so two changes can be in flight at once. Each
+    /// one is a read-modify-write, and without a lock the second to finish
+    /// writes a copy of the settings taken before the first — silently undoing
+    /// it. Here that is a theme reverted by typing in the search box.
+    /// </summary>
+    [Fact]
+    public void ConcurrentChangesDoNotUndoEachOther()
+    {
+        var settings = AppSettings.Load(Path_);
+        settings.AddWorkspace(_dir);
+
+        var themes = Task.Run(() =>
+        {
+            for (var i = 0; i < 200; i++)
+            {
+                settings.SetTheme(i % 2 == 0 ? ThemePreference.Dark : ThemePreference.Light);
+            }
+        });
+
+        var views = Task.Run(() =>
+        {
+            for (var i = 0; i < 200; i++)
+            {
+                settings.SaveViewState(
+                    _dir, new WorkspaceViewState { Search = i.ToString(), ViewMode = ViewMode.Board });
+            }
+        });
+
+        Task.WaitAll(themes, views);
+
+        // Both writers finished, so the file must hold what each of them last
+        // said — not one of them and a stale copy of the other.
+        settings.SetTheme(ThemePreference.Dark);
+
+        var reloaded = AppSettings.Load(Path_);
+        Assert.Equal(ThemePreference.Dark, reloaded.Theme);
+        Assert.Equal(ViewMode.Board, reloaded.ViewMode);
+        Assert.Equal("199", reloaded.ViewStateFor(_dir).Search);
+    }
+
+    /// <summary>
+    /// Concurrent writes must not race on one temporary file: two renames of the
+    /// same path either fail or publish each other's half-written bytes, and the
+    /// result is settings that will not parse.
+    /// </summary>
+    [Fact]
+    public void ConcurrentChangesLeaveAReadableFile()
+    {
+        var settings = AppSettings.Load(Path_);
+        settings.AddWorkspace(_dir);
+
+        Parallel.For(0, 400, i =>
+        {
+            if (i % 2 == 0) settings.SetViewMode(ViewMode.Board);
+            else settings.SetWindowPlacement(new WindowPlacement(900 + i, 700, false));
+        });
+
+        Assert.Null(settings.LastSaveError);
+
+        var reloaded = AppSettings.Load(Path_);
+        Assert.Single(reloaded.Workspaces);
+        Assert.NotNull(reloaded.WindowPlacement);
+
+        // And nothing is left behind from a write that was interrupted.
+        Assert.Empty(Directory.GetFiles(_dir, "*.tmp"));
+    }
+
+    /// <summary>
+    /// A settings file that cannot be written is recorded, not thrown.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="AppSettings.Load"/> already treats an unreadable file as "no
+    /// preferences yet", on the grounds that losing a remembered folder is a
+    /// small annoyance and refusing to start is not. The same has to hold on the
+    /// way out, and more sharply: view state is flushed from a threadpool timer,
+    /// where a thrown exception has no caller and ends the process. Losing a
+    /// window size must not close the application.
+    /// </remarks>
+    [Fact]
+    public void AnUnwritableFileIsRecordedRatherThanThrown()
+    {
+        // A directory where the settings file goes: the write cannot land.
+        Directory.CreateDirectory(Path_);
+
+        var settings = AppSettings.Load(Path_);
+
+        var thrown = Record.Exception(() => settings.SetTheme(ThemePreference.Dark));
+
+        Assert.Null(thrown);
+        Assert.NotNull(settings.LastSaveError);
+
+        // The session still behaves as the user asked, even though the choice
+        // will not outlive it.
+        Assert.Equal(ThemePreference.Dark, settings.Theme);
+    }
 }
 
 public class AppleScriptQuotingTests

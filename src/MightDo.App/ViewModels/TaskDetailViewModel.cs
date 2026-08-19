@@ -186,7 +186,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     }
 
     [RelayCommand]
-    private async Task CommitTagsAsync()
+    private Task CommitTagsAsync() => Guarded(async () =>
     {
         if (_loading) return;
         var task = Current;
@@ -204,12 +204,12 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
 
         var current = Current;
         if (current is not null) await _session.SetTagsAsync(current, ids);
-    }
+    });
 
     // ---- steps, notes, reminders, attachments ------------------------------
 
     [RelayCommand]
-    private async Task AddStepAsync()
+    private Task AddStepAsync() => Guarded(async () =>
     {
         var text = NewStepText.Trim();
         var task = Current;
@@ -217,28 +217,28 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
 
         NewStepText = "";
         await _session.AddStepAsync(task, text);
-    }
+    });
 
     [RelayCommand]
-    private async Task ToggleStepAsync(StepViewModel? step)
+    private Task ToggleStepAsync(StepViewModel? step) => Guarded(async () =>
     {
         var task = Current;
         if (step is null || task is null) return;
 
         await _session.SetStepDoneAsync(task, step.Id, step.Done);
-    }
+    });
 
     [RelayCommand]
-    private async Task DeleteStepAsync(StepViewModel? step)
+    private Task DeleteStepAsync(StepViewModel? step) => Guarded(async () =>
     {
         var task = Current;
         if (step is null || task is null) return;
 
         await _session.DeleteStepAsync(task, step.Id);
-    }
+    });
 
     [RelayCommand]
-    private async Task AddNoteAsync()
+    private Task AddNoteAsync() => Guarded(async () =>
     {
         var body = NewNoteBody.Trim();
         var task = Current;
@@ -246,19 +246,19 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
 
         NewNoteBody = "";
         await _session.AddNoteAsync(task, body);
-    }
+    });
 
     [RelayCommand]
-    private async Task DeleteNoteAsync(NoteViewModel? note)
+    private Task DeleteNoteAsync(NoteViewModel? note) => Guarded(async () =>
     {
         var task = Current;
         if (note is null || task is null) return;
 
         await _session.DeleteNoteAsync(task, note.Id);
-    }
+    });
 
     [RelayCommand]
-    private async Task AddReminderAsync()
+    private Task AddReminderAsync() => Guarded(async () =>
     {
         var task = Current;
         if (task is null || NewReminderDate is not { } date) return;
@@ -268,28 +268,28 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             .Add(time);
 
         await _session.AddReminderAsync(task, local.ToUniversalTime());
-    }
+    });
 
     [RelayCommand]
-    private async Task DeleteReminderAsync(ReminderViewModel? reminder)
+    private Task DeleteReminderAsync(ReminderViewModel? reminder) => Guarded(async () =>
     {
         var task = Current;
         if (reminder is null || task is null) return;
 
         await _session.DeleteReminderAsync(task, reminder.Id);
-    }
+    });
 
     [RelayCommand]
-    private async Task DismissReminderAsync(ReminderViewModel? reminder)
+    private Task DismissReminderAsync(ReminderViewModel? reminder) => Guarded(async () =>
     {
         var task = Current;
         if (reminder is null || task is null) return;
 
         await _session.DismissRemindersAsync(task, new HashSet<string> { reminder.Id });
-    }
+    });
 
     [RelayCommand]
-    private async Task AttachFileAsync()
+    private Task AttachFileAsync() => Guarded(async () =>
     {
         var task = Current;
         if (task is null) return;
@@ -298,16 +298,16 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         if (path is null) return;
 
         await _session.AttachFileAsync(task, path);
-    }
+    });
 
     [RelayCommand]
-    private async Task DeleteAttachmentAsync(AttachmentViewModel? attachment)
+    private Task DeleteAttachmentAsync(AttachmentViewModel? attachment) => Guarded(async () =>
     {
         var task = Current;
         if (attachment is null || task is null) return;
 
         await _session.DeleteAttachmentAsync(task, attachment.Id);
-    }
+    });
 
     // ---- plumbing ----------------------------------------------------------
 
@@ -336,18 +336,48 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         PendingSave = Report(_session.EditTaskAsync(task, edit));
     }
 
-    private async Task Report(Task write)
+    /// <summary>
+    /// Awaits a write and turns whatever it does into <see cref="SaveError"/>.
+    /// </summary>
+    /// <remarks>
+    /// Every failure, not only the two file-system ones this caught first. A
+    /// task file can also be refused for a name that no longer addresses
+    /// somewhere inside the workspace, or for a schema version this build must
+    /// not write over, and neither of those is an <see cref="IOException"/>.
+    /// Left uncaught they reached an <c>AsyncRelayCommand</c>, which rethrows
+    /// onto the UI thread — so the pane's answer to "this file cannot safely be
+    /// written" was to close the application rather than to say so.
+    /// <para>
+    /// Nothing is marshalled here. Every write starts on the UI thread and its
+    /// continuation comes back to it, so this pane stays free of Avalonia and
+    /// testable without a dispatcher — unlike the settings page, which is
+    /// rebuilt by an event raised on whichever thread finished a rescan.
+    /// </para>
+    /// </remarks>
+    private Task Report(Task write) => Report(() => write);
+
+    private async Task Report(Func<Task> write)
     {
         try
         {
-            await write;
+            await write();
             SaveError = null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception error) when (IsShutdown(error))
         {
-            SaveError = $"This change could not be saved: {ex.Message}";
+            // The workspace is closing. That is what the user asked for.
+        }
+        catch (Exception error)
+        {
+            SaveError = $"This change could not be saved: {error.Message}";
         }
     }
+
+    /// <summary>
+    /// Runs a command that writes to the workspace, reporting rather than
+    /// throwing. See <see cref="Report"/>.
+    /// </summary>
+    private Task Guarded(Func<Task> work) => PendingSave = Report(work);
 
     private static int? ParseMinutes(string value) =>
         int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var m)
