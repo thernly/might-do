@@ -22,7 +22,10 @@
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
-    <PackageVersion Include="xunit.v3" Version="4.0.0" />
+    <!-- Avalonia.Headless.XUnit 12.1.1 calls xUnit 3.x discovery APIs that
+         were removed in xUnit 4. Keep these aligned until Avalonia supports
+         the new discovery API. -->
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
   </ItemGroup>
 
 </Project>

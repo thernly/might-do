@@ -63,7 +63,7 @@ internal sealed class WorkspaceLock : IDisposable
     /// ordinary overlapping saves never see it, since a save is a handful of
     /// small files.
     /// </remarks>
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
+    internal static readonly TimeSpan DefaultTimeout = TimeSpan.FromSeconds(15);
 
     private static readonly TimeSpan Retry = TimeSpan.FromMilliseconds(15);
 
@@ -87,7 +87,9 @@ internal sealed class WorkspaceLock : IDisposable
     private WorkspaceLock(FileStream? held) => _held = held;
 
     public static async Task<WorkspaceLock> AcquireAsync(
-        string root, CancellationToken cancellationToken = default)
+        string root,
+        CancellationToken cancellationToken = default,
+        TimeSpan? timeout = null)
     {
         if (_unavailable) return new WorkspaceLock(null);
 
@@ -100,7 +102,7 @@ internal sealed class WorkspaceLock : IDisposable
 
         // Real time rather than the session's clock: this waits on another
         // process, which a test's fake clock has no say over.
-        var deadline = DateTime.UtcNow + Timeout;
+        var deadline = DateTime.UtcNow + (timeout ?? DefaultTimeout);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();

@@ -24,6 +24,11 @@ public class DeletionAndLockingTests : IAsyncLifetime
 
     private Core.Storage.Workspace Workspace => new(_root);
 
+    private TaskStore CreateContentionStore() => new(Workspace)
+    {
+        LockTimeout = TimeSpan.FromMilliseconds(100),
+    };
+
     public async ValueTask InitializeAsync() =>
         _session = await WorkspaceSession.OpenAsync(new TaskStore(Workspace));
 
@@ -141,7 +146,7 @@ public class DeletionAndLockingTests : IAsyncLifetime
     [Fact]
     public async Task ASaveThatCannotTakeTheLockChangesNothing()
     {
-        var store = new TaskStore(Workspace);
+        var store = CreateContentionStore();
         await store.InitialiseAsync();
 
         var task = MightDoTask.Create("Written by the other process", "s", Rank.First);
@@ -163,7 +168,7 @@ public class DeletionAndLockingTests : IAsyncLifetime
     [InlineData("attachment")]
     public async Task EveryMutationWaitsForTheLockRatherThanWritingWithoutIt(string operation)
     {
-        var store = new TaskStore(Workspace);
+        var store = CreateContentionStore();
         await store.InitialiseAsync();
 
         var task = MightDoTask.Create("Contended", "s", Rank.First);

@@ -54,6 +54,14 @@ public sealed class TaskStore(Workspace workspace)
 
     public Workspace Workspace { get; } = workspace;
 
+    /// <summary>The maximum wait for this store's machine-wide write lock.</summary>
+    /// <remarks>
+    /// Production stores keep the full safety margin. The internal override
+    /// lets contention tests exercise the same fail-closed path without
+    /// waiting out a user-facing timeout on every case.
+    /// </remarks>
+    internal TimeSpan LockTimeout { get; init; } = WorkspaceLock.DefaultTimeout;
+
     /// <summary>
     /// Makes a workspace here: creates the folder layout and seeds
     /// <c>config.json</c> if this is a fresh workspace. Safe to call on an
@@ -138,7 +146,7 @@ public sealed class TaskStore(Workspace workspace)
         Workspace.RequireWritable();
 
         using var writing = await WorkspaceLock.AcquireAsync(
-            Workspace.Root, cancellationToken);
+            Workspace.Root, cancellationToken, LockTimeout);
 
         await PreserveExternalWriteAsync(ConfigKey, Workspace.ConfigFile, cancellationToken);
         _versions[ConfigKey] = await WorkspaceFiles
@@ -234,7 +242,7 @@ public sealed class TaskStore(Workspace workspace)
 
         var path = Workspace.TaskFile(task.Id);
         using var writing = await WorkspaceLock.AcquireAsync(
-            Workspace.Root, cancellationToken);
+            Workspace.Root, cancellationToken, LockTimeout);
 
         await PreserveExternalWriteAsync(task.Id, path, cancellationToken);
         _versions[task.Id] = await WorkspaceFiles
@@ -293,7 +301,7 @@ public sealed class TaskStore(Workspace workspace)
         RequireSafeNames($"{task.Id}.json", task);
 
         using var writing = await WorkspaceLock.AcquireAsync(
-            Workspace.Root, cancellationToken);
+            Workspace.Root, cancellationToken, LockTimeout);
 
         var moves = new MoveBatch();
         try
@@ -328,7 +336,7 @@ public sealed class TaskStore(Workspace workspace)
         // in another process landing between those steps leaves the task in both
         // tasks/ and .trash/tasks/.
         using var writing = await WorkspaceLock.AcquireAsync(
-            Workspace.Root, cancellationToken);
+            Workspace.Root, cancellationToken, LockTimeout);
 
         var trashed = Workspace.TrashedTaskFile(taskId);
         if (!File.Exists(trashed)) return null;
@@ -572,7 +580,7 @@ public sealed class TaskStore(Workspace workspace)
         Workspace.RequireWritable();
 
         using var writing = await WorkspaceLock.AcquireAsync(
-            Workspace.Root, cancellationToken);
+            Workspace.Root, cancellationToken, LockTimeout);
 
         var file = Workspace.AttachmentFile(storedName);
         MoveInto(file, Workspace.TrashAttachmentsDir);

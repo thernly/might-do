@@ -9,3 +9,8 @@ updates:
     directory: "/" # Location of package manifests
     schedule:
       interval: "weekly"
+    ignore:
+      # Avalonia.Headless.XUnit 12.1.1 is not binary-compatible with xUnit 4's
+      # discovery API. Re-enable major updates when Avalonia adds support.
+      - dependency-name: "xunit.v3"
+        update-types: ["version-update:semver-major"]
