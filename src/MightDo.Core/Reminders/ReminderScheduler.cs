@@ -43,6 +43,10 @@ public sealed class ReminderScheduler : IDisposable
     private readonly IReminderNotifier _notifier;
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    /// <summary>Cancelled on shutdown, so a tick stops rather than writing on.</summary>
+    private readonly CancellationTokenSource _stopping = new();
+
     private ITimer? _timer;
     private bool _disposed;
 
@@ -59,13 +63,44 @@ public sealed class ReminderScheduler : IDisposable
     /// <summary>Raised after reminders have fired, for anything that wants to react.</summary>
     public event EventHandler<IReadOnlyList<DueReminder>>? Fired;
 
+    /// <summary>
+    /// A tick failed. Raised so the failure has somewhere to go other than a
+    /// task nobody is holding.
+    /// </summary>
+    /// <remarks>
+    /// Ticks run from a timer, so there is no caller to hand the exception to.
+    /// Without this, a workspace that has become unwritable — a drive
+    /// unmounted, permissions changed — silently stops marking reminders and
+    /// re-shows the same ones forever, with nothing said.
+    /// </remarks>
+    public event EventHandler<Exception>? Failed;
+
     public void Start(TimeSpan? interval = null)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         var period = interval ?? DefaultInterval;
         _timer ??= _time.CreateTimer(
-            _ => _ = TickAsync(CancellationToken.None), null, TimeSpan.Zero, period);
+            _ => _ = TickInBackgroundAsync(), null, TimeSpan.Zero, period);
+    }
+
+    /// <summary>
+    /// A timer tick: the same work, with nowhere to throw.
+    /// </summary>
+    private async Task TickInBackgroundAsync()
+    {
+        try
+        {
+            await TickAsync(_stopping.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            // Shutting down mid-tick is not a failure.
+        }
+        catch (Exception error)
+        {
+            Failed?.Invoke(this, error);
+        }
     }
 
     /// <summary>
@@ -134,11 +169,20 @@ public sealed class ReminderScheduler : IDisposable
         }
     }
 
+    /// <summary>
+    /// Stops the clock and tells any tick in flight to give up.
+    /// </summary>
+    /// <remarks>
+    /// The gate is not disposed, for the reason given on
+    /// <see cref="WorkspaceSession.Dispose"/>: a tick holding it when the app
+    /// closes would fail on release, throwing from a background thread during
+    /// an otherwise orderly shutdown.
+    /// </remarks>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         _timer?.Dispose();
-        _gate.Dispose();
+        _stopping.Cancel();
     }
 }

@@ -178,7 +178,11 @@ Be liberal, and never lose a task quietly.
   implementation must never write a file carrying a version it does not
   understand. Absent `schemaVersion` means `1`.
 - **A file that fails to parse is reported, not skipped.** A task that silently
-  vanishes is worse than one that shows up broken.
+  vanishes is worse than one that shows up broken. A `config.json` that fails to
+  parse refuses the whole workspace, by name and with the reason: it defines the
+  statuses every task refers to, so seeding a fresh one over it would orphan
+  every task in the folder. Only a *missing* config is seeded — never an
+  unreadable one, and the unreadable file is left exactly as it was found.
 - **An empty file reads as absent**, not as an error.
 - Only files in `tasks/` whose names are ULIDs are loaded (see below).
 - **Names that become paths are checked, not trusted.** A file that parses is

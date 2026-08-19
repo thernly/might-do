@@ -47,6 +47,13 @@ public sealed class WorkspaceSession : IDisposable
     private readonly TaskStore _store;
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _gate = new(1, 1);
+
+    /// <summary>
+    /// Cancelled when the session closes, so nothing queued behind the gate
+    /// writes to a workspace the user has already left.
+    /// </summary>
+    private readonly CancellationTokenSource _closing = new();
+
     private volatile WorkspaceSnapshot _snapshot;
     private bool _disposed;
 
@@ -108,7 +115,9 @@ public sealed class WorkspaceSession : IDisposable
     /// </remarks>
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync(cancellationToken);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        await EnterAsync(cancellationToken);
         try
         {
             var loaded = await _store.LoadAsync(cancellationToken);
@@ -606,6 +615,29 @@ public sealed class WorkspaceSession : IDisposable
     // ----------------------------------------------------------------- plumbing
 
     /// <summary>
+    /// Takes the gate, giving up if the session closes while waiting for it.
+    /// </summary>
+    /// <remarks>
+    /// The wait is what a queued operation does for however long the one ahead
+    /// of it takes, so it is where closing has to be noticed: a save the user
+    /// started before switching workspaces should not land in the folder they
+    /// have left. Work that already holds the gate is left to finish — a write
+    /// abandoned halfway is worse than a late one.
+    /// </remarks>
+    private async Task EnterAsync(CancellationToken cancellationToken)
+    {
+        using var closing = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _closing.Token);
+
+        await _gate.WaitAsync(closing.Token);
+
+        if (!_closing.IsCancellationRequested) return;
+
+        _gate.Release();
+        _closing.Token.ThrowIfCancellationRequested();
+    }
+
+    /// <summary>
     /// Runs <paramref name="mutate"/> with exclusive access, then publishes the
     /// snapshot it produced.
     /// </summary>
@@ -620,7 +652,7 @@ public sealed class WorkspaceSession : IDisposable
         ObjectDisposedException.ThrowIf(_disposed, this);
 
         T result;
-        await _gate.WaitAsync(cancellationToken);
+        await EnterAsync(cancellationToken);
         try
         {
             var (snapshot, value) = await mutate(_snapshot);
@@ -709,10 +741,23 @@ public sealed class WorkspaceSession : IDisposable
     private void RaiseChanged() =>
         Changed?.Invoke(this, new WorkspaceChangedEventArgs(_snapshot));
 
+    /// <summary>
+    /// Closes the session: nothing waiting to write does so, and nothing new
+    /// starts.
+    /// </summary>
+    /// <remarks>
+    /// The gate is deliberately not disposed, and neither is
+    /// <see cref="_closing"/>. A <see cref="SemaphoreSlim"/> only needs
+    /// disposing once its wait handle has been used, and taking it away from an
+    /// operation that is still holding it turns an ordinary shutdown — closing
+    /// the window, or switching workspaces mid-save — into an
+    /// <see cref="ObjectDisposedException"/> on a background thread, thrown by
+    /// the release of a gate that was fine a moment earlier.
+    /// </remarks>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _gate.Dispose();
+        _closing.Cancel();
     }
 }

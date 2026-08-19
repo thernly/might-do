@@ -28,6 +28,20 @@ public sealed class UnsafeWorkspaceNameException(string message) : Exception(mes
 public sealed class UnsupportedSchemaVersionException(string message) : Exception(message);
 
 /// <summary>
+/// <c>config.json</c> is there but cannot be understood.
+/// </summary>
+/// <remarks>
+/// Distinct from a missing config, which is how a fresh workspace starts and is
+/// answered by seeding one. A config that exists and will not parse must never
+/// be seeded over: it defines the statuses every task refers to, and replacing
+/// it with a default would orphan the whole workspace. So the workspace refuses
+/// to open, saying which file and why, and leaves the folder exactly as it
+/// found it.
+/// </remarks>
+public sealed class UnreadableConfigException(string message, Exception inner)
+    : Exception(message, inner);
+
+/// <summary>
 /// The on-disk layout of a workspace folder.
 /// </summary>
 /// <remarks>
