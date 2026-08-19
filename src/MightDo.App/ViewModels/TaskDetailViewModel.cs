@@ -83,6 +83,15 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         {
             var config = _session.Snapshot.Config;
 
+            // The option lists come first, and the selections after. A dropdown
+            // whose items are rebuilt reports its selection as null on the way
+            // past, so a selection set beforehand is wiped out by the rebuild
+            // and the field is left blank — which reads as the edit not having
+            // been saved. See the comment on Replace.
+            Replace(Statuses, config.Statuses.Select(s => new StatusOption(s.Id, s.Name)));
+            Replace(Categories, new[] { CategoryOption.None }
+                .Concat(config.Categories.Select(CategoryOption.For)));
+
             Summary = task.Summary;
             Description = task.Description;
             SelectedStatus = config.StatusById(task.StatusId) is { } status
@@ -109,9 +118,6 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
                     : $"{Math.Abs(variance)} min {(variance > 0 ? "over" : "under")} estimate"
                 : "";
 
-            Replace(Statuses, config.Statuses.Select(s => new StatusOption(s.Id, s.Name)));
-            Replace(Categories, new[] { CategoryOption.None }
-                .Concat(config.Categories.Select(CategoryOption.For)));
             Replace(Steps, task.Steps.Select(step => new StepViewModel(step)));
             Replace(Notes, task.Notes.Select(note => new NoteViewModel(note)));
             Replace(Reminders, task.Reminders.Select(r => new ReminderViewModel(r)));
@@ -136,8 +142,18 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     partial void OnSelectedPriorityChanged(Priority value) =>
         Save(task => task with { Priority = value });
 
-    partial void OnSelectedCategoryChanged(CategoryOption? value) =>
-        Save(task => task with { CategoryId = value?.Id });
+    /// <summary>
+    /// A null category is a dropdown with nothing selected, not a user choice:
+    /// clearing a task's category is picking <see cref="CategoryOption.None"/>,
+    /// which is an option in the list and carries a null id. Only a ComboBox
+    /// that has emptied itself reports null, and that must not be written.
+    /// </summary>
+    partial void OnSelectedCategoryChanged(CategoryOption? value)
+    {
+        if (value is null) return;
+
+        Save(task => task with { CategoryId = value.Id });
+    }
 
     partial void OnDueDateChanged(DateTime? value) => Save(task => task with
     {
@@ -338,10 +354,24 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             ? m
             : null;
 
+    /// <summary>
+    /// Refills a collection in place, leaving it alone when it already holds
+    /// exactly these items.
+    /// </summary>
+    /// <remarks>
+    /// The check is not an optimisation. Statuses and Categories rarely change,
+    /// but every rescan used to clear and refill them regardless, and a
+    /// ComboBox drops its selection the moment its items are cleared. Leaving
+    /// an unchanged list untouched keeps the Status and Category dropdowns
+    /// showing the task through a rescan.
+    /// </remarks>
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
     {
+        var replacement = items as IReadOnlyList<T> ?? [.. items];
+        if (target.SequenceEqual(replacement)) return;
+
         target.Clear();
-        foreach (var item in items) target.Add(item);
+        foreach (var item in replacement) target.Add(item);
     }
 }
 

@@ -36,7 +36,8 @@
       <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
         <StackPanel Grid.Row="0" Grid.Column="0">
           <TextBlock Classes="label" Text="Status" />
-          <ComboBox ItemsSource="{Binding Statuses}" SelectedItem="{Binding SelectedStatus}"
+          <ComboBox Name="StatusBox"
+                    ItemsSource="{Binding Statuses}" SelectedItem="{Binding SelectedStatus}"
                     HorizontalAlignment="Stretch">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:StatusOption">
@@ -54,7 +55,8 @@
 
         <StackPanel Grid.Row="1" Grid.Column="0">
           <TextBlock Classes="label" Text="Category" />
-          <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
+          <ComboBox Name="CategoryBox"
+                    ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
                     HorizontalAlignment="Stretch">
             <ComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:CategoryOption">
