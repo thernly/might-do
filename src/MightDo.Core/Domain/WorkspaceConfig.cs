@@ -91,7 +91,8 @@ public sealed record WorkspaceConfig
         if (other is null) return false;
         if (ReferenceEquals(this, other)) return true;
 
-        return DefaultStatusId == other.DefaultStatusId
+        return SchemaVersion == other.SchemaVersion
+               && DefaultStatusId == other.DefaultStatusId
                && Statuses.SequenceEqual(other.Statuses)
                && Categories.SequenceEqual(other.Categories)
                && Tags.SequenceEqual(other.Tags);

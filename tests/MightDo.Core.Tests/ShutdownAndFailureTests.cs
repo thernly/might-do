@@ -491,3 +491,43 @@ public class InvalidConfigTests : IDisposable
         Assert.NotEmpty(reopened.Config.Statuses);
     }
 }
+
+/// <summary>
+/// What a rescan counts as a change, which is what decides whether the user is
+/// shown one.
+/// </summary>
+public class SnapshotComparisonTests
+{
+    private static readonly WorkspaceConfig Config = WorkspaceConfig.Seed();
+
+    private static WorkspaceSnapshot SnapshotWithBrokenFile(string fileName) =>
+        new(Config,
+            [],
+            [new TaskLoadFailure(fileName, new IOException("could not be read"))],
+            [],
+            DateTimeOffset.UnixEpoch);
+
+    /// <summary>
+    /// One file being repaired while another breaks inside the same debounce
+    /// window is a change, even though the tally is unmoved.
+    /// </summary>
+    /// <remarks>
+    /// Counting the failures made those two rescans identical, so the reload
+    /// returned early and the "Unreadable" list kept naming the file that was
+    /// now fine — until something unrelated happened to change.
+    /// </remarks>
+    [Fact]
+    public void ASwappedUnreadableFileIsAChange() =>
+        Assert.False(SnapshotWithBrokenFile("a.json")
+            .HasSameContentAs(SnapshotWithBrokenFile("b.json")));
+
+    [Fact]
+    public void TheSameUnreadableFileIsNot() =>
+        Assert.True(SnapshotWithBrokenFile("a.json")
+            .HasSameContentAs(SnapshotWithBrokenFile("a.json")));
+
+    /// <summary>A config read as a different format version is a different config.</summary>
+    [Fact]
+    public void ASchemaVersionChangeIsAChange() =>
+        Assert.False(Config.HasSameContentAs(Config with { SchemaVersion = 2 }));
+}

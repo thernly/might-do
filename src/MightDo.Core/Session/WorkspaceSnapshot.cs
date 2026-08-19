@@ -118,7 +118,20 @@ public sealed class WorkspaceSnapshot
         return Config.HasSameContentAs(other.Config)
                && Tasks.Count == other.Tasks.Count
                && Conflicts.SequenceEqual(other.Conflicts)
-               && Failures.Count == other.Failures.Count
+               && Failures.Select(Describe).SequenceEqual(
+                   other.Failures.Select(Describe), StringComparer.Ordinal)
                && Tasks.All(task => task.HasSameContentAs(other.TaskById(task.Id)));
     }
+
+    /// <summary>A load failure as its content rather than as an object.</summary>
+    /// <remarks>
+    /// Counting the failures is not enough: one file being repaired while
+    /// another breaks inside the same debounce window leaves the count equal, so
+    /// the rescan looks like a no-op and the "Unreadable" list the user is
+    /// looking at stays wrong until something unrelated changes. The exceptions
+    /// themselves cannot be compared either — two reads of one broken file
+    /// produce two distinct objects — so this compares what is shown.
+    /// </remarks>
+    private static string Describe(TaskLoadFailure failure) =>
+        $"{failure.FileName}: {failure.Error.GetType()}: {failure.Error.Message}";
 }
