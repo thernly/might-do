@@ -24,14 +24,14 @@ public class DeletionAndLockingTests : IAsyncLifetime
 
     private Core.Storage.Workspace Workspace => new(_root);
 
-    public async Task InitializeAsync() =>
+    public async ValueTask InitializeAsync() =>
         _session = await WorkspaceSession.OpenAsync(new TaskStore(Workspace));
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _session.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     // ---- a deleted task stays deleted ---------------------------------------

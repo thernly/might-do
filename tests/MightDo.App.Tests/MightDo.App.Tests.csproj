@@ -6,10 +6,10 @@
   </PropertyGroup>
 
   <!--
-    xunit.v3 here and xunit 2 in the other two test projects, which is not a
-    preference: Avalonia.Headless.XUnit 12 depends on xunit.v3.extensibility.core,
-    and [AvaloniaFact] is what runs a test on a dispatcher. The other two need
-    no dispatcher and are not worth the churn of moving.
+    xUnit v3 makes each test project an executable backed by Microsoft Testing
+    Platform. .NET 10 requires a solution-wide runner choice, so all test
+    projects use v3 even though only this one needs AvaloniaFact to run tests
+    on a dispatcher.
   -->
   <ItemGroup>
     <PackageReference Include="Avalonia.Headless.XUnit" />

@@ -216,15 +216,15 @@ public class ReminderSchedulerTests : IAsyncLifetime
 
     private WorkspaceSession _session = null!;
 
-    public async Task InitializeAsync() =>
+    public async ValueTask InitializeAsync() =>
         _session = await WorkspaceSession.OpenAsync(
             new TaskStore(new Core.Storage.Workspace(_root)), _time);
 
-    public Task DisposeAsync()
+    public ValueTask DisposeAsync()
     {
         _session.Dispose();
         if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
-        return Task.CompletedTask;
+        return ValueTask.CompletedTask;
     }
 
     private DateTime Now => _time.GetUtcNow().UtcDateTime;

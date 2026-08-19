@@ -110,7 +110,7 @@ public class AppSettingsTests : IDisposable
             {
                 settings.SetTheme(i % 2 == 0 ? ThemePreference.Dark : ThemePreference.Light);
             }
-        });
+        }, TestContext.Current.CancellationToken);
 
         var views = Task.Run(() =>
         {
@@ -119,7 +119,7 @@ public class AppSettingsTests : IDisposable
                 settings.SaveViewState(
                     _dir, new WorkspaceViewState { Search = i.ToString(), ViewMode = ViewMode.Board });
             }
-        });
+        }, TestContext.Current.CancellationToken);
 
         await Task.WhenAll(themes, views);
 
@@ -282,7 +282,9 @@ public class NotifierSelectionTests
             ["-c", "head -c 400000 /dev/zero | tr '\\0' 'x'"],
             CancellationToken.None);
 
-        var finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(20)));
+        var finished = await Task.WhenAny(
+            run,
+            Task.Delay(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken));
 
         Assert.Same(run, finished);
         await run;
