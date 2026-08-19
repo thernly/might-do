@@ -58,7 +58,12 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         Refresh(task);
     }
 
-    public string TaskId { get; }
+    /// <summary>The task the pane is showing.</summary>
+    /// <remarks>
+    /// Not fixed for the pane's lifetime: opening another task re-points this
+    /// one rather than replacing it. See <see cref="Refresh"/>.
+    /// </remarks>
+    public string TaskId { get; private set; }
 
     /// <summary>
     /// The most recent scalar save, so a caller that needs the write to have
@@ -75,13 +80,35 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
 
     public IReadOnlyList<Priority> Priorities { get; } = Enum.GetValues<Priority>();
 
-    /// <summary>Re-reads from the snapshot without raising any writes.</summary>
+    /// <summary>
+    /// Points the pane at a task and reads it, without raising any writes.
+    /// </summary>
+    /// <remarks>
+    /// Used both for a rescan of the open task and for opening another one. The
+    /// second is why the pane is re-pointed rather than replaced: a control
+    /// bound to a brand new view model re-reads its bindings in an order it
+    /// chooses, and a ComboBox whose items compare equal across the two keeps
+    /// the selection it already had and writes it back — so opening a task set
+    /// its status to the previously open task's. Same view model, same
+    /// bindings, and everything set here is set under <see cref="_loading"/>.
+    /// </remarks>
     public void Refresh(MightDoTask task)
     {
         _loading = true;
         try
         {
             var config = _session.Snapshot.Config;
+
+            if (TaskId != task.Id)
+            {
+                TaskId = task.Id;
+
+                // Half-typed drafts and a failure belong to the task they were
+                // about, not to the one being opened.
+                NewStepText = "";
+                NewNoteBody = "";
+                SaveError = null;
+            }
 
             // The option lists come first, and the selections after. A dropdown
             // whose items are rebuilt reports its selection as null on the way

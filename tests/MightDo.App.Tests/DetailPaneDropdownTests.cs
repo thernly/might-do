@@ -88,6 +88,10 @@ public class DetailPaneDropdownTests : IDisposable
         var (window, workspace) = await OpenAsync("First", "Second");
         var second = workspace.Tasks.First(row => row.Summary == "Second");
 
+        // Read before anything is opened: read afterwards, this would agree with
+        // whatever opening the task wrote to it.
+        var secondStatus = second.StatusName;
+
         workspace.SelectTaskById(workspace.Tasks.First(row => row.Summary == "First").Id);
         Dispatcher.UIThread.RunJobs();
         PickOther(Box(window, "StatusBox"));
@@ -98,9 +102,11 @@ public class DetailPaneDropdownTests : IDisposable
         await SettleAsync(workspace);
 
         // Second was never edited, so its own status stands and it has no
-        // category — neither dropdown carries First's choice across.
+        // category — neither dropdown carries First's choice across, and neither
+        // writes it to the task on the way past.
         var untouched = workspace.Tasks.First(row => row.Summary == "Second");
-        Assert.Equal(untouched.StatusName, NameOf(Box(window, "StatusBox").SelectedItem));
+        Assert.Equal(secondStatus, untouched.StatusName);
+        Assert.Equal(secondStatus, NameOf(Box(window, "StatusBox").SelectedItem));
         Assert.Equal("No category", NameOf(Box(window, "CategoryBox").SelectedItem));
         Assert.NotEqual("No category", category);
         Assert.Null(untouched.CategoryName);

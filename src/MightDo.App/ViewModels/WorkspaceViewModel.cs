@@ -481,9 +481,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
             return;
         }
 
-        // Refresh in place when it is the same task, so an edit landing back
-        // through the session does not replace the pane the user is typing in.
-        if (Detail is { } existing && existing.TaskId == task.Id) existing.Refresh(task);
+        // Refresh in place, whether it is the same task or another one: an edit
+        // landing back through the session must not replace the pane the user is
+        // typing in, and a pane rebound to a new view model writes the previous
+        // task's dropdown selections onto the new one. See
+        // TaskDetailViewModel.Refresh.
+        if (Detail is { } existing) existing.Refresh(task);
         else Detail = new TaskDetailViewModel(_session, task, _filePicker);
     }
 
