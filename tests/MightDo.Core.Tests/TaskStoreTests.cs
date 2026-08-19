@@ -1,4 +1,7 @@
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using MightDo.Core.Domain;
+using MightDo.Core.Serialization;
 using MightDo.Core.Storage;
 
 namespace MightDo.Core.Tests;
@@ -382,6 +385,100 @@ public class TaskStoreTests : IDisposable
         var loaded = await store.LoadAsync();
         Assert.Equal(2, loaded.Conflicts.Count);
         Assert.Equal(2, loaded.Conflicts.Select(c => c.FileName).Distinct().Count());
+    }
+
+    [Fact]
+    public async Task ReportsATaskFromANewerSchemaVersionInsteadOfLoadingIt()
+    {
+        // Reading is tolerant of unknown keys, which is only safe while we never
+        // write the file back. A task we loaded would be editable, and the next
+        // save would write schema 1 without whatever the newer version added.
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+        var task = MightDoTask.Create("From the future", "s", Rank.First);
+        var file = store.Workspace.TaskFile(task.Id);
+        var future = WriteWithSchemaVersion(file, task, version: 2, extra: "recurrence");
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Empty(loaded.Tasks);
+        var failure = Assert.Single(loaded.Failures);
+        Assert.Equal(Path.GetFileName(file), failure.FileName);
+        Assert.IsType<UnsupportedSchemaVersionException>(failure.Error);
+        Assert.Equal(future, await File.ReadAllTextAsync(file));
+    }
+
+    [Fact]
+    public async Task RefusesToWriteATaskCarryingASchemaVersionItDoesNotUnderstand()
+    {
+        // The load path is the only way a newer version reaches memory, but the
+        // rule belongs to the writer: nothing may write a version it cannot
+        // produce in full.
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+        var task = MightDoTask.Create("From the future", "s", Rank.First) with
+        {
+            SchemaVersion = MightDoTask.CurrentSchemaVersion + 1,
+        };
+
+        await Assert.ThrowsAsync<UnsupportedSchemaVersionException>(
+            () => store.SaveTaskAsync(task));
+
+        Assert.Empty(Directory.GetFiles(store.Workspace.TasksDir));
+    }
+
+    [Fact]
+    public async Task RefusesToOpenAWorkspaceWhoseConfigIsFromANewerSchemaVersion()
+    {
+        // config.json defines the statuses every task refers to, so there is no
+        // useful half-open state — and rewriting it from here would drop the
+        // newer version's keys for every machine sharing the folder.
+        var store = new TaskStore(new Workspace(_root));
+        var config = await store.InitialiseAsync();
+        var future = WriteWithSchemaVersion(
+            store.Workspace.ConfigFile, config, version: 2, extra: "workflows");
+
+        await Assert.ThrowsAsync<UnsupportedSchemaVersionException>(() => store.LoadAsync());
+
+        Assert.Equal(future, await File.ReadAllTextAsync(store.Workspace.ConfigFile));
+    }
+
+    [Fact]
+    public async Task ReadsAFileWithNoSchemaVersionAsVersionOne()
+    {
+        // Absent optional keys are legal throughout the format, and version 1
+        // predates nothing — a file without the key is a version 1 file.
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+        var task = MightDoTask.Create("No version key", "s", Rank.First);
+        await store.SaveTaskAsync(task);
+
+        var file = store.Workspace.TaskFile(task.Id);
+        var node = JsonNode.Parse(await File.ReadAllTextAsync(file))!.AsObject();
+        node.Remove("schemaVersion");
+        await File.WriteAllTextAsync(file, node.ToJsonString());
+
+        var loaded = await store.LoadAsync();
+
+        Assert.Empty(loaded.Failures);
+        Assert.Equal(
+            MightDoTask.CurrentSchemaVersion, Assert.Single(loaded.Tasks).SchemaVersion);
+    }
+
+    /// <summary>
+    /// Writes <paramref name="value"/> as a file from a later version: a bumped
+    /// <c>schemaVersion</c> and one key this build has never heard of.
+    /// </summary>
+    private static string WriteWithSchemaVersion<T>(
+        string path, T value, int version, string extra)
+    {
+        var node = JsonNode.Parse(WorkspaceJson.Serialize(value))!.AsObject();
+        node["schemaVersion"] = version;
+        node[extra] = "something we do not understand";
+
+        var json = node.ToJsonString(new JsonSerializerOptions { WriteIndented = true });
+        File.WriteAllText(path, json);
+        return json;
     }
 
     [Fact]

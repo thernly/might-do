@@ -54,6 +54,8 @@ public sealed class TaskStore(Workspace workspace)
             .ReadJsonVersionedAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
         if (existing is not null)
         {
+            RequireSupportedSchema(
+                "config.json", existing.SchemaVersion, WorkspaceConfig.CurrentSchemaVersion);
             _versions[ConfigKey] = version;
             return existing;
         }
@@ -66,6 +68,9 @@ public sealed class TaskStore(Workspace workspace)
     public async Task SaveConfigAsync(
         WorkspaceConfig config, CancellationToken cancellationToken = default)
     {
+        RequireSupportedSchema(
+            "config.json", config.SchemaVersion, WorkspaceConfig.CurrentSchemaVersion);
+
         await PreserveExternalWriteAsync(ConfigKey, Workspace.ConfigFile, cancellationToken);
         _versions[ConfigKey] = await WorkspaceFiles
             .WriteJsonAtomicAsync(Workspace.ConfigFile, config, cancellationToken);
@@ -136,13 +141,22 @@ public sealed class TaskStore(Workspace workspace)
 
         var (task, version) = await WorkspaceFiles.ReadJsonVersionedAsync<MightDoTask>(
             Workspace.TaskFile(taskId), cancellationToken);
-        if (task is not null) _versions[taskId] = version;
+        if (task is not null)
+        {
+            RequireSupportedSchema(
+                $"{taskId}.json", task.SchemaVersion, MightDoTask.CurrentSchemaVersion);
+            _versions[taskId] = version;
+        }
+
         return task;
     }
 
     public async Task SaveTaskAsync(
         MightDoTask task, CancellationToken cancellationToken = default)
     {
+        RequireSupportedSchema(
+            $"{task.Id}.json", task.SchemaVersion, MightDoTask.CurrentSchemaVersion);
+
         var path = Workspace.TaskFile(task.Id);
         await PreserveExternalWriteAsync(task.Id, path, cancellationToken);
         _versions[task.Id] = await WorkspaceFiles
@@ -302,6 +316,8 @@ public sealed class TaskStore(Workspace workspace)
     /// </remarks>
     private static MightDoTask RequireSafeNames(string fileName, MightDoTask task)
     {
+        RequireSupportedSchema(fileName, task.SchemaVersion, MightDoTask.CurrentSchemaVersion);
+
         var expected = Path.GetFileNameWithoutExtension(fileName);
         if (!Workspace.RequireTaskId(task.Id).Equals(expected, StringComparison.OrdinalIgnoreCase))
         {
@@ -315,6 +331,27 @@ public sealed class TaskStore(Workspace workspace)
         }
 
         return task;
+    }
+
+    /// <summary>
+    /// Checks that a file's schema version is one this build can write back.
+    /// </summary>
+    /// <remarks>
+    /// Newer files are refused at the boundary rather than opened and later
+    /// normalised: for a task the refusal becomes a <see cref="TaskLoadFailure"/>
+    /// and the task never reaches memory, so nothing can save over it; for
+    /// config.json it stops the workspace opening, which is the honest answer
+    /// when the statuses the tasks refer to are written in a dialect we do not
+    /// speak.
+    /// </remarks>
+    private static void RequireSupportedSchema(string fileName, int version, int supported)
+    {
+        if (version <= supported) return;
+
+        throw new UnsupportedSchemaVersionException(
+            $"'{fileName}' is schema version {version}; this version of MightDo "
+            + $"understands up to {supported}. Update MightDo to open it — saving it here "
+            + "would discard everything the newer version added.");
     }
 
     private static void MoveInto(string file, string targetDir)

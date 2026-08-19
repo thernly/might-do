@@ -16,6 +16,18 @@ namespace MightDo.Core.Storage;
 public sealed class UnsafeWorkspaceNameException(string message) : Exception(message);
 
 /// <summary>
+/// A file written in a schema version this build does not understand.
+/// </summary>
+/// <remarks>
+/// Reading a newer file is tolerant by design — unknown keys are skipped — but
+/// tolerance on read is only safe while the older writer never writes the file
+/// back. It would write schema 1 and every key it knows, deleting whatever the
+/// newer version put there. A machine that has not upgraded yet therefore
+/// refuses the data outright rather than quietly downgrading it.
+/// </remarks>
+public sealed class UnsupportedSchemaVersionException(string message) : Exception(message);
+
+/// <summary>
 /// The on-disk layout of a workspace folder.
 /// </summary>
 /// <remarks>

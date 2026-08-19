@@ -220,6 +220,16 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<string> Conflicts { get; } = [];
 
+    /// <summary>Task files that were on disk but could not be loaded.</summary>
+    /// <remarks>
+    /// A task the store refused — unparseable, misnamed, or written in a schema
+    /// version newer than this build — is simply absent from
+    /// <see cref="Tasks"/>, which on its own looks like the task was lost.
+    /// Naming the file and the reason is what turns that into something the user
+    /// can act on.
+    /// </remarks>
+    public ObservableCollection<string> Unreadable { get; } = [];
+
     public ObservableCollection<BoardColumnViewModel> Columns { get; } = [];
 
     /// <summary>
@@ -543,6 +553,9 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 due.Task.Id, due.Reminder.Id, due.Task.Summary, due.Reminder.RemindAt)));
 
         Replace(Conflicts, snapshot.Conflicts.Select(conflict => conflict.FileName));
+
+        Replace(Unreadable, snapshot.Failures
+            .Select(failure => $"{failure.FileName} — {failure.Error.Message}"));
 
         // The board always shows Final columns populated, even though the list
         // hides completed work by default: a column headed "Done" holding
