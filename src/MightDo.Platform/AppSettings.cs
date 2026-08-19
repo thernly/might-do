@@ -183,6 +183,22 @@ public sealed class AppSettings
                 "settings.json");
 
     /// <summary>
+    /// Settings that start at the defaults and have never been near the user's
+    /// file.
+    /// </summary>
+    /// <remarks>
+    /// For the XAML designer, which constructs the view models for real and
+    /// would otherwise <see cref="Load"/> — and so read, and on any subsequent
+    /// write modify, the settings of the running installation. That is the
+    /// accident <c>MIGHTDO_SETTINGS</c> exists to prevent, and opening a
+    /// previewer should not be a way round it. The path is somewhere writable
+    /// and disposable so that a stray save has somewhere to go.
+    /// </remarks>
+    public static AppSettings Ephemeral() =>
+        new(Path.Combine(Path.GetTempPath(), "might-do-designer-settings.json"),
+            new AppSettingsData());
+
+    /// <summary>
     /// Reads the settings, falling back to defaults.
     /// </summary>
     /// <remarks>

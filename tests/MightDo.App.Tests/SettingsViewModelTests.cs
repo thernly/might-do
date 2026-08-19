@@ -237,6 +237,29 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.NotNull(_vm.Error);
     }
 
+    /// <summary>
+    /// A colour has to be all eight digits, not merely parse as a number.
+    /// </summary>
+    /// <remarks>
+    /// "F" parses perfectly well — as fully transparent black, which reaches the
+    /// user as a colour dot that isn't there and a message that never appeared.
+    /// The refusal says eight digits, so eight digits is what it means.
+    /// </remarks>
+    [AvaloniaTheory]
+    [InlineData("F")]
+    [InlineData("2E7D32")]
+    [InlineData("FF2E7D320")]
+    public async Task AColourShorterOrLongerThanEightDigitsIsRefused(string colour)
+    {
+        _vm.NewCategoryName = "Work";
+        _vm.NewCategoryColor = colour;
+
+        await _vm.AddCategoryCommand.ExecuteAsync(null!);
+
+        Assert.Empty(Config.Categories);
+        Assert.NotNull(_vm.Error);
+    }
+
     [AvaloniaFact]
     public async Task DeletingACategoryCanClearItFromTasks()
     {

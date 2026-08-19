@@ -84,7 +84,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
     /// <summary>A parameterless constructor for the XAML designer.</summary>
     public MainViewModel()
-        : this(AppSettings.Load(), new NoPicker(), new NoPicker())
+        : this(AppSettings.Ephemeral(), new NoPicker(), new NoPicker())
     {
     }
 

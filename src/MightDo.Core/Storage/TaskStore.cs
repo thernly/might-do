@@ -1,3 +1,4 @@
+using System.Text;
 using MightDo.Core.Domain;
 
 namespace MightDo.Core.Storage;
@@ -22,6 +23,16 @@ public sealed record LoadedWorkspace(
 /// </summary>
 public sealed class TaskStore(Workspace workspace)
 {
+    /// <summary>
+    /// The longest a single file name may be. 255 bytes is what ext4, APFS and
+    /// NTFS all allow, so it is the one that holds wherever a workspace is
+    /// synced to.
+    /// </summary>
+    private const int MaxNameBytes = 255;
+
+    /// <summary>What a copy is called until it is complete.</summary>
+    private const string TempSuffix = ".tmp";
+
     /// <summary>
     /// The version of each file as this store last read or wrote it, keyed by
     /// task id, with <c>config.json</c> under <see cref="ConfigKey"/>.
@@ -224,8 +235,13 @@ public sealed class TaskStore(Workspace workspace)
     /// query by construction means no filter can ever forget to exclude them.
     /// Nothing purges the trash automatically — silently destroying data on a
     /// timer is worse than a folder that grows.
+    /// <para>
+    /// Synchronous, and says so: moving the files is the whole of the work. A
+    /// <c>Task</c>-returning signature with a <c>CancellationToken</c> would
+    /// promise an await and a cancellation point, neither of which exists here.
+    /// </para>
     /// </remarks>
-    public Task TrashTaskAsync(MightDoTask task, CancellationToken cancellationToken = default)
+    public void TrashTask(MightDoTask task)
     {
         Workspace.EnsureLayout();
         RequireSafeNames($"{task.Id}.json", task);
@@ -248,8 +264,6 @@ public sealed class TaskStore(Workspace workspace)
         }
 
         _versions.Remove(task.Id);
-
-        return Task.CompletedTask;
     }
 
     /// <summary>Brings a trashed task back.</summary>
@@ -341,14 +355,14 @@ public sealed class TaskStore(Workspace workspace)
 
         var id = Ulid.New();
         var originalName = Path.GetFileName(sourcePath);
-        var storedName = $"{id}-{originalName}";
+        var storedName = $"{id}-{StorableName(originalName)}";
         var destination = Workspace.AttachmentFile(storedName);
 
         // Temp-and-rename, as every other write in the workspace does: a copy
         // that fails partway (disk full, source pulled, network volume dropped)
         // would otherwise leave a truncated file under a name no task will ever
         // reference, and nothing collects those.
-        var temp = destination + ".tmp";
+        var temp = destination + TempSuffix;
         try
         {
             await using (var source = File.OpenRead(sourcePath))
@@ -380,6 +394,62 @@ public sealed class TaskStore(Workspace workspace)
             storedName,
             new FileInfo(destination).Length,
             addedAt);
+    }
+
+    /// <summary>
+    /// The part of a stored name that comes from the user's file: plain, and
+    /// short enough to write down.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="Path.GetFileName(string)"/> only strips the separators of the
+    /// platform it runs on, so on Linux a file called <c>a\b.txt</c> arrives
+    /// here whole and would then be refused by
+    /// <see cref="Workspace.RequireStoredName"/> — a correct refusal, worded for
+    /// someone reading the code, over a file the user is entitled to attach.
+    /// Sanitising here means the boundary check stays a check rather than
+    /// becoming the error message.
+    /// <para>
+    /// The length cap is the 255 bytes filesystems allow a single name; the
+    /// extension is kept, because it is what opens the file. The original name
+    /// is unaffected — that is what the user sees.
+    /// </para>
+    /// </remarks>
+    private static string StorableName(string originalName)
+    {
+        var plain = new string([
+            .. originalName.Select(c => c is '/' or '\\' or ':' ? '-' : c),
+        ]);
+
+        if (plain is "" or "." or "..") plain = "file";
+
+        // The id, its separator and the ".tmp" the copy is written under first
+        // are all ASCII, so each costs one byte. The temp name has to fit too:
+        // it is the name the file is actually created with.
+        return Shorten(plain, MaxNameBytes - Ulid.Length - 1 - TempSuffix.Length);
+    }
+
+    /// <summary>Trims a name to a byte budget, keeping its extension.</summary>
+    private static string Shorten(string name, int budget)
+    {
+        if (Encoding.UTF8.GetByteCount(name) <= budget) return name;
+
+        // An extension long enough to crowd out the name it belongs to is not
+        // doing its job, so past half the budget it goes.
+        var extension = Path.GetExtension(name);
+        if (Encoding.UTF8.GetByteCount(extension) > budget / 2) extension = "";
+
+        var stem = name[..^extension.Length];
+        var room = budget - Encoding.UTF8.GetByteCount(extension);
+
+        while (stem.Length > 0 && Encoding.UTF8.GetByteCount(stem) > room)
+        {
+            // Never split a surrogate pair: half of one is not a character.
+            stem = char.IsLowSurrogate(stem[^1]) && stem.Length > 1
+                ? stem[..^2]
+                : stem[..^1];
+        }
+
+        return stem + extension;
     }
 
     /// <summary>

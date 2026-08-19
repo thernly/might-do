@@ -178,6 +178,15 @@ public sealed class ReminderScheduler : IDisposable
     /// closes would fail on release, throwing from a background thread during
     /// an otherwise orderly shutdown.
     /// </remarks>
+    /// <summary>Stops the ticking. Nothing new starts; a tick in flight winds up.</summary>
+    /// <remarks>
+    /// <see cref="_stopping"/> is cancelled but deliberately not disposed, for
+    /// the reason <see cref="MightDo.Core.Session.WorkspaceSession.Dispose"/>
+    /// sets out: a tick that is already running has taken its token into the
+    /// session, where it is linked against another — and linking against a
+    /// disposed source throws rather than cancelling. Cancelled, the source
+    /// holds nothing the collector will not take.
+    /// </remarks>
     public void Dispose()
     {
         if (_disposed) return;

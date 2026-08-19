@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MightDo.Core.Domain;
@@ -160,7 +161,7 @@ public class TaskStoreTests : IDisposable
         };
         await store.SaveTaskAsync(task);
 
-        await store.TrashTaskAsync(task);
+        store.TrashTask(task);
 
         Assert.False(File.Exists(store.Workspace.TaskFile(task.Id)));
         Assert.False(File.Exists(store.Workspace.AttachmentFile(storedName)));
@@ -203,7 +204,7 @@ public class TaskStoreTests : IDisposable
         // leaves the operation half done.
         Block(store.Workspace.TrashedTaskFile(task.Id));
 
-        await Assert.ThrowsAnyAsync<Exception>(() => store.TrashTaskAsync(task));
+        Assert.ThrowsAny<Exception>(() => store.TrashTask(task));
 
         // An active task whose attachment is already in .trash is the failure
         // worth preventing: the attachment came back with it.
@@ -230,7 +231,7 @@ public class TaskStoreTests : IDisposable
             ],
         };
         await store.SaveTaskAsync(task);
-        await store.TrashTaskAsync(task);
+        store.TrashTask(task);
 
         // The task moves back first; block its attachment so the restore fails
         // partway.
@@ -261,9 +262,9 @@ public class TaskStoreTests : IDisposable
         var task = MightDoTask.Create("Recreated after trashing", "s", Rank.First);
 
         await store.SaveTaskAsync(task);
-        await store.TrashTaskAsync(task);
+        store.TrashTask(task);
         await store.SaveTaskAsync(task with { Summary = "Second version" });
-        await store.TrashTaskAsync(task);
+        store.TrashTask(task);
 
         var trashed = Directory.GetFiles(store.Workspace.TrashTasksDir);
         Assert.Equal(2, trashed.Length);
@@ -297,6 +298,59 @@ public class TaskStoreTests : IDisposable
 
         Assert.Empty(loaded.Failures);
         Assert.Empty(loaded.Tasks);
+    }
+
+    /// <summary>
+    /// A source name that would not survive being stored is stored anyway,
+    /// under one that will.
+    /// </summary>
+    /// <remarks>
+    /// A backslash and a colon are ordinary characters in a Linux filename and
+    /// get past <see cref="Path.GetFileName(string)"/> there. Left alone the
+    /// stored name is then refused at the boundary, and the user is told their
+    /// file is not "&lt;ulid&gt;-&lt;file name&gt;" — a true statement about a
+    /// file they are perfectly entitled to attach.
+    /// </remarks>
+    [Fact]
+    public async Task StoresAnAttachmentWhoseNameWouldNotSurviveBeingAName()
+    {
+        // Windows has no such filename to attach: the two characters this is
+        // about cannot appear in one, so there is nothing here to check.
+        if (OperatingSystem.IsWindows()) return;
+
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        var source = Path.Combine(_root, "quarter\\2026:notes.txt");
+        await File.WriteAllTextAsync(source, "bytes");
+
+        var attachment = await store.CopyAttachmentAsync(source, DateTime.UtcNow);
+
+        // Named for the user in full, stored under something a filesystem and
+        // the boundary check will both take.
+        Assert.Equal("quarter\\2026:notes.txt", attachment.OriginalName);
+        Assert.Equal(
+            attachment.StoredName, Workspace.RequireStoredName(attachment.StoredName));
+        Assert.True(File.Exists(store.Workspace.AttachmentFile(attachment.StoredName)));
+    }
+
+    /// <summary>A name too long to write down is shortened, extension kept.</summary>
+    [Fact]
+    public async Task ShortensAnAttachmentNameThatWouldNotFitOnDisk()
+    {
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+
+        // Long enough that the id, the separator and the name together are well
+        // past what a filesystem will accept as one name.
+        var source = Path.Combine(_root, new string('n', 240) + ".pdf");
+        await File.WriteAllTextAsync(source, "bytes");
+
+        var attachment = await store.CopyAttachmentAsync(source, DateTime.UtcNow);
+
+        Assert.True(Encoding.UTF8.GetByteCount(attachment.StoredName) <= 255);
+        Assert.EndsWith(".pdf", attachment.StoredName, StringComparison.Ordinal);
+        Assert.True(File.Exists(store.Workspace.AttachmentFile(attachment.StoredName)));
     }
 
     // A workspace is a folder the user (and a sync client, and anything else
@@ -404,8 +458,7 @@ public class TaskStoreTests : IDisposable
         };
         await store.SaveTaskAsync(task);
 
-        await Assert.ThrowsAsync<UnsafeWorkspaceNameException>(
-            () => store.TrashTaskAsync(task));
+        Assert.Throws<UnsafeWorkspaceNameException>(() => store.TrashTask(task));
 
         // Nothing was moved: the check happens before the first rename, so the
         // task is not left half in the trash.

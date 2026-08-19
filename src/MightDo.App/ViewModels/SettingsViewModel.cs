@@ -473,12 +473,26 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    private static bool TryParseColor(string value, out uint color) =>
-        uint.TryParse(
-            value.Trim().TrimStart('#'),
-            NumberStyles.HexNumber,
-            CultureInfo.InvariantCulture,
-            out color);
+    /// <summary>
+    /// Eight hex digits, alpha first — exactly what the message asks for.
+    /// </summary>
+    /// <remarks>
+    /// The length is checked as well as the digits: a shorter string parses
+    /// happily, so <c>"F"</c> would be accepted as fully transparent black and
+    /// the user would get a colour dot they cannot see and no reason why.
+    /// </remarks>
+    private static bool TryParseColor(string value, out uint color)
+    {
+        color = 0;
+        var digits = value.Trim().TrimStart('#');
+
+        return digits.Length == 8
+               && uint.TryParse(
+                   digits,
+                   NumberStyles.HexNumber,
+                   CultureInfo.InvariantCulture,
+                   out color);
+    }
 
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
     {
