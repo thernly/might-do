@@ -9,6 +9,8 @@ namespace MightDo.App;
 
 public partial class App : Application
 {
+    private AboutWindow? _about;
+
     public override void Initialize()
     {
         AvaloniaXamlLoader.Load(this);
@@ -47,5 +49,33 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void OnAbout(object? sender, EventArgs e)
+    {
+        if (_about is not null)
+        {
+            _about.Activate();
+            return;
+        }
+
+        var about = new AboutWindow();
+        _about = about;
+        about.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_about, about)) _about = null;
+        };
+
+        if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime
+            {
+                MainWindow: { } owner,
+            })
+        {
+            about.Show(owner);
+        }
+        else
+        {
+            about.Show();
+        }
     }
 }

@@ -70,6 +70,18 @@ public class ViewRenderingTests : IDisposable
     // ---- the shell ---------------------------------------------------------
 
     [AvaloniaFact]
+    public void TheAboutWindowShowsTheApplicationsIdentity()
+    {
+        var window = new AboutWindow();
+        window.Show();
+
+        var text = TextsIn(window);
+        Assert.Contains("Might Do", text);
+        Assert.Contains(text, value => value.StartsWith("Version "));
+        Assert.Contains(text, value => value.Contains("Apache License 2.0"));
+    }
+
+    [AvaloniaFact]
     public void TheWindowLoadsAndShowsThePickerWhenThereIsNoWorkspace()
     {
         var window = new MainWindow

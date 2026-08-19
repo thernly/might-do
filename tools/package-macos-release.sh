@@ -104,9 +104,9 @@ cat > "$BUNDLE_DIR/Contents/Info.plist" <<EOF
   <key>CFBundleExecutable</key>
   <string>MightDo.App</string>
   <key>CFBundleName</key>
-  <string>might-do</string>
+  <string>Might Do</string>
   <key>CFBundleDisplayName</key>
-  <string>might-do</string>
+  <string>Might Do</string>
   <key>CFBundleIdentifier</key>
   <string>com.might-do.app</string>
   <key>CFBundleVersion</key>

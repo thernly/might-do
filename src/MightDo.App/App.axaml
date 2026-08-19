@@ -2,8 +2,18 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              x:Class="MightDo.App.App"
              xmlns:fluent="using:Avalonia.Themes.Fluent"
+             Name="Might Do"
              RequestedThemeVariant="Default">
              <!-- "Default" ThemeVariant follows system theme variant. "Dark" or "Light" are other available options. -->
+
+    <!-- Defining the application menu replaces Avalonia's "About Avalonia"
+         fallback on macOS. The platform adds its standard Hide and Quit items
+         after this one. -->
+    <NativeMenu.Menu>
+      <NativeMenu>
+        <NativeMenuItem Header="About Might Do…" Click="OnAbout" />
+      </NativeMenu>
+    </NativeMenu.Menu>
 
     <Application.Resources>
       <ResourceDictionary>

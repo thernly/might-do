@@ -1,0 +1,43 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="MightDo.App.Views.AboutWindow"
+        Icon="avares://MightDo.App/Assets/might-do-icon.ico"
+        Title="About Might Do"
+        Width="440" SizeToContent="Height"
+        CanResize="False" ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{DynamicResource AppWindowBrush}"
+        Foreground="{DynamicResource AppTextBrush}">
+
+  <Grid RowDefinitions="Auto,Auto" Margin="28,26,28,20">
+    <Grid Grid.Row="0" ColumnDefinitions="96,*" ColumnSpacing="22">
+      <Image Grid.Column="0"
+             Width="96" Height="96"
+             VerticalAlignment="Top"
+             Source="avares://MightDo.App/Assets/might-do-icon.png" />
+
+      <StackPanel Grid.Column="1" Spacing="7">
+        <TextBlock Text="Might Do" FontSize="28" FontWeight="SemiBold" />
+        <TextBlock Name="VersionLabel"
+                   Foreground="{DynamicResource AppTextSecondaryBrush}" />
+        <TextBlock Margin="0,7,0,0"
+                   Text="A local-first personal task tracker."
+                   TextWrapping="Wrap" />
+        <TextBlock Margin="0,7,0,0"
+                   Text="Copyright © 2026 T. Hernly"
+                   FontSize="12"
+                   Foreground="{DynamicResource AppTextSecondaryBrush}" />
+        <TextBlock Text="Licensed under the Apache License 2.0"
+                   FontSize="12"
+                   Foreground="{DynamicResource AppTextSecondaryBrush}" />
+      </StackPanel>
+    </Grid>
+
+    <Button Grid.Row="1" Margin="0,24,0,0"
+            HorizontalAlignment="Right"
+            MinWidth="90"
+            Content="Close"
+            IsDefault="True" IsCancel="True"
+            Click="OnClose" />
+  </Grid>
+</Window>
