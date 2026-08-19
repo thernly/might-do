@@ -65,12 +65,13 @@ public sealed class InstantConverter : JsonConverter<DateTime>
             _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
         };
 
-        // Truncate to the precision that will be written. DateTime has 100-ns
-        // tick resolution, but the formats below only preserve milliseconds or
-        // microseconds; any sub-microsecond tick must be dropped here rather
-        // than silently on the way out so that the value serialised equals the
-        // value that will be read back.
-        utc = new DateTime(utc.Ticks - utc.Ticks % 10, DateTimeKind.Utc);
+        // The last line of defence rather than the fix. Every moment that
+        // reaches here has already been normalised by the domain type holding
+        // it (see Instants), which is what makes an in-memory task equal to the
+        // one read back from its file. This only makes the loss deliberate for
+        // anything that has not been: the formats below carry six fractional
+        // digits and a DateTime carries seven.
+        utc = Instants.AtStoredPrecision(utc);
 
         var format = utc.Microsecond == 0
             ? "yyyy-MM-ddTHH:mm:ss.fffZ"
