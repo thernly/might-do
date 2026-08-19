@@ -330,6 +330,22 @@
           </StackPanel>
         </Border>
 
+        <Border Classes="banner" IsVisible="{Binding Unreadable.Count}">
+          <StackPanel Spacing="4">
+            <TextBlock Text="Files that couldn't be read" FontWeight="SemiBold" />
+            <TextBlock Classes="hint" TextWrapping="Wrap"
+                       Text="These task files are still in your workspace but are not shown or edited here, so nothing in them is overwritten. A file written by a newer version of MightDo needs an update to open." />
+            <ItemsControl ItemsSource="{Binding Unreadable}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <TextBlock Text="{Binding}" TextWrapping="Wrap"
+                             FontFamily="monospace" FontSize="12" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
         <Border Classes="banner" IsVisible="{Binding Conflicts.Count}">
           <StackPanel Spacing="4">
             <TextBlock Text="Sync conflicts" FontWeight="SemiBold" />

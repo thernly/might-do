@@ -307,8 +307,13 @@ public sealed partial class MainViewModel : ViewModelBase
             Workspace = await WorkspaceViewModel.OpenAsync(store, _settings, _filePicker);
             Message = null;
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException
+                                      or Core.Storage.UnsupportedSchemaVersionException)
         {
+            // A workspace written by a newer MightDo is refused rather than
+            // opened: its config.json defines the statuses every task refers to,
+            // and saving it back from here would strip whatever that version
+            // added. The message says so; the folder is left untouched.
             Message = $"Couldn't open {path}: {e.Message}";
         }
         finally

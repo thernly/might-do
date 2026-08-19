@@ -26,7 +26,7 @@ recommendation, not a conformance rule.
 
 | | Requirement |
 |---|---|
-| **Hard** | Key names and value encodings; ULID filenames; atomic writes; the read-tolerance rules; ordinal comparison of `boardRank` |
+| **Hard** | Key names and value encodings; ULID filenames; atomic writes; the read-tolerance rules; refusing files with a newer `schemaVersion`; ordinal comparison of `boardRank` |
 | **House style** | Two-space indent, trailing newline, the key order shown below, unescaped non-ASCII, lowercase ULIDs, nullable fields written as explicit `null` |
 
 ## Folder layout
@@ -63,7 +63,7 @@ deliberately: status and category edits are rare.
 
 | Key | Type | Notes |
 |---|---|---|
-| `schemaVersion` | int | `1` |
+| `schemaVersion` | int | `1`. A higher value is refused, not loaded — see [Reading](#reading). |
 | `defaultStatusId` | string | Status new tasks start in. Always a status of type `initial`. Means nothing else. |
 | `statuses` | array | Written sorted by `order`. |
 | `categories` | array | |
@@ -92,7 +92,7 @@ One task per file, named `<id>.json`. Key order below is the on-disk order.
 
 | Key | Type | Notes |
 |---|---|---|
-| `schemaVersion` | int | `1` |
+| `schemaVersion` | int | `1`. A higher value is refused, not loaded — see [Reading](#reading). |
 | `id` | string | ULID; matches the filename |
 | `summary` | string | |
 | `description` | string | `""` when unset, never null |
@@ -169,6 +169,14 @@ Be liberal, and never lose a task quietly.
   version discards what that version added. Recorded here as a known property of
   the format rather than a bug — a port should behave the same way rather than
   invent its own preservation scheme.
+- **`schemaVersion` is read, not assumed.** Dropping unknown keys is only safe
+  while nothing writes the file back, so a file whose `schemaVersion` is higher
+  than the implementation supports is refused rather than loaded: a task file is
+  reported as unreadable (the same path a broken file takes) and never reaches
+  memory, so no save can downgrade it, and a newer `config.json` refuses to open
+  the workspace at all — it defines the statuses every task refers to. An
+  implementation must never write a file carrying a version it does not
+  understand. Absent `schemaVersion` means `1`.
 - **A file that fails to parse is reported, not skipped.** A task that silently
   vanishes is worse than one that shows up broken.
 - **An empty file reads as absent**, not as an error.

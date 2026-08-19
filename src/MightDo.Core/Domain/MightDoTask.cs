@@ -26,7 +26,15 @@ public sealed record MightDoTask
 
     public const int CurrentSchemaVersion = 1;
 
-    public int SchemaVersion => CurrentSchemaVersion;
+    /// <summary>The format version of the file this task came from.</summary>
+    /// <remarks>
+    /// Read from disk rather than assumed, because the value decides whether we
+    /// are allowed to write the file back. Unknown keys are skipped on read, so
+    /// rewriting a file a newer version wrote would delete whatever it knew and
+    /// we do not — the storage layer refuses to materialise or save one instead.
+    /// See <c>docs/format/workspace-v1.md</c>.
+    /// </remarks>
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     public required string Id { get; init; }
 

@@ -17,8 +17,13 @@ public sealed record WorkspaceConfig
 
     private readonly IReadOnlyList<Status> _statuses = [];
 
-    /// <summary>Written first, and ignored on read — the format is versioned, not negotiated.</summary>
-    public int SchemaVersion => CurrentSchemaVersion;
+    /// <summary>The format version of the file this config came from.</summary>
+    /// <remarks>
+    /// Written first, and kept on read: an older app that rewrote a newer
+    /// version's config.json would drop every key it does not know. See
+    /// <see cref="MightDoTask.SchemaVersion"/>.
+    /// </remarks>
+    public int SchemaVersion { get; init; } = CurrentSchemaVersion;
 
     /// <summary>
     /// The status new tasks are created in. Always a status of type
