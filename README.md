@@ -127,7 +127,19 @@ Optional architecture override:
 ```
 
 The script creates both artifacts in `dist/`: `might-do.app` and
-`might-do-<rid>.dmg`.
+`might-do-<rid>.dmg`, plus a `.sha256` checksum and a `.provenance.txt` naming
+the commit the build came from.
+
+It signs and notarizes when this machine has been given the credentials:
+
+```sh
+export MIGHTDO_SIGN_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export MIGHTDO_NOTARY_PROFILE=mightdo-notary   # xcrun notarytool store-credentials
+./tools/package-macos-release.sh
+```
+
+Without them the build is unsigned, which is fine on your own machine and not
+fine anywhere else — see [Distributing a build](#distributing-a-build).
 
 ### Windows
 
@@ -139,7 +151,30 @@ dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r win-arm64 --self
 
 Use `win-x64` for 64-bit Windows or `win-arm64` for ARM-based Windows devices.
 The published output is the portable app folder that can then be wrapped in an
-installer or packaged for distribution.
+installer or packaged for distribution. It is unsigned; Authenticode-sign the
+executable and any installer before handing it to anybody — see
+[Distributing a build](#distributing-a-build).
+
+### Distributing a build
+
+A build for your own machine needs none of this. A build for somebody else does,
+and the gap is not cosmetic: an unsigned artifact gives its user no way to tell
+an official build from a modified one, and the only way to open it is to click
+past the warning that would have caught a modified one. Telling people to do
+that as the normal way to install is teaching them to ignore the check.
+
+Before publishing a release:
+
+- sign and notarize the macOS bundle and DMG (`MIGHTDO_SIGN_IDENTITY`,
+  `MIGHTDO_NOTARY_PROFILE` above), and confirm `stapler validate` passes;
+- Authenticode-sign the Windows executable and installer;
+- publish the `.sha256` checksums and the provenance record alongside the
+  artifacts;
+- build from a clean checkout in a protected CI environment, so the provenance
+  record says which commit produced the bytes and nobody has to take it on
+  trust.
+
+Until all of that is in place, builds are for the machine that made them.
 
 ### Linux
 
@@ -202,7 +237,9 @@ justify, not a fixture to refresh.
 Deliberately deferred, each with a chosen approach already recorded:
 recurring tasks (spawn-on-complete when a task reaches a `Final` status), a
 system-tray presence so reminders fire while the app is closed, sync via a
-server, importing from Microsoft To Do, and code signing.
+server, and importing from Microsoft To Do. Code signing is wired into the
+macOS packaging script and waits only on a Developer ID — see
+[Distributing a build](#distributing-a-build).
 
 Reminders currently notify only while might-do is running. Anything that fell
 due while it was closed waits in the overdue banner when you next open it. The
