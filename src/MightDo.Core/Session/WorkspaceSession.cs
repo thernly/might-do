@@ -402,10 +402,11 @@ public sealed class WorkspaceSession : IDisposable
         }, cancellationToken);
 
     public Task TrashTaskAsync(MightDoTask task, CancellationToken cancellationToken = default) =>
-        MutateAsync(async snapshot =>
+        MutateAsync(snapshot =>
         {
-            await _store.TrashTaskAsync(task, cancellationToken);
-            return (Rebuild(snapshot, snapshot.Tasks.Where(t => t.Id != task.Id).ToList()), true);
+            _store.TrashTask(task);
+            return Task.FromResult(
+                (Rebuild(snapshot, snapshot.Tasks.Where(t => t.Id != task.Id).ToList()), true));
         }, cancellationToken);
 
     /// <summary>
@@ -843,6 +844,17 @@ public sealed class WorkspaceSession : IDisposable
     /// the window, or switching workspaces mid-save — into an
     /// <see cref="ObjectDisposedException"/> on a background thread, thrown by
     /// the release of a gate that was fine a moment earlier.
+    /// <para>
+    /// The same argument covers the token source, for a different reason of the
+    /// same shape: a save that is still in flight links against
+    /// <c>_closing.Token</c>, and
+    /// <see cref="CancellationTokenSource.CreateLinkedTokenSource(CancellationToken, CancellationToken)"/>
+    /// throws <see cref="ObjectDisposedException"/> off a disposed source — so
+    /// disposing here would replace the <see cref="OperationCanceledException"/>
+    /// shutdown is supposed to produce with a bug. Cancelled, it holds no timer
+    /// and no registrations, and its wait handle is never asked for, so there is
+    /// nothing for <c>Dispose</c> to release that the collector will not take.
+    /// </para>
     /// </remarks>
     public void Dispose()
     {
