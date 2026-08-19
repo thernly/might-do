@@ -327,31 +327,52 @@ public sealed class WorkspaceSession : IDisposable
     /// Copies a file into the workspace and binds it to the task. The copy is
     /// authoritative — the user's original can move or vanish afterwards.
     /// </summary>
-    public Task<MightDoTask> AttachFileAsync(
-        MightDoTask task, string sourcePath, CancellationToken cancellationToken = default) =>
-        MutateAsync(async snapshot =>
+    /// <remarks>
+    /// The bytes are copied before the gate is taken, and only the record that
+    /// points at them is written under it. An attachment is the one write whose
+    /// size the user chooses, and a multi-gigabyte file inside the gate would
+    /// hold up every other write in the workspace — every keystroke's save, the
+    /// reminder that comes due, the rescan behind a sync — for as long as the
+    /// copy takes.
+    /// <para>
+    /// <paramref name="progress"/> is told how many bytes have landed, and
+    /// cancelling <paramref name="cancellationToken"/> abandons the copy and
+    /// leaves nothing behind.
+    /// </para>
+    /// </remarks>
+    public async Task<MightDoTask> AttachFileAsync(
+        MightDoTask task,
+        string sourcePath,
+        IProgress<long>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var attachment = await _store.CopyAttachmentAsync(
+            sourcePath, _time.GetUtcNow().UtcDateTime, progress, cancellationToken);
+
+        try
         {
-            var attachment = await _store.CopyAttachmentAsync(
-                sourcePath, _time.GetUtcNow().UtcDateTime, cancellationToken);
-
-            var current = Current(snapshot, task);
-            var updated = current with { Attachments = [.. current.Attachments, attachment] };
-
-            try
+            return await MutateAsync(async snapshot =>
             {
+                var current = Current(snapshot, task);
+                var updated = current with { Attachments = [.. current.Attachments, attachment] };
+
                 await SaveAsync(updated, cancellationToken);
-            }
-            catch
-            {
-                // The bytes have to be in place before the record that points at
-                // them, so a failed save leaves a copy nothing refers to. Since
-                // the operation never happened, neither should the copy.
-                _store.TrashAttachment(attachment.StoredName);
-                throw;
-            }
-
-            return (WithTask(snapshot, updated), updated);
-        }, cancellationToken);
+                return (WithTask(snapshot, updated), updated);
+            }, cancellationToken);
+        }
+        catch
+        {
+            // The bytes have to be in place before the record that points at
+            // them, so a failed save leaves a copy nothing refers to. Since the
+            // operation never happened, neither should the copy. This covers the
+            // session closing mid-copy too, which is a workspace the user has
+            // already left.
+            _store.TrashAttachment(attachment.StoredName);
+            throw;
+        }
+    }
 
     /// <summary>
     /// Unbinds an attachment from the task and moves its bytes to the trash.

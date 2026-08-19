@@ -326,8 +326,16 @@ public sealed class TaskStore(Workspace workspace)
     /// effect on it. The stored name is prefixed with the attachment's id so two
     /// files called <c>contract.pdf</c> cannot collide.
     /// </remarks>
+    /// <param name="progress">
+    /// Told how many bytes have landed so far, so a long copy can say so.
+    /// Reported at most once per megabyte — a caller that redraws on each
+    /// report should not be redrawing thousands of times.
+    /// </param>
     public async Task<Attachment> CopyAttachmentAsync(
-        string sourcePath, DateTime addedAt, CancellationToken cancellationToken = default)
+        string sourcePath,
+        DateTime addedAt,
+        IProgress<long>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         Workspace.EnsureLayout();
 
@@ -346,7 +354,7 @@ public sealed class TaskStore(Workspace workspace)
             await using (var source = File.OpenRead(sourcePath))
             await using (var target = File.Create(temp))
             {
-                await source.CopyToAsync(target, cancellationToken);
+                await CopyAsync(source, target, progress, cancellationToken);
             }
 
             File.Move(temp, destination, overwrite: true);
@@ -372,6 +380,37 @@ public sealed class TaskStore(Workspace workspace)
             storedName,
             new FileInfo(destination).Length,
             addedAt);
+    }
+
+    /// <summary>
+    /// Streams source to destination, saying how far it has got.
+    /// </summary>
+    /// <remarks>
+    /// Written out rather than <see cref="Stream.CopyToAsync(Stream)"/> only
+    /// because that cannot report progress. The buffer is a megabyte rather
+    /// than the framework's 80KB: nothing here calls
+    /// <c>ConfigureAwait(false)</c>, so on the UI thread every chunk is a hop
+    /// back through the dispatcher, and a multi-gigabyte file should not make
+    /// tens of thousands of them.
+    /// </remarks>
+    private static async Task CopyAsync(
+        Stream source, Stream destination, IProgress<long>? progress,
+        CancellationToken cancellationToken)
+    {
+        const int chunk = 1024 * 1024;
+
+        var buffer = new byte[chunk];
+        long copied = 0;
+
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken);
+            if (read == 0) break;
+
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+            copied += read;
+            progress?.Report(copied);
+        }
     }
 
     /// <summary>

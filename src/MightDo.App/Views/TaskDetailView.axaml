@@ -221,7 +221,34 @@
         </ItemsControl.ItemTemplate>
       </ItemsControl>
       <Button Content="Attach a file…" Command="{Binding AttachFileCommand}"
+              IsEnabled="{Binding !IsAttaching}"
               Margin="0,4,0,0" HorizontalAlignment="Left" />
+
+      <!-- A large file is asked about before it is copied: the workspace is a
+           synced folder, so attaching one is an upload as well as a copy. -->
+      <Border IsVisible="{Binding IsConfirmingAttachment}" Margin="0,8,0,0"
+              Padding="12" CornerRadius="6"
+              Background="{DynamicResource AppSurfaceBrush}">
+        <StackPanel Spacing="8">
+          <TextBlock TextWrapping="Wrap" Text="{Binding AttachmentConfirmation}" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <Button Content="Attach anyway" Command="{Binding ConfirmAttachmentCommand}" />
+            <Button Content="Cancel" Command="{Binding CancelAttachmentCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <StackPanel IsVisible="{Binding IsAttaching}" Margin="0,8,0,0" Spacing="6">
+        <TextBlock Classes="hint" Text="{Binding AttachmentStatus}" />
+        <Grid ColumnDefinitions="*,Auto">
+          <ProgressBar Grid.Column="0" Minimum="0" Maximum="1"
+                       Value="{Binding AttachmentProgress}"
+                       VerticalAlignment="Center" />
+          <Button Grid.Column="1" Content="Cancel" Margin="8,0,0,0"
+                  Command="{Binding CancelAttachmentCommand}" />
+        </Grid>
+      </StackPanel>
+
       <TextBlock Classes="hint" Margin="0,4,0,0"
                  Text="The copy is authoritative — your original can move or be deleted afterwards." />
     </StackPanel>

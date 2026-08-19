@@ -307,6 +307,79 @@ public class PartialFailureTests : IDisposable
     }
 
     [Fact]
+    public async Task ALargeAttachmentDoesNotHoldUpEveryOtherWrite()
+    {
+        // The copy is the one write whose size the user chooses. Inside the
+        // session's gate it would stall every save, reminder and rescan behind
+        // it for as long as it took.
+        var workspace = new Core.Storage.Workspace(_root);
+        using var session = await WorkspaceSession.OpenAsync(new TaskStore(workspace));
+        var task = await session.CreateTaskAsync("Has an attachment");
+
+        var source = Path.Combine(_root, "big.bin");
+        await File.WriteAllBytesAsync(source, new byte[2 * 1024 * 1024], CancellationToken.None);
+
+        // The first progress report holds the copy open, which stands in for a
+        // file large enough to take a while. Reported on the copying thread, so
+        // blocking there really does stop the copy where it is.
+        var started = new TaskCompletionSource();
+        var mayFinish = new TaskCompletionSource();
+        var holding = false;
+        var progress = new SynchronousProgress(_ =>
+        {
+            if (holding) return;
+
+            holding = true;
+            started.TrySetResult();
+            mayFinish.Task.Wait(TimeSpan.FromSeconds(10));
+        });
+
+        var attaching = Task.Run(() => session.AttachFileAsync(task, source, progress));
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // Mid-copy, an ordinary edit still lands rather than queueing behind it.
+        var edited = await session.EditTaskAsync(
+            task, current => current with { Summary = "Edited mid-copy" })
+            .WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("Edited mid-copy", edited.Summary);
+
+        mayFinish.SetResult();
+        var attached = await attaching;
+        Assert.Single(attached.Attachments);
+        Assert.Equal("Edited mid-copy", session.Snapshot.TaskById(task.Id)!.Summary);
+    }
+
+    [Fact]
+    public async Task ACopyReportsItsProgressAndFinishesOnTheFileSize()
+    {
+        var workspace = new Core.Storage.Workspace(_root);
+        workspace.EnsureLayout();
+
+        var source = Path.Combine(_root, "source.bin");
+        var size = (3 * 1024 * 1024) + 17;
+        await File.WriteAllBytesAsync(source, new byte[size], CancellationToken.None);
+
+        var reports = new List<long>();
+        var attachment = await new TaskStore(workspace).CopyAttachmentAsync(
+            source, DateTime.UtcNow, new SynchronousProgress(reports.Add));
+
+        Assert.NotEmpty(reports);
+        Assert.Equal(reports.OrderBy(bytes => bytes), reports);
+        Assert.Equal(size, reports[^1]);
+        Assert.Equal(size, attachment.SizeBytes);
+    }
+
+    /// <summary>
+    /// Reports on the thread that copies, so a test can read what it collected
+    /// without waiting for another one to post it.
+    /// </summary>
+    private sealed class SynchronousProgress(Action<long> report) : IProgress<long>
+    {
+        public void Report(long value) => report(value);
+    }
+
+    [Fact]
     public async Task AnAttachmentCopyThatFailsLeavesNothingBehind()
     {
         var workspace = new Core.Storage.Workspace(_root);
@@ -320,7 +393,8 @@ public class PartialFailureTests : IDisposable
         await cancelled.CancelAsync();
 
         await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => store.CopyAttachmentAsync(source, DateTime.UtcNow, cancelled.Token));
+            () => store.CopyAttachmentAsync(
+                source, DateTime.UtcNow, cancellationToken: cancelled.Token));
 
         // The bytes were opened and the destination created before the copy gave
         // up; nothing collects a file no task refers to, so it has to go now.

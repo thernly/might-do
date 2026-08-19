@@ -50,6 +50,28 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// <summary>Set when a save failed, so the pane can say so.</summary>
     [ObservableProperty] private string? _saveError;
 
+    /// <summary>
+    /// A file waiting for the user to agree to its size. See
+    /// <see cref="LargeAttachmentBytes"/>.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsConfirmingAttachment))]
+    private string? _attachmentAwaitingConfirmation;
+
+    /// <summary>What the confirmation asks, naming the file and its size.</summary>
+    [ObservableProperty] private string? _attachmentConfirmation;
+
+    /// <summary>How far the copy in flight has got, as a fraction of the file.</summary>
+    [ObservableProperty] private double _attachmentProgress;
+
+    /// <summary>What the copy in flight is doing, or null when none is.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsAttaching))]
+    private string? _attachmentStatus;
+
+    /// <summary>Cancels the copy in flight. Null when nothing is copying.</summary>
+    private CancellationTokenSource? _attaching;
+
     public TaskDetailViewModel(WorkspaceSession session, MightDoTask task, IFilePicker filePicker)
     {
         _session = session;
@@ -57,6 +79,25 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         TaskId = task.Id;
         Refresh(task);
     }
+
+    /// <summary>
+    /// The size at which attaching asks first rather than simply doing it.
+    /// </summary>
+    /// <remarks>
+    /// The workspace is a folder the user is deliberately syncing to a cloud
+    /// provider (ADR-0001), so attaching is not only a copy — it is an upload,
+    /// on their connection, out of their quota. Fifty megabytes is where an
+    /// attachment stops being a document and starts being a video, an archive
+    /// or a disk image: past it, asking first is worth the interruption, and
+    /// below it the question would only ever be in the way.
+    /// </remarks>
+    public const long LargeAttachmentBytes = 50L * 1024 * 1024;
+
+    /// <summary>Whether a file is waiting for the user to agree to its size.</summary>
+    public bool IsConfirmingAttachment => AttachmentAwaitingConfirmation is not null;
+
+    /// <summary>Whether a copy is in flight.</summary>
+    public bool IsAttaching => AttachmentStatus is not null;
 
     /// <summary>The task the pane is showing.</summary>
     /// <remarks>
@@ -103,11 +144,15 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             {
                 TaskId = task.Id;
 
-                // Half-typed drafts and a failure belong to the task they were
-                // about, not to the one being opened.
+                // Half-typed drafts, an unanswered question and a failure belong
+                // to the task they were about, not to the one being opened. A
+                // copy already in flight is left alone: it is attaching to the
+                // task it was started on, which is still the task it names.
                 NewStepText = "";
                 NewNoteBody = "";
                 SaveError = null;
+                AttachmentAwaitingConfirmation = null;
+                AttachmentConfirmation = null;
             }
 
             // The option lists come first, and the selections after. A dropdown
@@ -324,8 +369,43 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var path = await _filePicker.PickFileAsync("Attach a file");
         if (path is null) return;
 
-        await _session.AttachFileAsync(task, path);
+        var size = SizeOf(path);
+        if (size < LargeAttachmentBytes)
+        {
+            await CopyAsync(path, size);
+            return;
+        }
+
+        AttachmentConfirmation =
+            $"{Path.GetFileName(path)} is {Format(size)}. A copy that size goes into the "
+            + "workspace folder, and from there to wherever it syncs. Attach it anyway?";
+        AttachmentAwaitingConfirmation = path;
     });
+
+    [RelayCommand]
+    private Task ConfirmAttachmentAsync() => Guarded(async () =>
+    {
+        if (AttachmentAwaitingConfirmation is not { } path) return;
+
+        AttachmentAwaitingConfirmation = null;
+        await CopyAsync(path, SizeOf(path));
+    });
+
+    /// <summary>
+    /// Backs out of attaching — the question, or the copy already running.
+    /// </summary>
+    /// <remarks>
+    /// One command for both because they are one thing to the user: the button
+    /// that says no. Which of the two is showing decides what it cancels, and
+    /// the copy leaves nothing behind either way.
+    /// </remarks>
+    [RelayCommand]
+    private void CancelAttachment()
+    {
+        AttachmentAwaitingConfirmation = null;
+        AttachmentConfirmation = null;
+        _attaching?.Cancel();
+    }
 
     [RelayCommand]
     private Task DeleteAttachmentAsync(AttachmentViewModel? attachment) => Guarded(async () =>
@@ -405,6 +485,80 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// throwing. See <see cref="Report"/>.
     /// </summary>
     private Task Guarded(Func<Task> work) => PendingSave = Report(work);
+
+    /// <summary>
+    /// Copies a file in, saying how far it has got and staying cancellable.
+    /// </summary>
+    /// <remarks>
+    /// The size is measured rather than taken from the stream so the pane can
+    /// show a fraction from the first chunk. A source that has changed size
+    /// since it was picked only makes the fraction wrong, which is better than
+    /// making the copy wrong.
+    /// </remarks>
+    private async Task CopyAsync(string path, long size)
+    {
+        var task = Current;
+        if (task is null) return;
+
+        using var cancelling = new CancellationTokenSource();
+        _attaching = cancelling;
+
+        var name = Path.GetFileName(path);
+        AttachmentProgress = 0;
+        AttachmentStatus = $"Copying {name}…";
+
+        // Progress captures the UI thread's context here, which is where this
+        // pane does all its work; the report arrives back on it. It is posted
+        // rather than delivered, so the last report of a copy can arrive after
+        // the copy has finished and put the progress bar back on screen for
+        // good — hence the check that this is still the copy in flight.
+        var progress = new Progress<long>(copied =>
+        {
+            if (!ReferenceEquals(_attaching, cancelling)) return;
+
+            AttachmentProgress = size > 0 ? Math.Min(1, (double)copied / size) : 0;
+            AttachmentStatus = $"Copying {name}… {AttachmentProgress:P0}";
+        });
+
+        try
+        {
+            await _session.AttachFileAsync(task, path, progress, cancelling.Token);
+        }
+        catch (OperationCanceledException) when (cancelling.IsCancellationRequested)
+        {
+            // The user pressed cancel. Nothing was attached, and the bytes that
+            // had landed are gone — see TaskStore.CopyAttachmentAsync.
+        }
+        finally
+        {
+            _attaching = null;
+            AttachmentStatus = null;
+            AttachmentConfirmation = null;
+            AttachmentProgress = 0;
+        }
+    }
+
+    private static long SizeOf(string path)
+    {
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // Unknown size is not a reason to refuse. The copy itself will fail
+            // if the file is genuinely unreachable, and it says so properly.
+            return 0;
+        }
+    }
+
+    private static string Format(long bytes) => bytes switch
+    {
+        >= 1024L * 1024 * 1024 => $"{bytes / (1024.0 * 1024 * 1024):0.#} GB",
+        >= 1024L * 1024 => $"{bytes / (1024.0 * 1024):0.#} MB",
+        >= 1024 => $"{bytes / 1024.0:0.#} KB",
+        _ => $"{bytes} bytes",
+    };
 
     private static int? ParseMinutes(string value) =>
         int.TryParse(value.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var m)
