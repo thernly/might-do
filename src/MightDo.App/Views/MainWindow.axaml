@@ -334,7 +334,7 @@
           <StackPanel Spacing="4">
             <TextBlock Text="Sync conflicts" FontWeight="SemiBold" />
             <TextBlock Classes="hint" TextWrapping="Wrap"
-                       Text="Your sync client left copies of these files in the tasks folder. They are not loaded — open the folder to resolve them." />
+                       Text="These files sit beside your workspace, left either by your sync client or by this app keeping a version that another machine wrote while you were editing. They are not loaded — open the folder to resolve them." />
             <ItemsControl ItemsSource="{Binding Conflicts}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="x:String">

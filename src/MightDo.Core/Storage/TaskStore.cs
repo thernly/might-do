@@ -22,6 +22,24 @@ public sealed record LoadedWorkspace(
 /// </summary>
 public sealed class TaskStore(Workspace workspace)
 {
+    /// <summary>
+    /// The version of each file as this store last read or wrote it, keyed by
+    /// task id, with <c>config.json</c> under <see cref="ConfigKey"/>.
+    /// </summary>
+    /// <remarks>
+    /// What makes a write safe against a sync client. Nothing else coordinates
+    /// with the other writers of a synced folder — the watcher is a debounced
+    /// hint that may arrive after our save, and a second copy of the app shares
+    /// nothing with this one — so a save compares the file it is about to
+    /// replace against the one it was built from, and keeps anything it doesn't
+    /// recognise instead of overwriting it. Reached only through
+    /// <c>WorkspaceSession</c>, which serialises everything, so a plain
+    /// dictionary is enough.
+    /// </remarks>
+    private readonly Dictionary<string, string> _versions = new(StringComparer.OrdinalIgnoreCase);
+
+    private const string ConfigKey = "config";
+
     public Workspace Workspace { get; } = workspace;
 
     /// <summary>
@@ -32,18 +50,26 @@ public sealed class TaskStore(Workspace workspace)
     {
         Workspace.EnsureLayout();
 
-        var existing = await WorkspaceFiles
-            .ReadJsonAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
-        if (existing is not null) return existing;
+        var (existing, version) = await WorkspaceFiles
+            .ReadJsonVersionedAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
+        if (existing is not null)
+        {
+            _versions[ConfigKey] = version;
+            return existing;
+        }
 
         var seed = WorkspaceConfig.Seed();
         await SaveConfigAsync(seed, cancellationToken);
         return seed;
     }
 
-    public Task SaveConfigAsync(
-        WorkspaceConfig config, CancellationToken cancellationToken = default) =>
-        WorkspaceFiles.WriteJsonAtomicAsync(Workspace.ConfigFile, config, cancellationToken);
+    public async Task SaveConfigAsync(
+        WorkspaceConfig config, CancellationToken cancellationToken = default)
+    {
+        await PreserveExternalWriteAsync(ConfigKey, Workspace.ConfigFile, cancellationToken);
+        _versions[ConfigKey] = await WorkspaceFiles
+            .WriteJsonAtomicAsync(Workspace.ConfigFile, config, cancellationToken);
+    }
 
     /// <summary>
     /// Reads the whole workspace: config, every task, everything that failed to
@@ -60,6 +86,7 @@ public sealed class TaskStore(Workspace workspace)
 
         var tasks = new List<MightDoTask>();
         var failures = new List<TaskLoadFailure>();
+        var versions = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var path in Directory.EnumerateFiles(Workspace.TasksDir))
         {
@@ -70,15 +97,24 @@ public sealed class TaskStore(Workspace workspace)
 
             try
             {
-                var task = await WorkspaceFiles
-                    .ReadJsonAsync<MightDoTask>(path, cancellationToken);
-                if (task is not null) tasks.Add(RequireSafeNames(name, task));
+                var (task, version) = await WorkspaceFiles
+                    .ReadJsonVersionedAsync<MightDoTask>(path, cancellationToken);
+                if (task is null) continue;
+
+                tasks.Add(RequireSafeNames(name, task));
+                versions[task.Id] = version;
             }
             catch (Exception error) when (error is not OperationCanceledException)
             {
                 failures.Add(new TaskLoadFailure(name, error));
             }
         }
+
+        // A full load is the whole truth about tasks/, so the versions it saw
+        // replace the ones we were carrying rather than adding to them.
+        versions[ConfigKey] = _versions.GetValueOrDefault(ConfigKey, WorkspaceFiles.NoFile);
+        _versions.Clear();
+        foreach (var (id, version) in versions) _versions[id] = version;
 
         return new LoadedWorkspace(
             config,
@@ -93,15 +129,45 @@ public sealed class TaskStore(Workspace workspace)
     /// as absent rather than as an error — looking something up is allowed to
     /// come back empty. Writing under such an id is not: that throws.
     /// </remarks>
-    public Task<MightDoTask?> LoadTaskAsync(
-        string taskId, CancellationToken cancellationToken = default) =>
-        Ulid.IsUlid(taskId)
-            ? WorkspaceFiles.ReadJsonAsync<MightDoTask>(
-                Workspace.TaskFile(taskId), cancellationToken)
-            : Task.FromResult<MightDoTask?>(null);
+    public async Task<MightDoTask?> LoadTaskAsync(
+        string taskId, CancellationToken cancellationToken = default)
+    {
+        if (!Ulid.IsUlid(taskId)) return null;
 
-    public Task SaveTaskAsync(MightDoTask task, CancellationToken cancellationToken = default) =>
-        WorkspaceFiles.WriteJsonAtomicAsync(Workspace.TaskFile(task.Id), task, cancellationToken);
+        var (task, version) = await WorkspaceFiles.ReadJsonVersionedAsync<MightDoTask>(
+            Workspace.TaskFile(taskId), cancellationToken);
+        if (task is not null) _versions[taskId] = version;
+        return task;
+    }
+
+    public async Task SaveTaskAsync(
+        MightDoTask task, CancellationToken cancellationToken = default)
+    {
+        var path = Workspace.TaskFile(task.Id);
+        await PreserveExternalWriteAsync(task.Id, path, cancellationToken);
+        _versions[task.Id] = await WorkspaceFiles
+            .WriteJsonAtomicAsync(path, task, cancellationToken);
+    }
+
+    /// <summary>
+    /// Moves aside anything written to <paramref name="path"/> since we last
+    /// read or wrote it, so the imminent overwrite destroys nothing.
+    /// </summary>
+    /// <remarks>
+    /// The preserved copy lands in the same folder under a conflict name, which
+    /// is where <see cref="WorkspaceFiles.FindConflictFiles"/> looks and so
+    /// reaches the user as a banner on the next rescan. A file that has gone
+    /// missing needs no copy: the save simply puts it back.
+    /// </remarks>
+    private async Task PreserveExternalWriteAsync(
+        string key, string path, CancellationToken cancellationToken)
+    {
+        var onDisk = await WorkspaceFiles.VersionOnDiskAsync(path, cancellationToken);
+        if (onDisk == WorkspaceFiles.NoFile) return;
+        if (onDisk == _versions.GetValueOrDefault(key, WorkspaceFiles.NoFile)) return;
+
+        WorkspaceFiles.PreserveAsConflict(path, DateTime.UtcNow);
+    }
 
     /// <summary>
     /// Moves a task's file into <c>.trash/</c>, along with its attachments.
@@ -125,6 +191,7 @@ public sealed class TaskStore(Workspace workspace)
 
         var taskFile = Workspace.TaskFile(task.Id);
         if (File.Exists(taskFile)) MoveInto(taskFile, Workspace.TrashTasksDir);
+        _versions.Remove(task.Id);
 
         return Task.CompletedTask;
     }
@@ -140,10 +207,12 @@ public sealed class TaskStore(Workspace workspace)
 
         // Read before moving: a task whose names would resolve outside the
         // workspace is refused while everything is still in the trash.
-        var task = await WorkspaceFiles.ReadJsonAsync<MightDoTask>(trashed, cancellationToken);
+        var (task, version) = await WorkspaceFiles
+            .ReadJsonVersionedAsync<MightDoTask>(trashed, cancellationToken);
         if (task is not null) RequireSafeNames($"{taskId}.json", task);
 
         MoveInto(trashed, Workspace.TasksDir);
+        _versions[taskId] = version;
 
         // Trashing took the attachments with the task, and the copies in
         // .trash are the only copies there are.

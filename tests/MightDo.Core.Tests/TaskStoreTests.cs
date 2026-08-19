@@ -362,6 +362,29 @@ public class TaskStoreTests : IDisposable
     }
 
     [Fact]
+    public async Task EachPreservedConflictGetsItsOwnNameEvenInTheSameSecond()
+    {
+        // The conflict name carries a timestamp, and two overwrites within one
+        // second would otherwise resolve to the same file — losing the very
+        // edit being kept.
+        var store = new TaskStore(new Workspace(_root));
+        await store.InitialiseAsync();
+        var task = MightDoTask.Create("Ours", "s", Rank.First);
+        await store.SaveTaskAsync(task);
+
+        foreach (var summary in (string[])["First theirs", "Second theirs"])
+        {
+            await WorkspaceFiles.WriteJsonAtomicAsync(
+                store.Workspace.TaskFile(task.Id), task with { Summary = summary });
+            await store.SaveTaskAsync(task);
+        }
+
+        var loaded = await store.LoadAsync();
+        Assert.Equal(2, loaded.Conflicts.Count);
+        Assert.Equal(2, loaded.Conflicts.Select(c => c.FileName).Distinct().Count());
+    }
+
+    [Fact]
     public void KnowsWhenTheWorkspaceFolderHasGone()
     {
         // Deleting a watched root produces no filesystem events (ADR-0003), so

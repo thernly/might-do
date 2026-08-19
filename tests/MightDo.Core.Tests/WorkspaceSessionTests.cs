@@ -585,14 +585,129 @@ public class WorkspaceSessionTests : IAsyncLifetime
         _session.Changed += (_, _) => Interlocked.Increment(ref changes);
 
         // Another machine's edit, arriving through the sync client.
-        var store = new TaskStore(new Core.Storage.Workspace(_root));
-        await store.SaveTaskAsync(task with { Summary = "Edited on the laptop" });
+        await Elsewhere(task with { Summary = "Edited on the laptop" });
 
         await _session.RefreshAsync();
 
         Assert.Equal(1, changes);
         Assert.Equal("Edited on the laptop", Reload(task).Summary);
     }
+
+    // ---- writes that meet an external edit ---------------------------------
+
+    [Fact]
+    public async Task SavingOverAnExternalEditKeepsTheOtherVersionAsAConflict()
+    {
+        var task = await _session.CreateTaskAsync("Ours");
+
+        // The sync client lands another machine's edit after we loaded, and
+        // before we save. Nothing tells the session about it in time.
+        await Elsewhere(task with { Summary = "Theirs" });
+
+        await _session.EditTaskAsync(task, current => current with { Description = "Notes" });
+
+        // Our save still wins the file the user is looking at...
+        var ours = await ReadTaskFile(task.Id);
+        Assert.Equal("Ours", ours!.Summary);
+        Assert.Equal("Notes", ours.Description);
+
+        // ...but their edit is beside it rather than gone.
+        var conflict = Assert.Single(ConflictCopies());
+        Assert.Contains("\"summary\": \"Theirs\"", await File.ReadAllTextAsync(conflict));
+        Assert.Contains(task.Id, Path.GetFileName(conflict));
+    }
+
+    [Fact]
+    public async Task APreservedConflictReachesTheSnapshotOnTheNextRefresh()
+    {
+        var task = await _session.CreateTaskAsync("Ours");
+        await Elsewhere(task with { Summary = "Theirs" });
+        await _session.EditTaskAsync(task, current => current with { Priority = Priority.High });
+
+        await _session.RefreshAsync();
+
+        var conflict = Assert.Single(_session.Snapshot.Conflicts);
+        Assert.Equal(task.Id, conflict.TaskId);
+    }
+
+    [Fact]
+    public async Task OurOwnRepeatedWritesAreNeverMistakenForSomebodyElsesEdit()
+    {
+        var task = await _session.CreateTaskAsync("Ours");
+
+        for (var i = 0; i < 5; i++)
+        {
+            await _session.EditTaskAsync(task, current => current with { Summary = $"Edit {i}" });
+        }
+
+        await _session.RefreshAsync();
+        Assert.Empty(ConflictCopies());
+        Assert.Empty(_session.Snapshot.Conflicts);
+    }
+
+    [Fact]
+    public async Task AnExternalEditWeHaveAlreadyReloadedIsNotAConflict()
+    {
+        var task = await _session.CreateTaskAsync("Ours");
+        await Elsewhere(task with { Summary = "Theirs" });
+
+        // Having seen their version, our next save is an edit of it, not a
+        // blind overwrite of something we never read.
+        await _session.RefreshAsync();
+        await _session.EditTaskAsync(task, current => current with { Description = "Notes" });
+
+        Assert.Empty(ConflictCopies());
+        Assert.Equal("Theirs", Reload(task).Summary);
+    }
+
+    [Fact]
+    public async Task ATaskDeletedElsewhereIsRewrittenRatherThanPreserved()
+    {
+        var task = await _session.CreateTaskAsync("Ours");
+        File.Delete(_session.Workspace.TaskFile(task.Id));
+
+        await _session.EditTaskAsync(task, current => current with { Summary = "Ours again" });
+
+        // There was nothing left to keep, so a conflict copy would only be noise.
+        Assert.Empty(ConflictCopies());
+        Assert.Equal("Ours again", (await ReadTaskFile(task.Id))!.Summary);
+    }
+
+    [Fact]
+    public async Task SavingConfigOverAnExternalEditKeepsTheOtherVersionToo()
+    {
+        // The config is a single file, so two machines editing different parts
+        // of it collide on every save rather than only on the same task.
+        var theirs = _session.Snapshot.Config;
+        await WorkspaceFiles.WriteJsonAtomicAsync(
+            _session.Workspace.ConfigFile,
+            theirs with
+            {
+                Categories = [.. theirs.Categories, new Category(Ulid.New(), "Theirs", 0xFF2196F3)],
+            });
+
+        await _session.AddStatusAsync("Ours", StatusType.Active);
+
+        await _session.RefreshAsync();
+        Assert.Contains(_session.Snapshot.Config.Statuses, s => s.Name == "Ours");
+        var conflict = Assert.Single(_session.Snapshot.Conflicts);
+        Assert.Contains("\"name\": \"Theirs\"", await File.ReadAllTextAsync(conflict.FullPath));
+    }
+
+    /// <summary>
+    /// Another writer of the same folder — a sync client, or a second copy of
+    /// the app — dropping a task file the session knows nothing about.
+    /// </summary>
+    private Task Elsewhere(MightDoTask task) =>
+        WorkspaceFiles.WriteJsonAtomicAsync(_session.Workspace.TaskFile(task.Id), task);
+
+    private Task<MightDoTask?> ReadTaskFile(string taskId) =>
+        WorkspaceFiles.ReadJsonAsync<MightDoTask>(_session.Workspace.TaskFile(taskId));
+
+    /// <summary>Files in <c>tasks/</c> that are not tasks.</summary>
+    private string[] ConflictCopies() =>
+        [.. Directory.EnumerateFiles(Path.Combine(_root, "tasks"))
+            .Where(path => !WorkspaceFiles.IsOwnTaskFile(Path.GetFileName(path)))];
 
     [Fact]
     public async Task AttachingAFileCopiesItIntoTheWorkspace()

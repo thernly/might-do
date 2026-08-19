@@ -192,6 +192,26 @@ Some Windows configurations refuse a rename onto an existing file. The fallback
 is to delete the target first, which leaves a very small window where it is
 absent — still far better than a partial write.
 
+### Checking before overwriting
+
+A rename is atomic, but atomicity says nothing about *lost updates*: the reader
+and the writer of a synced folder are different machines, and a watcher is a
+hint that may arrive after the save it should have preceded. So before replacing
+a file, compare what is on disk against the contents it was read from. If they
+differ, somebody else wrote it since — rename theirs aside as
+
+```
+<name> (conflicted copy <yyyy-MM-dd HHmmss>)<.ext>
+```
+
+in the same folder, then write. The user's save still lands, their own copy is
+kept in the shape the sync clients already use, and the next rescan reports it
+alongside every other conflict artefact. A file that has gone missing needs no
+copy: the save simply puts it back.
+
+This is also what makes two copies of the app on one machine safe, so no lock
+file is needed for that.
+
 ## Filenames, and the files we did not write
 
 Task filenames are exactly a 26-character Crockford base32 ULID (the alphabet
@@ -211,12 +231,17 @@ somewhere else** — in practice a sync client's conflict copy:
 | OneDrive | `01m….json` → `01m…-LAPTOP.json` |
 | Dropbox | `01m… (conflicted copy 2026-08-16).json` |
 | iCloud Drive | `01m… 2.json` |
+| this app | `01m… (conflicted copy 2026-08-16 141002).json` |
 
 These are surfaced in the app for the user to resolve, never loaded and never
 ignored — silently skipping them is how you discover months later that an edit
 was lost. The task id is recovered by finding an embedded 26-character ULID in
 the name, and is null when there isn't one. Our own in-flight `.tmp` files are
 the one exception and are skipped.
+
+The workspace root is scanned the same way: any `config*.json` that is not
+`config.json` is somebody else's copy of the one shared file, and a lost status
+or category is as much a lost edit as a task is.
 
 ## Deletion
 
