@@ -283,6 +283,136 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         Assert.Equal("file missing", attachment.Size);
     }
 
+    // ---- attaching ---------------------------------------------------------
+
+    [Fact]
+    public async Task AnOrdinaryFileIsAttachedWithoutBeingAskedAbout()
+    {
+        var vm = PaneWith(FileOf("notes.txt", 4096));
+
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        Assert.False(vm.IsConfirmingAttachment);
+        Assert.Equal("notes.txt", Assert.Single(Current.Attachments).OriginalName);
+        Assert.False(vm.IsAttaching);
+    }
+
+    [Fact]
+    public async Task ALargeFileIsAskedAboutBeforeAnythingIsCopied()
+    {
+        // The workspace is a folder the user syncs, so a copy this size is an
+        // upload as well. The question names the file and its size.
+        var vm = PaneWith(FileOf("holiday.mov", TaskDetailViewModel.LargeAttachmentBytes + 1));
+
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        Assert.True(vm.IsConfirmingAttachment);
+        Assert.Contains("holiday.mov", vm.AttachmentConfirmation);
+        Assert.Contains("100", vm.AttachmentConfirmation);
+        Assert.Empty(Current.Attachments);
+        Assert.Empty(Directory.GetFiles(_session.Workspace.AttachmentsDir));
+    }
+
+    [Fact]
+    public async Task SayingYesToTheQuestionAttachesIt()
+    {
+        var vm = PaneWith(FileOf("holiday.mov", TaskDetailViewModel.LargeAttachmentBytes + 1));
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        await vm.ConfirmAttachmentCommand.ExecuteAsync(null!);
+
+        Assert.False(vm.IsConfirmingAttachment);
+        Assert.Equal("holiday.mov", Assert.Single(Current.Attachments).OriginalName);
+    }
+
+    [Fact]
+    public async Task SayingNoToTheQuestionCopiesNothing()
+    {
+        var vm = PaneWith(FileOf("holiday.mov", TaskDetailViewModel.LargeAttachmentBytes + 1));
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        vm.CancelAttachmentCommand.Execute(null!);
+
+        Assert.False(vm.IsConfirmingAttachment);
+        Assert.Null(vm.AttachmentConfirmation);
+        Assert.Empty(Current.Attachments);
+        Assert.Empty(Directory.GetFiles(_session.Workspace.AttachmentsDir));
+    }
+
+    [Fact]
+    public async Task TheQuestionDoesNotFollowThePaneToAnotherTask()
+    {
+        var vm = PaneWith(FileOf("holiday.mov", TaskDetailViewModel.LargeAttachmentBytes + 1));
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        vm.Refresh(await _session.CreateTaskAsync("Another task"));
+
+        Assert.False(vm.IsConfirmingAttachment);
+    }
+
+    [Fact]
+    public async Task ACopyReportsHowFarItHasGotAndClearsUpAfterItself()
+    {
+        var vm = PaneWith(FileOf("report.pdf", 3 * 1024 * 1024));
+
+        var seen = new List<string?>();
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.AttachmentStatus)) seen.Add(vm.AttachmentStatus);
+        };
+
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        Assert.Contains(seen, status => status?.Contains("report.pdf") == true);
+        Assert.Null(seen[^1]);
+        Assert.False(vm.IsAttaching);
+        Assert.Equal(0, vm.AttachmentProgress);
+    }
+
+    [Fact]
+    public async Task CancellingACopyLeavesNoAttachmentAndNoBytes()
+    {
+        var vm = PaneWith(FileOf("holiday.mov", 8 * 1024 * 1024));
+
+        // Cancel as soon as the copy says it has started, which is what the
+        // button does while the progress bar is on screen.
+        vm.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(vm.AttachmentStatus) && vm.IsAttaching)
+            {
+                vm.CancelAttachmentCommand.Execute(null!);
+            }
+        };
+
+        await vm.AttachFileCommand.ExecuteAsync(null!);
+
+        Assert.Empty(Current.Attachments);
+        Assert.Empty(Directory.GetFiles(_session.Workspace.AttachmentsDir));
+        Assert.Null(vm.SaveError);
+        Assert.False(vm.IsAttaching);
+    }
+
+    /// <summary>A pane whose file picker answers with <paramref name="path"/>.</summary>
+    private TaskDetailViewModel PaneWith(string path) =>
+        new(_session, _task, new StubFilePicker(path));
+
+    /// <summary>
+    /// A file of the given size, written sparsely — the large-file cases are
+    /// about the number, and none of them reads the contents.
+    /// </summary>
+    private string FileOf(string name, long size)
+    {
+        var path = Path.Combine(_root, name);
+        using var file = File.Create(path);
+        file.SetLength(size);
+        return path;
+    }
+
+    private sealed class StubFilePicker(string path) : IFilePicker
+    {
+        public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(path);
+    }
+
     private sealed class NoFilePicker : IFilePicker
     {
         public Task<string?> PickFileAsync(string title) => Task.FromResult<string?>(null);

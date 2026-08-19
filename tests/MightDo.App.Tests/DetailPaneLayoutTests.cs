@@ -99,6 +99,35 @@ public class DetailPaneLayoutTests : IDisposable
             + string.Join("\n", overflowing));
     }
 
+    [AvaloniaFact]
+    public async Task TheAttachmentQuestionAndProgressRowFitToo()
+    {
+        // Both are hidden until a file is being attached, so they are not
+        // covered by the pane-wide test above — and a question about a file
+        // with a long name is exactly the sort of row that runs off the edge.
+        var (pane, detail) = await OpenPaneAsync();
+
+        detail.AttachmentConfirmation =
+            "a-holiday-video-with-a-rather-long-file-name.mov is 2.4 GB. A copy that size "
+            + "goes into the workspace folder, and from there to wherever it syncs. "
+            + "Attach it anyway?";
+        detail.AttachmentAwaitingConfirmation = "/tmp/a-holiday-video.mov";
+        detail.AttachmentStatus = "Copying a-holiday-video-with-a-rather-long-file-name.mov… 42%";
+        detail.AttachmentProgress = 0.42;
+
+        Dispatcher.UIThread.RunJobs();
+        Relayout(pane);
+
+        Assert.True(detail.IsConfirmingAttachment && detail.IsAttaching);
+
+        var overflowing = Overflowing(pane);
+
+        Assert.True(
+            overflowing.Count == 0,
+            "these are drawn past the right edge of the detail pane:\n"
+            + string.Join("\n", overflowing));
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     /// <summary>
