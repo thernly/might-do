@@ -58,7 +58,13 @@ public class BoardInteractionTests : IDisposable
         // its selection cannot be a row of the list.
         var (window, workspace) = await OpenBoardAsync(("Shipped", "Done"));
 
+        // The list really does hide it: switching there leaves no row at all.
+        workspace.ShowListCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
         Assert.Empty(workspace.Tasks);
+
+        workspace.ShowBoardCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
 
         ClickCard(window, "Shipped");
 
@@ -75,12 +81,12 @@ public class BoardInteractionTests : IDisposable
         ClickCard(window, "Second");
 
         var cards = workspace.Columns.SelectMany(column => column.Cards).ToList();
-        Assert.Equal("Second", Assert.Single(cards.Where(c => c.IsSelected)).Summary);
+        Assert.Equal("Second", Assert.Single(cards, c => c.IsSelected).Summary);
 
         ClickCard(window, "First");
 
         cards = [.. workspace.Columns.SelectMany(column => column.Cards)];
-        Assert.Equal("First", Assert.Single(cards.Where(c => c.IsSelected)).Summary);
+        Assert.Equal("First", Assert.Single(cards, c => c.IsSelected).Summary);
     }
 
     [AvaloniaFact]
@@ -203,6 +209,12 @@ public class BoardInteractionTests : IDisposable
 
         ClickCard(window, "Bin me");
         Assert.True(workspace.HasSelection);
+
+        // Trashed from the list, which is where a row exists to trash — the
+        // point being that the pane closes for a task that has left the
+        // workspace, whichever view sent it there.
+        workspace.ShowListCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
 
         await workspace.TrashTaskCommand.ExecuteAsync(workspace.Tasks.Single());
         Dispatcher.UIThread.RunJobs();
@@ -396,6 +408,12 @@ public class BoardInteractionTests : IDisposable
         };
         window.Show();
 
+        // The board goes up before the tasks are made: only the view on screen
+        // is projected, so the cards this reads back exist only once it is the
+        // one showing.
+        workspace.ShowBoardCommand.Execute(null);
+        Dispatcher.UIThread.RunJobs();
+
         foreach (var (summary, statusName) in tasks)
         {
             workspace.NewTaskSummary = summary;
@@ -411,8 +429,6 @@ public class BoardInteractionTests : IDisposable
             Dispatcher.UIThread.RunJobs();
         }
 
-        workspace.ShowBoardCommand.Execute(null);
-        Dispatcher.UIThread.RunJobs();
         window.Measure(window.ClientSize);
         window.Arrange(new Rect(window.ClientSize));
 

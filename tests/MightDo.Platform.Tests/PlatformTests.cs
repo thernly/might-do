@@ -21,7 +21,7 @@ public class AppSettingsTests : IDisposable
     {
         var settings = AppSettings.Load(Path_);
 
-        Assert.Null(settings.WorkspacePath);
+        Assert.Null(settings.WorkspacePathIfPresent());
         Assert.Null(settings.RememberedWorkspacePath);
         Assert.Equal(ViewMode.List, settings.ViewMode);
     }
@@ -35,7 +35,7 @@ public class AppSettingsTests : IDisposable
 
         var reloaded = AppSettings.Load(Path_);
 
-        Assert.Equal(_dir, reloaded.WorkspacePath);
+        Assert.Equal(_dir, reloaded.WorkspacePathIfPresent());
         Assert.Equal(ViewMode.Board, reloaded.ViewMode);
     }
 
@@ -50,7 +50,7 @@ public class AppSettingsTests : IDisposable
 
         var reloaded = AppSettings.Load(Path_);
 
-        Assert.Null(reloaded.WorkspacePath);
+        Assert.Null(reloaded.WorkspacePathIfPresent());
         Assert.Equal(gone, reloaded.RememberedWorkspacePath);
     }
 
@@ -99,7 +99,7 @@ public class AppSettingsTests : IDisposable
     /// it. Here that is a theme reverted by typing in the search box.
     /// </summary>
     [Fact]
-    public void ConcurrentChangesDoNotUndoEachOther()
+    public async Task ConcurrentChangesDoNotUndoEachOther()
     {
         var settings = AppSettings.Load(Path_);
         settings.AddWorkspace(_dir);
@@ -121,7 +121,7 @@ public class AppSettingsTests : IDisposable
             }
         });
 
-        Task.WaitAll(themes, views);
+        await Task.WhenAll(themes, views);
 
         // Both writers finished, so the file must hold what each of them last
         // said — not one of them and a stale copy of the other.
@@ -259,6 +259,34 @@ public class NotifierSelectionTests
         if (OperatingSystem.IsMacOS()) Assert.IsType<MacOsReminderNotifier>(notifier);
         else if (OperatingSystem.IsLinux()) Assert.IsType<LinuxReminderNotifier>(notifier);
     }
+
+    /// <summary>
+    /// A helper that writes more than the pipe buffer holds still finishes.
+    /// </summary>
+    /// <remarks>
+    /// Both streams are redirected and nothing wants the text, so before they
+    /// were drained a helper that filled the buffer blocked on its own write for
+    /// ever — and the wait for it ran under the reminder tick's gate, so one
+    /// noisy helper stopped every reminder for the rest of the session.
+    /// <para>
+    /// Unix only: it needs a shell that can be told to produce the output.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task DoesNotHangOnAHelperThatFloodsItsOutput()
+    {
+        if (OperatingSystem.IsWindows()) return;
+
+        var run = ShellNotifier.RunAsync(
+            "/bin/sh",
+            ["-c", "head -c 400000 /dev/zero | tr '\\0' 'x'"],
+            CancellationToken.None);
+
+        var finished = await Task.WhenAny(run, Task.Delay(TimeSpan.FromSeconds(20)));
+
+        Assert.Same(run, finished);
+        await run;
+    }
 }
 
 /// <summary>
@@ -390,7 +418,7 @@ public class WorkspaceListTests : IDisposable
         Assert.Single(reloaded.Workspaces);
         Assert.False(reloaded.Workspaces[0].Exists);
         Assert.Equal(gone, reloaded.RememberedWorkspacePath);
-        Assert.Null(reloaded.WorkspacePath);
+        Assert.Null(reloaded.WorkspacePathIfPresent());
     }
 
     [Fact]
@@ -484,7 +512,7 @@ public class WorkspaceListTests : IDisposable
         Assert.Equal(work, only.Path);
         Assert.Equal("work", only.Name);
         Assert.Equal(ViewMode.Board, only.View.ViewMode);
-        Assert.Equal(work, settings.WorkspacePath);
+        Assert.Equal(work, settings.WorkspacePathIfPresent());
         Assert.Equal(900, settings.WindowPlacement?.Width);
     }
 

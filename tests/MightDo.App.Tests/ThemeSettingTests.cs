@@ -138,14 +138,14 @@ public class ThemeSettingTests : IDisposable
 
         Assert.Equal(3, radios.Count);
         Assert.Equal(
-            "Dark", Assert.Single(radios.Where(radio => radio.IsChecked == true)).Content);
+            "Dark", Assert.Single(radios, radio => radio.IsChecked == true).Content);
 
         // And the marking follows a later change rather than being set once.
         viewModel.SetThemeCommand.Execute(ThemePreference.Auto);
         Dispatcher.UIThread.RunJobs();
 
         Assert.Equal(
-            "Auto", Assert.Single(radios.Where(radio => radio.IsChecked == true)).Content);
+            "Auto", Assert.Single(radios, radio => radio.IsChecked == true).Content);
 
         window.Close();
     }

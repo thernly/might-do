@@ -65,6 +65,14 @@ public sealed class InstantConverter : JsonConverter<DateTime>
             _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
         };
 
+        // The last line of defence rather than the fix. Every moment that
+        // reaches here has already been normalised by the domain type holding
+        // it (see Instants), which is what makes an in-memory task equal to the
+        // one read back from its file. This only makes the loss deliberate for
+        // anything that has not been: the formats below carry six fractional
+        // digits and a DateTime carries seven.
+        utc = Instants.AtStoredPrecision(utc);
+
         var format = utc.Microsecond == 0
             ? "yyyy-MM-ddTHH:mm:ss.fffZ"
             : "yyyy-MM-ddTHH:mm:ss.ffffffZ";

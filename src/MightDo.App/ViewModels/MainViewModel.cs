@@ -33,6 +33,22 @@ public sealed partial class MainViewModel : ViewModelBase
     private readonly AppSettings _settings;
     private readonly IFolderPicker _picker;
     private readonly IFilePicker _filePicker;
+    private readonly WorkspaceServices _services;
+
+    /// <summary>
+    /// Whether each remembered folder was there the last time anything looked.
+    /// </summary>
+    /// <remarks>
+    /// Answered from here rather than from the disk, because the question is
+    /// asked once per row every time the switcher is rebuilt — which happens
+    /// during window open, before the app has painted for the first time. On an
+    /// unmounted share or a stalled cloud-sync mount a single
+    /// <c>Directory.Exists</c> blocks for seconds, and the UI thread is the one
+    /// that was doing the asking.
+    /// </remarks>
+    private readonly Dictionary<string, bool> _missing = new(StringComparer.Ordinal);
+
+    private readonly PendingWork _pending = new();
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(HasWorkspace))]
@@ -51,11 +67,19 @@ public sealed partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     private string _renameText = "";
 
-    public MainViewModel(AppSettings settings, IFolderPicker picker, IFilePicker filePicker)
+    public MainViewModel(
+        AppSettings settings,
+        IFolderPicker picker,
+        IFilePicker filePicker,
+        WorkspaceServices? services = null)
     {
         _settings = settings;
         _picker = picker;
         _filePicker = filePicker;
+
+        // The composition root, which is what this type already was for
+        // everything else the app is made of.
+        _services = services ?? WorkspaceServices.Real;
     }
 
     /// <summary>A parameterless constructor for the XAML designer.</summary>
@@ -95,12 +119,55 @@ public sealed partial class MainViewModel : ViewModelBase
                 workspace.Path,
                 workspace.Name,
                 IsCurrent: workspace.Path == current,
-                IsMissing: WhyUnavailable(workspace.Path) is not null));
+                // Absent from the cache means nobody has looked yet. Assuming
+                // present is the kinder guess: a row that flickers from fine to
+                // missing is better than one that libels a folder that is there.
+                IsMissing: _missing.GetValueOrDefault(workspace.Path)));
         }
 
         OnPropertyChanged(nameof(CurrentWorkspaceName));
         OnPropertyChanged(nameof(HasOtherWorkspaces));
         OnPropertyChanged(nameof(HasRememberedWorkspaces));
+
+        ProbeInBackground();
+    }
+
+    /// <summary>
+    /// Asks the filesystem about every remembered folder, off the UI thread, and
+    /// marks the rows when the answers come back.
+    /// </summary>
+    /// <remarks>
+    /// The rows are marked in place rather than rebuilt, so the probe cannot
+    /// start another probe.
+    /// </remarks>
+    private void ProbeInBackground()
+    {
+        var paths = Workspaces.Select(choice => choice.Path).ToList();
+        _pending.Add(ProbeAsync(paths));
+    }
+
+    /// <summary>The probe in flight, for tests to await.</summary>
+    public Task PendingAvailability => _pending.All;
+
+    private async Task ProbeAsync(IReadOnlyList<string> paths)
+    {
+        try
+        {
+            var probed = await Task.Run(
+                () => paths.Distinct().ToDictionary(
+                    path => path, path => WhyUnavailable(path) is not null));
+
+            OnUiThread(() =>
+            {
+                foreach (var (path, missing) in probed) Mark(path, missing);
+            });
+        }
+        catch (Exception error) when (!IsShutdown(error))
+        {
+            // A probe that fails is a question that went unanswered, not a
+            // workspace that has gone: leave the rows as they are and let the
+            // next rebuild ask again. Opening one still checks for itself.
+        }
     }
 
     /// <summary>Whether there is anything to offer someone with nothing open.</summary>
@@ -144,6 +211,45 @@ public sealed partial class MainViewModel : ViewModelBase
         return null;
     }
 
+    /// <summary>
+    /// <see cref="WhyUnavailable"/> without holding up the UI thread.
+    /// </summary>
+    /// <remarks>
+    /// Opening and switching need a fresh answer rather than the cached one —
+    /// they are about to create files in that folder if it turns out to be
+    /// there — and both already have somewhere to wait.
+    /// </remarks>
+    private async Task<string?> WhyUnavailableAsync(string path)
+    {
+        var problem = await Task.Run(() => WhyUnavailable(path));
+        Mark(path, missing: problem is not null);
+        return problem;
+    }
+
+    /// <summary>
+    /// Records what was found about a folder, and marks the row for it.
+    /// </summary>
+    /// <remarks>
+    /// The row as well as the cache, and in one place, because otherwise an
+    /// answer that arrives after its row was built never reaches it: opening a
+    /// remembered workspace that has gone left the switcher showing it as
+    /// present, since nothing rebuilt the list between the answer and the
+    /// screen.
+    /// </remarks>
+    private void Mark(string path, bool missing)
+    {
+        _missing[path] = missing;
+
+        for (var i = 0; i < Workspaces.Count; i++)
+        {
+            var row = Workspaces[i];
+            if (row.Path == path && row.IsMissing != missing)
+            {
+                Workspaces[i] = row with { IsMissing = missing };
+            }
+        }
+    }
+
     private string NameOf(string path) =>
         _settings.Workspaces.FirstOrDefault(w => w.Path == path)?.Name
         ?? RememberedWorkspace.NameFor(path);
@@ -178,7 +284,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
         IsRenaming = false;
 
-        if (WhyUnavailable(choice.Path) is { } problem)
+        if (await WhyUnavailableAsync(choice.Path) is { } problem)
         {
             // The one open stays open: it is still working, and closing it
             // would cost the user a workspace as well as the one they wanted.
@@ -254,7 +360,7 @@ public sealed partial class MainViewModel : ViewModelBase
             var remembered = _settings.RememberedWorkspacePath;
             if (remembered is null) return;
 
-            if (WhyUnavailable(remembered) is { } problem)
+            if (await WhyUnavailableAsync(remembered) is { } problem)
             {
                 // Remembered but not there: say so rather than silently starting
                 // over on top of it. The switcher is still on the no-workspace
@@ -315,7 +421,8 @@ public sealed partial class MainViewModel : ViewModelBase
             CloseOpenWorkspace();
 
             var store = new TaskStore(new Core.Storage.Workspace(path));
-            Workspace = await WorkspaceViewModel.OpenAsync(store, _settings, _filePicker);
+            Workspace = await WorkspaceViewModel.OpenAsync(
+                store, _settings, _filePicker, _services);
             Message = null;
         }
         catch (Exception e) when (e is not OperationCanceledException)

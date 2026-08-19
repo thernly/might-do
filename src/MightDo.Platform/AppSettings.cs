@@ -223,7 +223,13 @@ public sealed class AppSettings
     /// The chosen workspace folder, or null if none has been picked or the
     /// folder has since gone — an unmounted drive, a moved OneDrive folder.
     /// </summary>
-    public string? WorkspacePath =>
+    /// <remarks>
+    /// A method rather than a property because answering means asking the
+    /// filesystem, which on an unmounted share takes seconds. A getter that does
+    /// that reads as free at every call site, and the call sites are on the UI
+    /// thread.
+    /// </remarks>
+    public string? WorkspacePathIfPresent() =>
         CurrentWorkspace is { Exists: true } workspace ? workspace.Path : null;
 
     /// <summary>

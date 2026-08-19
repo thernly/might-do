@@ -1,0 +1,40 @@
+# Builds and tests every push and pull request.
+#
+# Warnings are errors in this repository, so this is also what enforces that:
+# a build that only ever ran on the author's machine enforced nothing.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    # Both, because the app is cross-platform and the parts most likely to
+    # differ — file watching, the notification helper, path handling — are
+    # exactly the parts with no way to be checked from one machine.
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore MightDo.slnx
+
+      - name: Build
+        run: dotnet build MightDo.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test MightDo.slnx --configuration Release --no-build

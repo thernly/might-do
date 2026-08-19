@@ -35,6 +35,39 @@ public class TaskFormatTests
         JsonAssert.SemanticallyEqual(original, rewritten, $"{fileName} did not round-trip");
     }
 
+    /// <summary>
+    /// A task never holds a moment finer than its own file can record.
+    /// </summary>
+    /// <remarks>
+    /// The format stores six fractional digits and <c>DateTime.UtcNow</c> is
+    /// granular to seven, so without normalising, a task differs from itself the
+    /// moment it is read back — and every rescan after a local write announces a
+    /// change that never happened. The clock only produces that digit on some
+    /// platforms, which is why this constructs one rather than reading one.
+    /// </remarks>
+    [Fact]
+    public void ATaskSurvivesTheTripBackDownToTheTick()
+    {
+        var subMicrosecond = new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc)
+            .AddTicks(1_234_567);
+
+        var task = MightDoTask.Create("Settled", statusId: "s", boardRank: "i") with
+        {
+            CreatedAt = subMicrosecond,
+            UpdatedAt = subMicrosecond,
+            Notes = [new Note(Ulid.New(), subMicrosecond, "written at an awkward tick")],
+            Reminders = [new Reminder(Ulid.New(), subMicrosecond, subMicrosecond)],
+            Attachments =
+                [new Attachment(Ulid.New(), "a.pdf", "x-a.pdf", 1, subMicrosecond)],
+        };
+
+        var reloaded = WorkspaceJson.Deserialize<MightDoTask>(WorkspaceJson.Serialize(task))!;
+
+        Assert.True(
+            task.HasSameContentAs(reloaded),
+            "a task read back from its own file must equal the one written");
+    }
+
     [Fact]
     public void TheCorpusIsActuallyExercisingTheAwkwardCases()
     {

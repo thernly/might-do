@@ -107,10 +107,17 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     public string TaskId { get; private set; }
 
     /// <summary>
-    /// The most recent scalar save, so a caller that needs the write to have
-    /// landed can wait for it. Completes even when the save failed.
+    /// Every save this pane still has in flight, so a caller that needs a write
+    /// to have landed can wait for it. Completes even when a save failed.
     /// </summary>
-    public Task PendingSave { get; private set; } = Task.CompletedTask;
+    /// <remarks>
+    /// All of them rather than the latest: a control raises its change as the
+    /// user makes it, so two quick edits are two writes, and a single slot would
+    /// forget the first one and hand a waiter the wrong write to wait on.
+    /// </remarks>
+    public Task PendingSave => _pending.All;
+
+    private readonly PendingWork _pending = new();
 
     public ObservableCollection<StatusOption> Statuses { get; } = [];
     public ObservableCollection<CategoryOption> Categories { get; } = [];
@@ -254,7 +261,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var task = Current;
         if (task is null || task.StatusId == value.Id) return;
 
-        PendingSave = Report(_session.MoveToStatusAsync(task, value.Id));
+        _pending.Add(Report(_session.MoveToStatusAsync(task, value.Id)));
     }
 
     [RelayCommand]
@@ -440,7 +447,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var task = Current;
         if (task is null) return;
 
-        PendingSave = Report(_session.EditTaskAsync(task, edit));
+        _pending.Add(Report(_session.EditTaskAsync(task, edit)));
     }
 
     /// <summary>
@@ -484,7 +491,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// Runs a command that writes to the workspace, reporting rather than
     /// throwing. See <see cref="Report"/>.
     /// </summary>
-    private Task Guarded(Func<Task> work) => PendingSave = Report(work);
+    private Task Guarded(Func<Task> work) => _pending.Add(Report(work));
 
     /// <summary>
     /// Copies a file in, saying how far it has got and staying cancellable.

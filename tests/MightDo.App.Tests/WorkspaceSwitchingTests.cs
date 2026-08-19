@@ -106,7 +106,8 @@ public class WorkspaceSwitchingTests : IDisposable
         await AddAsync(main);
         await CreateTaskAsync(main.Workspace!, "Book the boiler service");
 
-        Assert.Equal(["Book the boiler service"], main.Workspace.Tasks.Select(t => t.Summary));
+        Assert.Equal(
+            ["Book the boiler service"], main.Workspace!.Tasks.Select(t => t.Summary));
 
         await main.SwitchWorkspaceCommand.ExecuteAsync(Choice(main, "work"));
 

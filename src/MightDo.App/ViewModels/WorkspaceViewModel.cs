@@ -93,7 +93,11 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private ViewMode _viewMode = ViewMode.List;
 
     private WorkspaceViewModel(
-        WorkspaceSession session, AppSettings settings, IFilePicker filePicker, string root)
+        WorkspaceSession session,
+        AppSettings settings,
+        IFilePicker filePicker,
+        string root,
+        WorkspaceServices services)
     {
         _session = session;
         _settings = settings;
@@ -105,17 +109,17 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // ADR-0003: the watcher only ever asks for a rescan. It holds no session
         // and cannot write, and RefreshAsync is the same path the manual refresh
         // button uses.
-        _watcher = new WorkspaceWatcher(session.Workspace);
+        _watcher = services.Watcher(session);
         _watcher.RescanRequested += (_, _) => RefreshInBackground();
         _watcher.RootVanished += (_, _) => OnUiThread(() =>
             Banner = "This workspace folder is no longer there. "
                      + "If it is on a drive or a synced folder, it may come back.");
         _watcher.Start();
 
-        _reminders = new ReminderScheduler(session, ReminderNotifiers.ForCurrentPlatform());
+        _reminders = services.Reminders(session);
         _reminders.Fired += (_, _) => OnUiThread(Project);
         _reminders.Failed += (_, error) => Report(error, "Reminders could not be updated");
-        _reminders.Start();
+        _reminders.Start(services.ReminderInterval);
 
         // Written on a threadpool tick from state captured on the UI thread, so
         // typing in the search box does not put a file write behind every
@@ -128,13 +132,28 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         Project();
     }
 
+    /// <param name="services">
+    /// What to build around the session, defaulting to the real watcher and the
+    /// real reminder clock. Passing fakes is how the integration between a
+    /// rescan, a reminder tick and this projection is testable at all — every
+    /// one of those is driven by a clock, and with the real ones the only way to
+    /// wait for a tick is to sleep and hope.
+    /// </param>
     public static async Task<WorkspaceViewModel> OpenAsync(
-        TaskStore store, AppSettings settings, IFilePicker filePicker)
+        TaskStore store,
+        AppSettings settings,
+        IFilePicker filePicker,
+        WorkspaceServices? services = null)
     {
         var session = await WorkspaceSession.OpenAsync(store);
         try
         {
-            return new WorkspaceViewModel(session, settings, filePicker, store.Workspace.Root);
+            return new WorkspaceViewModel(
+                session,
+                settings,
+                filePicker,
+                store.Workspace.Root,
+                services ?? WorkspaceServices.Real);
         }
         catch
         {
@@ -541,10 +560,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// prevent. The task is therefore kept, so a failure reaches the banner and
     /// tests can wait for it.
     /// </remarks>
-    public void RefreshInBackground() => PendingBackgroundWork = ReloadAsync();
+    public void RefreshInBackground() => _pending.Add(ReloadAsync());
 
     /// <summary>The background rescan in flight, for tests to await.</summary>
-    public Task PendingBackgroundWork { get; private set; } = Task.CompletedTask;
+    public Task PendingBackgroundWork => _pending.All;
+
+    private readonly PendingWork _pending = new();
 
     private async Task ReloadAsync()
     {
@@ -710,11 +731,25 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         ScheduleViewStateSave();
     }
 
+    /// <summary>
+    /// Rebuilds the view on screen, and empties the one that is not.
+    /// </summary>
+    /// <remarks>
+    /// This runs on every keystroke in the search box, every filter toggle,
+    /// every reminder tick and every rescan, and each run allocates a view model
+    /// per row. Doing that for the list <i>and</i> the board when only one of
+    /// them is visible doubled the cost of typing for a view nobody could see.
+    /// The other view is emptied rather than left stale, so nothing can bind to
+    /// rows that no longer describe the workspace, and switching view projects
+    /// again on its way past.
+    /// </remarks>
     private void Rebuild()
     {
         var snapshot = _session.Snapshot;
         var query = Query;
-        var visible = query.Apply(snapshot.Tasks, snapshot.Config);
+        var visible = IsListView
+            ? query.Apply(snapshot.Tasks, snapshot.Config)
+            : [];
 
         Replace(Tasks, visible.Select(task => new TaskRowViewModel(task, snapshot.Config)));
 
@@ -744,11 +779,13 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // hides completed work by default: a column headed "Done" holding
         // nothing would be worse than useless. That is a decision about this
         // view, so it is applied here rather than in the query's defaults.
-        var boardTasks = (query with { IncludeCompleted = true })
-            .Apply(snapshot.Tasks, snapshot.Config);
+        var columns = IsBoardView
+            ? BoardProjection.Columns(
+                (query with { IncludeCompleted = true }).Apply(snapshot.Tasks, snapshot.Config),
+                snapshot.Config)
+            : [];
 
-        Replace(Columns, BoardProjection
-            .Columns(boardTasks, snapshot.Config)
+        Replace(Columns, columns
             .Select(column => new BoardColumnViewModel(
                 column.Status,
                 column.Tasks.Select(task => new BoardCardViewModel(task, snapshot.Config)))));
@@ -813,6 +850,35 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _session.Changed -= OnWorkspaceChanged;
         _session.Dispose();
     }
+}
+
+/// <summary>
+/// What a live workspace is wired to besides its session.
+/// </summary>
+/// <remarks>
+/// <see cref="WorkspaceSession"/> deliberately knows nothing about watching or
+/// reminders — wiring those together is the composition root's job — but the
+/// view model had been doing that job itself, with a <c>new</c> of each in its
+/// constructor. That left no way to open a workspace without a real
+/// <c>FileSystemWatcher</c> on a real folder and a notifier that shells out to
+/// the desktop, and so no way to test the one thing most likely to break: what
+/// this projection does when a rescan and a reminder tick land on it.
+/// <para>
+/// Factories rather than finished objects, because both take the session the
+/// view model is being built around, and the view model owns and disposes them.
+/// </para>
+/// </remarks>
+public sealed record WorkspaceServices(
+    Func<WorkspaceSession, WorkspaceWatcher> Watcher,
+    Func<WorkspaceSession, ReminderScheduler> Reminders)
+{
+    /// <summary>What the application uses: a real watcher and this platform's notifier.</summary>
+    public static WorkspaceServices Real { get; } = new(
+        session => new WorkspaceWatcher(session.Workspace),
+        session => new ReminderScheduler(session, ReminderNotifiers.ForCurrentPlatform()));
+
+    /// <summary>How often the reminder clock ticks, or null for its own default.</summary>
+    public TimeSpan? ReminderInterval { get; init; }
 }
 
 /// <summary>One row of the list view, with everything it displays already resolved.</summary>

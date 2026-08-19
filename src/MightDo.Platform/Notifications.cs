@@ -131,6 +131,15 @@ public static class AppleScript
 internal static class ShellNotifier
 {
     /// <summary>
+    /// How long a notification helper gets before it is given up on.
+    /// </summary>
+    /// <remarks>
+    /// Generous, because this is not a race the user is watching — it exists
+    /// only so a helper that never exits cannot hold the reminder gate for ever.
+    /// </remarks>
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(30);
+
+    /// <summary>
     /// Runs a notification helper, treating any failure as "no notification".
     /// </summary>
     internal static async Task RunAsync(
@@ -149,12 +158,54 @@ internal static class ShellNotifier
             using var process = Process.Start(info);
             if (process is null) return;
 
-            await process.WaitForExitAsync(cancellationToken);
+            // Both pipes are read even though nothing wants the text. A helper
+            // that writes more than the OS pipe buffer holds — a D-Bus warning,
+            // a deprecation notice — blocks on the write until somebody drains
+            // it, and WaitForExitAsync blocks with it. That call is made under
+            // the reminder tick's gate, so one chatty helper would silently
+            // stop every reminder for the life of the process.
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken);
+            deadline.CancelAfter(Timeout);
+
+            try
+            {
+                var drained = Task.WhenAll(
+                    process.StandardOutput.ReadToEndAsync(deadline.Token),
+                    process.StandardError.ReadToEndAsync(deadline.Token));
+
+                await process.WaitForExitAsync(deadline.Token);
+                await drained;
+            }
+            catch (OperationCanceledException)
+            {
+                // Killed rather than left behind: the process is about to be
+                // disposed, and disposing one still running orphans it.
+                Kill(process);
+
+                // A helper that outstayed the deadline is the best-effort
+                // notification failing, which ADR-0004 allows. The workspace
+                // closing is not, and still propagates.
+                if (cancellationToken.IsCancellationRequested) throw;
+            }
         }
         catch (Exception e) when (e is not OperationCanceledException)
         {
             // The helper may not exist, or may be refused. ADR-0004 makes the OS
             // banner best-effort; the reminder is already in the in-app panel.
+        }
+    }
+
+    private static void Kill(Process process)
+    {
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (Exception e) when (e is InvalidOperationException or SystemException)
+        {
+            // It exited between the deadline and here, which is the outcome
+            // being asked for anyway.
         }
     }
 }
