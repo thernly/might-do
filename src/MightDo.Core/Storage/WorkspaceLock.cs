@@ -1,7 +1,25 @@
-using System.Security.Cryptography;
+﻿using System.Security.Cryptography;
 using System.Text;
 
 namespace MightDo.Core.Storage;
+
+/// <summary>
+/// A change was refused because another process on this machine held the
+/// workspace for longer than a save should take.
+/// </summary>
+/// <remarks>
+/// Nothing was written. The alternative — writing without the lock — is the
+/// interleaving <see cref="WorkspaceLock"/> exists to prevent, and it destroys
+/// the other process's edit without so much as a conflict copy.
+/// </remarks>
+public sealed class WorkspaceBusyException(string root)
+    : Exception(
+        $"Another copy of MightDo is writing to {root} and did not finish in time. "
+        + "Nothing has been changed. Try again in a moment.")
+{
+    /// <summary>The workspace that was busy.</summary>
+    public string Root { get; } = root;
+}
 
 /// <summary>
 /// A machine-wide lock on one workspace, held for the length of a single save.
@@ -32,10 +50,20 @@ namespace MightDo.Core.Storage;
 internal sealed class WorkspaceLock : IDisposable
 {
     /// <summary>
-    /// How long to wait for another process before writing anyway. A save the
-    /// user asked for that never happens is worse than one that races.
+    /// How long to wait for another process before giving up.
     /// </summary>
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    /// <remarks>
+    /// This used to write anyway on the grounds that a save the user asked for
+    /// that never happens is worse than one that races. It isn't: writing
+    /// unlocked is exactly the interleaving this type exists to prevent, and
+    /// doing it silently turns the workspace's no-data-loss guarantee into
+    /// last-writer-wins at the moment contention proves the guarantee was
+    /// needed. A change refused with a reason can be repeated; an edit
+    /// overwritten by another process cannot be recovered. Long enough that
+    /// ordinary overlapping saves never see it, since a save is a handful of
+    /// small files.
+    /// </remarks>
+    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
 
     private static readonly TimeSpan Retry = TimeSpan.FromMilliseconds(15);
 
@@ -45,10 +73,12 @@ internal sealed class WorkspaceLock : IDisposable
     /// </summary>
     /// <remarks>
     /// A read-only or sandboxed temporary folder, or a lock file left by another
-    /// user in a shared one, fails the same way on every attempt: waiting five
-    /// seconds for permission that is never coming, on every save, and five per
-    /// task in a cascade. Contention is not remembered this way — that one is
-    /// transient, and the next save is entitled to its own wait.
+    /// user in a shared one, fails the same way on every attempt: waiting out
+    /// the timeout for permission that is never coming, on every save, and once
+    /// per task in a cascade. The workspace is unprotected either way, so this
+    /// is the one case that goes ahead unlocked rather than refusing every
+    /// change the user makes. Contention is not remembered this way — that one
+    /// is transient, and the next save is entitled to its own wait.
     /// </remarks>
     private static volatile bool _unavailable;
 
@@ -82,8 +112,9 @@ internal sealed class WorkspaceLock : IDisposable
             }
             catch (UnauthorizedAccessException)
             {
-                // Not contention: permission does not arrive by waiting. The
-                // save still has to happen, and every later one skips the wait.
+                // Not contention: permission does not arrive by waiting, and a
+                // machine that cannot lock at all is not a machine where another
+                // process is about to. Every later save skips the wait.
                 _unavailable = true;
                 return new WorkspaceLock(null);
             }
@@ -91,8 +122,8 @@ internal sealed class WorkspaceLock : IDisposable
             {
                 // Somebody else is mid-save. Contention is transient, so this
                 // one is waited out rather than remembered — the next save gets
-                // the same five seconds.
-                if (DateTime.UtcNow >= deadline) return new WorkspaceLock(null);
+                // the same wait.
+                if (DateTime.UtcNow >= deadline) throw new WorkspaceBusyException(root);
             }
 
             await Task.Delay(Retry, cancellationToken);

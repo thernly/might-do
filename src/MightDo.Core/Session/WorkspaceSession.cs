@@ -1,4 +1,4 @@
-using MightDo.Core.Domain;
+﻿using MightDo.Core.Domain;
 using MightDo.Core.Query;
 using MightDo.Core.Storage;
 
@@ -35,6 +35,24 @@ public enum StatusDeletionBlocker
 /// </remarks>
 public sealed class PartiallyAppliedException(string message, Exception inner)
     : Exception(message, inner);
+
+/// <summary>
+/// A change was asked for on a task that is no longer in the workspace.
+/// </summary>
+/// <remarks>
+/// A pane holds the task it was opened with, and between the click and the gate
+/// that task can be trashed — by the user in another pane, or by another machine
+/// whose deletion arrived on the next rescan. Writing the pane's copy anyway
+/// would put the task back, leaving one version in <c>tasks/</c> and another in
+/// <c>.trash/tasks/</c> and turning a deletion into something a later sync
+/// undoes. Deletion has to be the last word, so the change is refused instead.
+/// </remarks>
+public sealed class TaskNoLongerExistsException(string taskId)
+    : Exception("this task has been deleted.")
+{
+    /// <summary>The task the caller asked to change.</summary>
+    public string TaskId { get; } = taskId;
+}
 
 /// <summary>
 /// Holds the whole workspace in memory and is the only thing that writes to it.
@@ -410,7 +428,7 @@ public sealed class WorkspaceSession : IDisposable
             // already left.
             try
             {
-                _store.TrashAttachment(attachment.StoredName);
+                await _store.TrashAttachmentAsync(attachment.StoredName, CancellationToken.None);
             }
             catch (Exception cleanup) when (cleanup is not OperationCanceledException)
             {
@@ -446,17 +464,39 @@ public sealed class WorkspaceSession : IDisposable
             };
             var updated = await WriteAsync(detached, TaskChange.Edit, cancellationToken);
 
-            if (attachment is not null) _store.TrashAttachment(attachment.StoredName);
+            if (attachment is not null)
+            {
+                await _store.TrashAttachmentAsync(attachment.StoredName, cancellationToken);
+            }
 
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
+    /// <summary>
+    /// Moves a task and its attachments to the trash. Trashing one that is
+    /// already gone does nothing.
+    /// </summary>
+    /// <remarks>
+    /// The session's copy is trashed rather than the caller's, so attachments
+    /// added since the caller picked the task up go to the trash with it instead
+    /// of being stranded in <c>attachments/</c>. Unlike an edit, a deletion of
+    /// something already deleted has nothing to refuse: the workspace is already
+    /// in the state the caller asked for.
+    /// </remarks>
     public Task TrashTaskAsync(MightDoTask task, CancellationToken cancellationToken = default) =>
         MutateAsync(snapshot =>
         {
-            _store.TrashTask(task);
-            return Task.FromResult(
-                (Rebuild(snapshot, snapshot.Tasks.Where(t => t.Id != task.Id).ToList()), true));
+            var current = snapshot.TaskById(task.Id);
+            if (current is null) return Task.FromResult((snapshot, true));
+
+            return TrashAsync();
+
+            async Task<(WorkspaceSnapshot, bool)> TrashAsync()
+            {
+                await _store.TrashTaskAsync(current, cancellationToken);
+                return (Rebuild(
+                    snapshot, snapshot.Tasks.Where(t => t.Id != task.Id).ToList()), true);
+            }
         }, cancellationToken);
 
     /// <summary>
@@ -842,8 +882,15 @@ public sealed class WorkspaceSession : IDisposable
     /// The session's copy of a task, so an edit built from a stale snapshot
     /// still applies to current state rather than reverting it.
     /// </summary>
+    /// <remarks>
+    /// Absence is not the same as staleness, so it is not treated as it. A task
+    /// the snapshot has never heard of has been trashed since the caller picked
+    /// it up, and the caller's copy is the only place it still exists: writing
+    /// that copy would recreate the task the user deleted. See
+    /// <see cref="TaskNoLongerExistsException"/>.
+    /// </remarks>
     private static MightDoTask Current(WorkspaceSnapshot snapshot, MightDoTask task) =>
-        snapshot.TaskById(task.Id) ?? task;
+        snapshot.TaskById(task.Id) ?? throw new TaskNoLongerExistsException(task.Id);
 
     /// <summary>
     /// Writes a task, stamping <see cref="MightDoTask.UpdatedAt"/> if the change

@@ -193,6 +193,17 @@ Be liberal, and never lose a task quietly.
   statuses every task refers to, so seeding a fresh one over it would orphan
   every task in the folder. Only a *missing* config is seeded — never an
   unreadable one, and the unreadable file is left exactly as it was found.
+- **Parsing is not the same as being usable.** A required key being present says
+  nothing about its value: `"summary": null`, `"steps": [null]` and
+  `"reminders": null` all parse. The whole object is checked at the boundary —
+  required strings, collections and their elements, enum values, non-negative
+  numbers, ids that are not repeated — so a hand-edited or sync-merged file
+  becomes one broken task beside the working ones rather than something that
+  fails later, in the middle of drawing the workspace it belongs to.
+- **A file too large to be one of ours is refused before it is read.** No task
+  or config written by this format approaches 16 MB; a file that does is a
+  truncated download or a sync client's mistake, and reading it into memory to
+  find that out is the thing worth avoiding.
 - **An empty file reads as absent**, not as an error.
 - Only files in `tasks/` whose names are ULIDs are loaded (see below).
 - **Names that become paths are checked, not trusted.** A file that parses is
@@ -269,14 +280,17 @@ exclusively. The lock file lives beside the machine's temporary files rather
 than in the workspace, so nothing synced, backed up or looked at by the user
 ever contains it, and it is held by an open handle rather than by the file
 existing — a process that crashes releases it. A writer that cannot take the
-lock within a few seconds writes anyway: a save the user asked for that never
-happens is worse than one that races.
+lock is refused, and nothing is written: a change that did not happen can be
+repeated, and an edit overwritten by another process cannot be recovered. The
+one exception is a machine that cannot create a lock file at all — a read-only
+or sandboxed temporary folder — where waiting would refuse every change the user
+ever makes for a lock that is never coming.
 
-The lock covers saves — a task file and `config.json`. Trashing, restoring and
-detaching an attachment are moves rather than saves and are not held under it, so
-two processes doing those at the same instant can still interleave: one trashing
-a task while the other saves it puts the task back, because the save finds no
-file where it left one and simply writes it again.
+The lock covers every mutation, not only saves: a task file, `config.json`,
+trashing and restoring a task, and detaching an attachment. Moving several files
+is no more atomic than compare-and-replace is, and an interleaved save would
+otherwise put back the task file a trash had just taken away, leaving an active
+task whose attachments are all in `.trash/`.
 
 Across machines nothing is closed, and nothing can be: a lock file inside a
 synced folder arrives seconds or minutes after it was taken. Two machines editing
