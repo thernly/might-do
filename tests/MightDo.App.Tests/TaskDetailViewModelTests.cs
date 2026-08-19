@@ -13,8 +13,8 @@ namespace MightDo.App.Tests;
 /// </summary>
 public class TaskDetailViewModelTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-detail-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-detail-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private WorkspaceSession _session = null!;
     private MightDoTask _task = null!;

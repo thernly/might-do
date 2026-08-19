@@ -63,33 +63,135 @@ public static partial class WorkspaceFiles
     /// which is atomic on every platform we ship to. Without this, OneDrive will
     /// eventually upload a partially written task and you get a corrupt file
     /// instead of a conflict.
+    /// <para>
+    /// The temporary name is unique per write. A shared one — <c>&lt;target&gt;.tmp</c>
+    /// — is fine until two writers overlap, and then each is writing the file
+    /// the other is about to rename: the losing save fails, or the winning name
+    /// carries the wrong bytes. Uniqueness costs nothing and makes the overlap
+    /// unrepresentable.
+    /// </para>
+    /// <para>
+    /// The folder is expected to exist. Creating it here is how a save into a
+    /// workspace that has been unmounted or moved rebuilds a fragment of it at
+    /// the old path — see <see cref="WorkspaceUnavailableException"/>.
+    /// </para>
     /// </remarks>
     public static async Task<string> WriteJsonAtomicAsync<T>(
         string path, T value, CancellationToken cancellationToken = default)
     {
         var contents = WorkspaceJson.Serialize(value) + "\n";
 
-        var parent = Path.GetDirectoryName(path);
-        if (parent is not null) Directory.CreateDirectory(parent);
-
-        var temp = path + ".tmp";
-        await File.WriteAllTextAsync(temp, contents, new UTF8Encoding(false), cancellationToken);
-
+        var temp = TempSibling(path);
         try
         {
-            File.Move(temp, path, overwrite: true);
+            await File.WriteAllTextAsync(
+                temp, contents, new UTF8Encoding(false), cancellationToken);
+
+            try
+            {
+                File.Move(temp, path, overwrite: true);
+            }
+            catch (IOException)
+            {
+                // Some Windows configurations refuse a rename onto an existing
+                // file. The one being replaced is moved aside rather than
+                // deleted, so a failure here still leaves a complete file at the
+                // target: deleting first means a transient share, quota or
+                // network error takes the last good copy with it.
+                ReplaceThroughSideStep(temp, path);
+            }
         }
-        catch (IOException)
+        catch
         {
-            // Some Windows configurations refuse a rename onto an existing file.
-            // Falling back leaves a very small window where the target is
-            // absent, which is still far better than a partially written file.
-            if (File.Exists(path)) File.Delete(path);
-            File.Move(temp, path);
+            // A write that failed partway — a full disk, a volume pulled — has
+            // left a half-file under a name nothing will ever look at again, in
+            // a folder a sync client is watching. Nothing else collects those.
+            Discard(temp);
+            throw;
         }
 
         return VersionOf(contents);
     }
+
+    private static void ReplaceThroughSideStep(string temp, string path)
+    {
+        if (!File.Exists(path))
+        {
+            File.Move(temp, path);
+            return;
+        }
+
+        var displaced = TempSibling(path);
+        File.Move(path, displaced);
+        try
+        {
+            File.Move(temp, path);
+        }
+        catch
+        {
+            PutBack(displaced, path);
+            throw;
+        }
+
+        // The new contents are live: whatever happens to the copy we set aside,
+        // this write succeeded. Failing here instead would report a save that
+        // landed as a failure, and the next save would find a file it did not
+        // remember writing and preserve the user's own bytes as a conflict.
+        Discard(displaced);
+    }
+
+    /// <summary>
+    /// Puts back the file that was moved aside, or failing that gives it a name
+    /// the user will be told about.
+    /// </summary>
+    /// <remarks>
+    /// A temporary name is skipped by every scan on purpose, so leaving the last
+    /// good copy under one is leaving it where nobody will ever find it. The
+    /// conflict name is the one shape this app already reports.
+    /// </remarks>
+    private static void PutBack(string displaced, string path)
+    {
+        try
+        {
+            File.Move(displaced, path);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            try
+            {
+                File.Move(displaced, ConflictNameFor(path, DateTime.UtcNow));
+            }
+            catch (Exception renaming) when (renaming is IOException
+                                                 or UnauthorizedAccessException)
+            {
+                // Nothing else is available, and the failure on the way out is
+                // the one the user needs to hear about.
+            }
+        }
+    }
+
+    /// <summary>Removes a temporary file, if it is still there to remove.</summary>
+    private static void Discard(string temp)
+    {
+        try
+        {
+            File.Delete(temp);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            // The failure that brought us here is the one worth reporting.
+        }
+    }
+
+    /// <summary>
+    /// A name beside <paramref name="path"/> that no other writer will pick,
+    /// and that everything scanning the folder already knows to skip.
+    /// </summary>
+    private static string TempSibling(string path) =>
+        $"{path}.{Guid.NewGuid():N}{TempSuffix}";
+
+    /// <summary>What a file is called while it is being written or replaced.</summary>
+    public const string TempSuffix = ".tmp";
 
     /// <summary>
     /// Renames a file we are about to overwrite out of the way, as the sync
@@ -104,6 +206,17 @@ public static partial class WorkspaceFiles
     /// </remarks>
     public static string PreserveAsConflict(string path, DateTime detectedAt)
     {
+        var destination = ConflictNameFor(path, detectedAt);
+        File.Move(path, destination);
+        return destination;
+    }
+
+    /// <summary>
+    /// A free name beside <paramref name="path"/>, in the shape the sync clients
+    /// use and <see cref="FindConflictFiles"/> reports.
+    /// </summary>
+    private static string ConflictNameFor(string path, DateTime detectedAt)
+    {
         var dir = Path.GetDirectoryName(path)!;
         var stem = Path.GetFileNameWithoutExtension(path);
         var extension = Path.GetExtension(path);
@@ -116,7 +229,6 @@ public static partial class WorkspaceFiles
                 dir, $"{stem} (conflicted copy {stamp} {attempt}){extension}");
         }
 
-        File.Move(path, destination);
         return destination;
     }
 
@@ -203,7 +315,7 @@ public static partial class WorkspaceFiles
 
     /// <summary>Our own temporary file, mid-rename.</summary>
     private static bool IsInFlightWrite(string fileName) =>
-        fileName.EndsWith(".tmp", StringComparison.OrdinalIgnoreCase);
+        fileName.EndsWith(TempSuffix, StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(
         "([0-9A-HJKMNP-TV-Z]{26})",

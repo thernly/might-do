@@ -31,19 +31,20 @@ public sealed class TaskStore(Workspace workspace)
     private const int MaxNameBytes = 255;
 
     /// <summary>What a copy is called until it is complete.</summary>
-    private const string TempSuffix = ".tmp";
+    private const string TempSuffix = WorkspaceFiles.TempSuffix;
 
     /// <summary>
     /// The version of each file as this store last read or wrote it, keyed by
     /// task id, with <c>config.json</c> under <see cref="ConfigKey"/>.
     /// </summary>
     /// <remarks>
-    /// What makes a write safe against a sync client. Nothing else coordinates
-    /// with the other writers of a synced folder — the watcher is a debounced
-    /// hint that may arrive after our save, and a second copy of the app shares
-    /// nothing with this one — so a save compares the file it is about to
-    /// replace against the one it was built from, and keeps anything it doesn't
-    /// recognise instead of overwriting it. Reached only through
+    /// What makes a write safe against a sync client. Nothing else tells us what
+    /// the other writers of a synced folder have done — the watcher is a
+    /// debounced hint that may arrive after our save — so a save compares the
+    /// file it is about to replace against the one it was built from, and keeps
+    /// anything it doesn't recognise instead of overwriting it. A second copy of
+    /// the app on this machine is held off the comparison itself by
+    /// <see cref="WorkspaceLock"/>. Reached only through
     /// <c>WorkspaceSession</c>, which serialises everything, so a plain
     /// dictionary is enough.
     /// </remarks>
@@ -54,10 +55,29 @@ public sealed class TaskStore(Workspace workspace)
     public Workspace Workspace { get; } = workspace;
 
     /// <summary>
-    /// Creates the folder layout and seeds <c>config.json</c> if this is a fresh
-    /// workspace. Safe to call on an existing one.
+    /// Makes a workspace here: creates the folder layout and seeds
+    /// <c>config.json</c> if this is a fresh workspace. Safe to call on an
+    /// existing one.
     /// </summary>
+    /// <remarks>
+    /// The one call that may create the workspace folder itself, and so the one
+    /// the user has to have asked for. Everything else — every save, every
+    /// reload — requires the folder to be there, because a workspace that is
+    /// missing is a moved, unmounted or deleted one, and creating it back is
+    /// how an empty shadow workspace appears at the old path and then collides
+    /// with the real folder when it returns.
+    /// </remarks>
     public async Task<WorkspaceConfig> InitialiseAsync(CancellationToken cancellationToken = default)
+    {
+        Directory.CreateDirectory(Workspace.Root);
+        return await OpenLayoutAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Reads the config of a workspace that must already be there, seeding one
+    /// if the folder holds no workspace yet.
+    /// </summary>
+    private async Task<WorkspaceConfig> OpenLayoutAsync(CancellationToken cancellationToken)
     {
         Workspace.EnsureLayout();
 
@@ -115,6 +135,11 @@ public sealed class TaskStore(Workspace workspace)
         RequireSupportedSchema(
             "config.json", config.SchemaVersion, WorkspaceConfig.CurrentSchemaVersion);
 
+        Workspace.RequireWritable();
+
+        using var writing = await WorkspaceLock.AcquireAsync(
+            Workspace.Root, cancellationToken);
+
         await PreserveExternalWriteAsync(ConfigKey, Workspace.ConfigFile, cancellationToken);
         _versions[ConfigKey] = await WorkspaceFiles
             .WriteJsonAtomicAsync(Workspace.ConfigFile, config, cancellationToken);
@@ -131,7 +156,7 @@ public sealed class TaskStore(Workspace workspace)
     /// </remarks>
     public async Task<LoadedWorkspace> LoadAsync(CancellationToken cancellationToken = default)
     {
-        var config = await InitialiseAsync(cancellationToken);
+        var config = await OpenLayoutAsync(cancellationToken);
 
         var tasks = new List<MightDoTask>();
         var failures = new List<TaskLoadFailure>();
@@ -201,7 +226,16 @@ public sealed class TaskStore(Workspace workspace)
         RequireSupportedSchema(
             $"{task.Id}.json", task.SchemaVersion, MightDoTask.CurrentSchemaVersion);
 
+        Workspace.RequireWritable();
+
+        // tasks/ is ours to replace if something removed it; the root is not —
+        // RequireWritable has already refused a workspace that is not there.
+        Directory.CreateDirectory(Workspace.TasksDir);
+
         var path = Workspace.TaskFile(task.Id);
+        using var writing = await WorkspaceLock.AcquireAsync(
+            Workspace.Root, cancellationToken);
+
         await PreserveExternalWriteAsync(task.Id, path, cancellationToken);
         _versions[task.Id] = await WorkspaceFiles
             .WriteJsonAtomicAsync(path, task, cancellationToken);
@@ -216,6 +250,13 @@ public sealed class TaskStore(Workspace workspace)
     /// is where <see cref="WorkspaceFiles.FindConflictFiles"/> looks and so
     /// reaches the user as a banner on the next rescan. A file that has gone
     /// missing needs no copy: the save simply puts it back.
+    /// <para>
+    /// Called with the workspace's <see cref="WorkspaceLock"/> held, so on this
+    /// machine no other process can write between the comparison and the
+    /// replacement it guards. Another machine writing the same synced folder
+    /// still can; that is the sync client's conflict copy to make, and the app
+    /// reports it.
+    /// </para>
     /// </remarks>
     private async Task PreserveExternalWriteAsync(
         string key, string path, CancellationToken cancellationToken)
@@ -272,6 +313,8 @@ public sealed class TaskStore(Workspace workspace)
     {
         if (!Ulid.IsUlid(taskId)) return null;
 
+        Workspace.RequireWritable();
+
         var trashed = Workspace.TrashedTaskFile(taskId);
         if (!File.Exists(trashed)) return null;
 
@@ -281,13 +324,28 @@ public sealed class TaskStore(Workspace workspace)
             .ReadJsonVersionedAsync<MightDoTask>(trashed, cancellationToken);
         if (task is not null) RequireSafeNames($"{taskId}.json", task);
 
+        // The canonical file is normally gone — trashing moved it here. If it
+        // is back, somebody else put it there while the task sat in the trash,
+        // and it is a different version of the same task. Keeping it as a
+        // conflict lets the restore land under the task's own name: restoring
+        // beside it instead would return a task the canonical file contradicts,
+        // and the next rescan would silently undo the restore.
+        var canonical = Workspace.TaskFile(taskId);
+        if (File.Exists(canonical))
+        {
+            WorkspaceFiles.PreserveAsConflict(canonical, DateTime.UtcNow);
+        }
+
         var moves = new MoveBatch();
         try
         {
             moves.Move(trashed, Workspace.TasksDir);
 
             // Trashing took the attachments with the task, and the copies in
-            // .trash are the only copies there are.
+            // .trash are the only copies there are. A stored name already taken
+            // in attachments/ names the same attachment id, so the bytes there
+            // are these bytes: the task binds to them and the trashed duplicate
+            // is left where it is rather than overwriting anything.
             foreach (var attachment in task?.Attachments ?? [])
             {
                 moves.Move(
@@ -495,6 +553,8 @@ public sealed class TaskStore(Workspace workspace)
     /// </remarks>
     public void TrashAttachment(string storedName)
     {
+        Workspace.RequireWritable();
+
         var file = Workspace.AttachmentFile(storedName);
         MoveInto(file, Workspace.TrashAttachmentsDir);
     }
@@ -610,8 +670,11 @@ public sealed class TaskStore(Workspace workspace)
         Directory.CreateDirectory(targetDir);
         var destination = Path.Combine(targetDir, Path.GetFileName(file));
 
-        // Never clobber something already in the trash.
-        if (File.Exists(destination))
+        // Never clobber something already in the trash — and a link counts as
+        // something. A link to nowhere reads as absent to File.Exists while the
+        // copy-then-delete fallback below would happily write straight through
+        // it, which is the one way a move can still land outside the workspace.
+        if (File.Exists(destination) || new FileInfo(destination).LinkTarget is not null)
         {
             var stem = Path.GetFileNameWithoutExtension(file);
             var extension = Path.GetExtension(file);

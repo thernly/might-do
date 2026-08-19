@@ -47,8 +47,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// <summary>The banner text this view model put up for a background failure.</summary>
     /// <remarks>
     /// Kept so a later success can take down its own message without also
-    /// clearing one somebody else raised — the missing-folder banner, most
-    /// obviously, which a failing rescan does not disprove.
+    /// clearing one somebody else raised — a dialog's, say, or one the user has
+    /// not read yet.
+    /// <para>
+    /// The missing-folder message is one of these. A reload cannot succeed
+    /// while the folder is missing — the store refuses to read or write a
+    /// workspace that is not there — so the rescan that clears it is the one
+    /// the watcher asks for when the folder comes back, which is exactly when
+    /// the message stops being true.
+    /// </para>
     /// </remarks>
     private string? _backgroundBanner;
 
@@ -111,9 +118,15 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         // button uses.
         _watcher = services.Watcher(session);
         _watcher.RescanRequested += (_, _) => RefreshInBackground();
+
+        // Nothing is written to the folder while it is away: the store refuses
+        // every save rather than building a fresh workspace at the old path.
         _watcher.RootVanished += (_, _) => OnUiThread(() =>
-            Banner = "This workspace folder is no longer there. "
-                     + "If it is on a drive or a synced folder, it may come back.");
+        {
+            _backgroundBanner = "This workspace folder is no longer there. "
+                                + "If it is on a drive or a synced folder, it may come back.";
+            Banner = _backgroundBanner;
+        });
         _watcher.Start();
 
         _reminders = services.Reminders(session);

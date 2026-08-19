@@ -110,7 +110,17 @@ One task per file, named `<id>.json`. Key order below is the on-disk order.
 | `attachments` | array | `id`, `originalName`, `storedName`, `sizeBytes`, `addedAt` |
 | `reminders` | array | `id`, `remindAt`, `firedAt?`, `dismissedAt?` |
 | `createdAt` | timestamp | |
-| `updatedAt` | timestamp | |
+| `updatedAt` | timestamp | Stamped by changes the user made to the task — see below |
+
+`updatedAt` means *the user changed this task*: editing a field, adding a note,
+ticking a step, retagging, moving it to another status or position, attaching or
+removing a file. It is deliberately **not** stamped by reminder
+bookkeeping — firing happens on a timer to a task nobody touched, and dismissing
+one acknowledges a notification rather than changing the task it points at — or
+by a task being rewritten because a status, category or tag it used was deleted
+in settings — a workspace-wide tidy-up that marked everything as freshly updated
+would empty the field of meaning. Sorting by "recently updated" is what the
+field is for, so it has to answer one question.
 
 Steps are ordered by their position in the array and carry no status or dates.
 Notes are append-only in practice — they are a running commentary, not editable
@@ -192,6 +202,16 @@ Be liberal, and never lose a task quietly.
   `..`. A file breaking either rule is reported as a broken file rather than
   loaded — otherwise the next save, delete, or trash of that task would write,
   remove, or move a file outside the workspace.
+- **The folders the app owns must be real folders.** (Single files are not
+  checked, and do not need to be: every write is a rename over the target, which
+  replaces a link rather than following it.) A plain name is only half
+  the boundary: if `tasks/`, `attachments/` or `.trash/` (or either folder
+  inside it) is a symlink, junction or other reparse point, the escape happens
+  while the path is resolved, after every name has passed its check. Any of
+  them being a link refuses the workspace, and the check is repeated before
+  each write rather than done once at open, because a link can be swapped in
+  while the app is running. The root itself is exempt: whatever it resolves to
+  is the folder the user chose, and that *is* the boundary.
 
 ## Writing
 
@@ -200,9 +220,24 @@ every platform we ship to; without it, a sync client eventually uploads a
 half-written task and you get a corrupt file instead of a resolvable conflict.
 Never hold a file handle open.
 
+**The temporary name must be unique per write** — `<target>.<random>.tmp`, not
+`<target>.tmp`. A shared name is fine until two writers overlap, and then each
+is writing the file the other is about to rename: one save fails, or the right
+name ends up carrying the wrong writer's bytes.
+
 Some Windows configurations refuse a rename onto an existing file. The fallback
-is to delete the target first, which leaves a very small window where it is
-absent — still far better than a partial write.
+moves the target aside to a temporary name, renames the new file into place, and
+only then deletes what it moved aside — putting it back if the second rename
+fails too. Deleting the target first instead means a transient share, quota or
+network error takes the last good copy with it.
+
+**The folder has to be there already.** Nothing on the write path creates the
+workspace or its subfolders: a workspace that has gone is an unmounted drive, a
+folder moved on another machine, or one the user deleted, and a save that
+recreates it leaves a fragment of a workspace at the old path for the real
+folder to collide with when it comes back. Writes into a missing workspace are
+refused, and so are reloads. Only the explicit "make a workspace here" path
+creates anything.
 
 ### Checking before overwriting
 
@@ -221,8 +256,33 @@ kept in the shape the sync clients already use, and the next rescan reports it
 alongside every other conflict artefact. A file that has gone missing needs no
 copy: the save simply puts it back.
 
-This is also what makes two copies of the app on one machine safe, so no lock
-file is needed for that.
+### Two writers at once
+
+Comparing before overwriting keeps a save from destroying an edit it never saw,
+but the comparison and the replacement are separate filesystem operations: two
+writers that both read version V can both find V still there, and the loser's
+edit goes without even a conflict copy.
+
+On one machine that is closed properly: the whole compare-preserve-replace
+sequence is held under a lock, taken by opening a per-workspace file
+exclusively. The lock file lives beside the machine's temporary files rather
+than in the workspace, so nothing synced, backed up or looked at by the user
+ever contains it, and it is held by an open handle rather than by the file
+existing — a process that crashes releases it. A writer that cannot take the
+lock within a few seconds writes anyway: a save the user asked for that never
+happens is worse than one that races.
+
+The lock covers saves — a task file and `config.json`. Trashing, restoring and
+detaching an attachment are moves rather than saves and are not held under it, so
+two processes doing those at the same instant can still interleave: one trashing
+a task while the other saves it puts the task back, because the save finds no
+file where it left one and simply writes it again.
+
+Across machines nothing is closed, and nothing can be: a lock file inside a
+synced folder arrives seconds or minutes after it was taken. Two machines editing
+the same task at the same moment is left to the sync client, whose conflict copy
+the app then reports like any other. This is a real limitation of the format, not
+an oversight.
 
 ## Filenames, and the files we did not write
 
@@ -267,6 +327,14 @@ folder that grows.
 
 Removing a single attachment from a task moves its bytes into
 `.trash/attachments/` too; nothing in a workspace is deleted outright.
+
+Restoring a task whose canonical file has come back — a sync client putting it
+there while the task sat in the trash — keeps that file as a conflict copy and
+restores under the task's own name. Restoring beside it under a different name
+would report success while the task's file said something else, and the next
+rescan would silently undo the restore. If the rest of the restore then fails
+and is put back, the conflict copy stays where it is: it is the only copy of
+that version, and it is reported like any other.
 
 Trashing and restoring move several files with no way to do them as one
 operation, so a run that fails partway puts back whatever it already moved. A
