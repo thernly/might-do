@@ -197,14 +197,23 @@ public sealed class TaskStore(Workspace workspace)
         Workspace.EnsureLayout();
         RequireSafeNames($"{task.Id}.json", task);
 
-        foreach (var attachment in task.Attachments)
+        var moves = new MoveBatch();
+        try
         {
-            var file = Workspace.AttachmentFile(attachment.StoredName);
-            if (File.Exists(file)) MoveInto(file, Workspace.TrashAttachmentsDir);
+            foreach (var attachment in task.Attachments)
+            {
+                moves.Move(Workspace.AttachmentFile(attachment.StoredName),
+                    Workspace.TrashAttachmentsDir);
+            }
+
+            moves.Move(Workspace.TaskFile(task.Id), Workspace.TrashTasksDir);
+        }
+        catch
+        {
+            moves.Undo();
+            throw;
         }
 
-        var taskFile = Workspace.TaskFile(task.Id);
-        if (File.Exists(taskFile)) MoveInto(taskFile, Workspace.TrashTasksDir);
         _versions.Remove(task.Id);
 
         return Task.CompletedTask;
@@ -225,16 +234,27 @@ public sealed class TaskStore(Workspace workspace)
             .ReadJsonVersionedAsync<MightDoTask>(trashed, cancellationToken);
         if (task is not null) RequireSafeNames($"{taskId}.json", task);
 
-        MoveInto(trashed, Workspace.TasksDir);
-        _versions[taskId] = version;
-
-        // Trashing took the attachments with the task, and the copies in
-        // .trash are the only copies there are.
-        foreach (var attachment in task?.Attachments ?? [])
+        var moves = new MoveBatch();
+        try
         {
-            var file = Workspace.TrashedAttachmentFile(attachment.StoredName);
-            if (File.Exists(file)) MoveInto(file, Workspace.AttachmentsDir);
+            moves.Move(trashed, Workspace.TasksDir);
+
+            // Trashing took the attachments with the task, and the copies in
+            // .trash are the only copies there are.
+            foreach (var attachment in task?.Attachments ?? [])
+            {
+                moves.Move(
+                    Workspace.TrashedAttachmentFile(attachment.StoredName),
+                    Workspace.AttachmentsDir);
+            }
         }
+        catch
+        {
+            moves.Undo();
+            throw;
+        }
+
+        _versions[taskId] = version;
 
         return task;
     }
@@ -297,11 +317,20 @@ public sealed class TaskStore(Workspace workspace)
             addedAt);
     }
 
-    /// <summary>Removes an attachment's bytes. Absent is not an error.</summary>
-    public void DeleteAttachment(string storedName)
+    /// <summary>
+    /// Moves an attachment's bytes into <c>.trash/</c>. Absent is not an error.
+    /// </summary>
+    /// <remarks>
+    /// Deleting the bytes outright made removing an attachment unrecoverable
+    /// the moment anything else in the operation failed: the task save that
+    /// drops the record is a separate write, and a task left referring to bytes
+    /// that no longer exist anywhere cannot be repaired. Trashing them gives
+    /// the same recovery story a trashed task has.
+    /// </remarks>
+    public void TrashAttachment(string storedName)
     {
         var file = Workspace.AttachmentFile(storedName);
-        if (File.Exists(file)) File.Delete(file);
+        MoveInto(file, Workspace.TrashAttachmentsDir);
     }
 
     /// <summary>
@@ -354,8 +383,14 @@ public sealed class TaskStore(Workspace workspace)
             + "would discard everything the newer version added.");
     }
 
-    private static void MoveInto(string file, string targetDir)
+    /// <summary>
+    /// Moves a file into a folder, or does nothing if it is not there. Returns
+    /// where it landed, or null if there was nothing to move.
+    /// </summary>
+    private static string? MoveInto(string file, string targetDir)
     {
+        if (!File.Exists(file)) return null;
+
         Directory.CreateDirectory(targetDir);
         var destination = Path.Combine(targetDir, Path.GetFileName(file));
 
@@ -368,6 +403,12 @@ public sealed class TaskStore(Workspace workspace)
             destination = Path.Combine(targetDir, $"{stem}-{stamp}{extension}");
         }
 
+        Move(file, destination);
+        return destination;
+    }
+
+    private static void Move(string file, string destination)
+    {
         try
         {
             File.Move(file, destination);
@@ -377,6 +418,51 @@ public sealed class TaskStore(Workspace workspace)
             // Renames can fail across volumes; fall back to copy-then-delete.
             File.Copy(file, destination, overwrite: true);
             File.Delete(file);
+        }
+    }
+
+    /// <summary>
+    /// A run of moves that puts everything back if one of them fails.
+    /// </summary>
+    /// <remarks>
+    /// Trashing and restoring a task each move several files — its attachments
+    /// and its JSON — with no way to do them as one operation. On the storage
+    /// the workspace is designed for (removable, cloud-synced, quota-limited)
+    /// any one of them can fail, and stopping there would leave an active task
+    /// whose attachments are already in <c>.trash</c>, or a half-restored one.
+    /// Undoing what already landed makes a failed operation a no-op instead:
+    /// enough for an operation whose steps are renames, and far less machinery
+    /// than a journal.
+    /// <para>
+    /// The undo moves are renames of files we just created, in the folder we
+    /// just took them from, so the case where they too fail is one where
+    /// nothing could have helped.
+    /// </para>
+    /// </remarks>
+    private sealed class MoveBatch
+    {
+        private readonly List<(string From, string To)> _done = [];
+
+        public void Move(string file, string targetDir)
+        {
+            if (MoveInto(file, targetDir) is { } destination) _done.Add((file, destination));
+        }
+
+        public void Undo()
+        {
+            for (var i = _done.Count - 1; i >= 0; i--)
+            {
+                var (from, to) = _done[i];
+                try
+                {
+                    TaskStore.Move(to, from);
+                }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    // Nothing better is available: the original failure is the
+                    // one worth reporting, and it is about to be rethrown.
+                }
+            }
         }
     }
 }

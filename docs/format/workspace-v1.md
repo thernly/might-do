@@ -261,6 +261,15 @@ millisecond timestamp appended rather than clobbering what is there. Nothing
 purges the trash automatically: destroying data on a timer is worse than a
 folder that grows.
 
+Removing a single attachment from a task moves its bytes into
+`.trash/attachments/` too; nothing in a workspace is deleted outright.
+
+Trashing and restoring move several files with no way to do them as one
+operation, so a run that fails partway puts back whatever it already moved. A
+failed trash leaves the task active with its attachments beside it, and a failed
+restore leaves the whole task in `.trash/` — never an active task pointing at
+files that are already in the trash.
+
 ## The fixtures
 
 | Path | What it is |

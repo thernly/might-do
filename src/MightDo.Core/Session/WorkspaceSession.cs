@@ -314,27 +314,49 @@ public sealed class WorkspaceSession : IDisposable
             var attachment = await _store.CopyAttachmentAsync(
                 sourcePath, _time.GetUtcNow().UtcDateTime, cancellationToken);
 
-            var updated = Current(snapshot, task) with
+            var current = Current(snapshot, task);
+            var updated = current with { Attachments = [.. current.Attachments, attachment] };
+
+            try
             {
-                Attachments = [.. Current(snapshot, task).Attachments, attachment],
-            };
-            await SaveAsync(updated, cancellationToken);
+                await SaveAsync(updated, cancellationToken);
+            }
+            catch
+            {
+                // The bytes have to be in place before the record that points at
+                // them, so a failed save leaves a copy nothing refers to. Since
+                // the operation never happened, neither should the copy.
+                _store.TrashAttachment(attachment.StoredName);
+                throw;
+            }
+
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
+    /// <summary>
+    /// Unbinds an attachment from the task and moves its bytes to the trash.
+    /// </summary>
+    /// <remarks>
+    /// The record goes first. Losing the bytes while the task still points at
+    /// them is a task that can't be repaired; losing the record while the bytes
+    /// sit in <c>attachments/</c> is a stray file, which is the failure worth
+    /// having.
+    /// </remarks>
     public Task<MightDoTask> DeleteAttachmentAsync(
         MightDoTask task, string attachmentId, CancellationToken cancellationToken = default) =>
         MutateAsync(async snapshot =>
         {
             var current = Current(snapshot, task);
             var attachment = current.Attachments.FirstOrDefault(a => a.Id == attachmentId);
-            if (attachment is not null) _store.DeleteAttachment(attachment.StoredName);
 
             var updated = current with
             {
                 Attachments = [.. current.Attachments.Where(a => a.Id != attachmentId)],
             };
             await SaveAsync(updated, cancellationToken);
+
+            if (attachment is not null) _store.TrashAttachment(attachment.StoredName);
+
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
