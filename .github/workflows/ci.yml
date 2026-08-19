@@ -14,6 +14,8 @@ jobs:
     # Both, because the app is cross-platform and the parts most likely to
     # differ — file watching, the notification helper, path handling — are
     # exactly the parts with no way to be checked from one machine.
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
