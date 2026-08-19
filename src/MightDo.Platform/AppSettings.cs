@@ -131,8 +131,31 @@ public sealed class AppSettings
         WriteIndented = true,
     };
 
+    /// <summary>
+    /// Held for the whole of every change, not merely for the write.
+    /// </summary>
+    /// <remarks>
+    /// Every mutator here is a read-modify-write over <see cref="_data"/>, and
+    /// they do not all run on the same thread: the theme and the window size are
+    /// recorded from the UI thread, while a workspace's view state is flushed
+    /// from a threadpool timer. Locking only the write would still let two
+    /// changes each build on the state before the other, so the one that lands
+    /// second silently reverts the first — a theme change lost to a search-box
+    /// keystroke. The lock is reentrant, so a mutator may call another.
+    /// </remarks>
+    private readonly Lock _gate = new();
+
     private readonly string _path;
-    private AppSettingsData _data;
+
+    /// <summary>
+    /// Written only under <see cref="_gate"/>; read without it.
+    /// </summary>
+    /// <remarks>
+    /// Readers need no lock because the value is an immutable record: a reader
+    /// sees either the whole of the old settings or the whole of the new ones,
+    /// never a mixture.
+    /// </remarks>
+    private volatile AppSettingsData _data;
 
     public AppSettings(string path, AppSettingsData data)
     {
@@ -223,37 +246,43 @@ public sealed class AppSettings
     {
         var full = System.IO.Path.GetFullPath(path);
 
-        if (Find(full) is { } existing)
+        lock (_gate)
         {
-            Save(_data with { CurrentWorkspacePath = existing.Path });
-            return existing;
+            if (Find(full) is { } existing)
+            {
+                Save(_data with { CurrentWorkspacePath = existing.Path });
+                return existing;
+            }
+
+            var added = new RememberedWorkspace
+            {
+                Path = full,
+                Name = name is { Length: > 0 } given ? given : RememberedWorkspace.NameFor(full),
+                View = new WorkspaceViewState { ViewMode = _data.ViewMode },
+            };
+
+            Save(_data with
+            {
+                Workspaces = [.. _data.Workspaces, added],
+                CurrentWorkspacePath = added.Path,
+            });
+
+            return added;
         }
-
-        var added = new RememberedWorkspace
-        {
-            Path = full,
-            Name = name is { Length: > 0 } given ? given : RememberedWorkspace.NameFor(full),
-            View = new WorkspaceViewState { ViewMode = _data.ViewMode },
-        };
-
-        Save(_data with
-        {
-            Workspaces = [.. _data.Workspaces, added],
-            CurrentWorkspacePath = added.Path,
-        });
-
-        return added;
     }
 
     /// <summary>Opens one of the remembered workspaces.</summary>
     public void SetCurrentWorkspace(string path)
     {
-        if (Find(path) is not { } workspace)
+        lock (_gate)
         {
-            throw new ArgumentException($"Not a remembered workspace: '{path}'", nameof(path));
-        }
+            if (Find(path) is not { } workspace)
+            {
+                throw new ArgumentException($"Not a remembered workspace: '{path}'", nameof(path));
+            }
 
-        Save(_data with { CurrentWorkspacePath = workspace.Path });
+            Save(_data with { CurrentWorkspacePath = workspace.Path });
+        }
     }
 
     public void RenameWorkspace(string path, string name)
@@ -276,18 +305,25 @@ public sealed class AppSettings
     /// </remarks>
     public void ForgetWorkspace(string path)
     {
-        if (Find(path) is not { } workspace) return;
-
-        Save(_data with
+        lock (_gate)
         {
-            Workspaces = [.. _data.Workspaces.Where(w => w.Path != workspace.Path)],
-            CurrentWorkspacePath =
-                _data.CurrentWorkspacePath == workspace.Path ? null : _data.CurrentWorkspacePath,
-        });
+            if (Find(path) is not { } workspace) return;
+
+            Save(_data with
+            {
+                Workspaces = [.. _data.Workspaces.Where(w => w.Path != workspace.Path)],
+                CurrentWorkspacePath = _data.CurrentWorkspacePath == workspace.Path
+                    ? null
+                    : _data.CurrentWorkspacePath,
+            });
+        }
     }
 
     /// <summary>Closes the current workspace without forgetting it.</summary>
-    public void CloseWorkspace() => Save(_data with { CurrentWorkspacePath = null });
+    public void CloseWorkspace()
+    {
+        lock (_gate) Save(_data with { CurrentWorkspacePath = null });
+    }
 
     // ------------------------------------------------------------- view state
 
@@ -305,10 +341,13 @@ public sealed class AppSettings
     /// <summary>Records how a workspace has been left.</summary>
     public void SaveViewState(string path, WorkspaceViewState state)
     {
-        if (Find(path) is not { } workspace) return;
-        if (workspace.View.SameAs(state) && _data.ViewMode == state.ViewMode) return;
+        lock (_gate)
+        {
+            if (Find(path) is not { } workspace) return;
+            if (workspace.View.SameAs(state) && _data.ViewMode == state.ViewMode) return;
 
-        Replace(path, w => w with { View = state }, _data with { ViewMode = state.ViewMode });
+            Replace(path, w => w with { View = state }, _data with { ViewMode = state.ViewMode });
+        }
     }
 
     private RememberedWorkspace? Find(string? path)
@@ -325,13 +364,17 @@ public sealed class AppSettings
     private void Replace(
         string path, Func<RememberedWorkspace, RememberedWorkspace> edit, AppSettingsData? onto = null)
     {
-        if (Find(path) is not { } workspace) return;
-
-        var data = onto ?? _data;
-        Save(data with
+        lock (_gate)
         {
-            Workspaces = [.. data.Workspaces.Select(w => w.Path == workspace.Path ? edit(w) : w)],
-        });
+            if (Find(path) is not { } workspace) return;
+
+            var data = onto ?? _data;
+            Save(data with
+            {
+                Workspaces =
+                    [.. data.Workspaces.Select(w => w.Path == workspace.Path ? edit(w) : w)],
+            });
+        }
     }
 
     // ------------------------------------------------------------------ the rest
@@ -344,9 +387,12 @@ public sealed class AppSettings
     /// <summary>Records the colour scheme. Applying it is the app's business.</summary>
     public void SetTheme(ThemePreference theme)
     {
-        if (_data.Theme == theme) return;
+        lock (_gate)
+        {
+            if (_data.Theme == theme) return;
 
-        Save(_data with { Theme = theme });
+            Save(_data with { Theme = theme });
+        }
     }
 
     /// <summary>
@@ -375,33 +421,94 @@ public sealed class AppSettings
     /// <summary>Drops the open workspace from the list, leaving nothing open.</summary>
     public void ForgetWorkspace()
     {
-        if (_data.CurrentWorkspacePath is { } path) ForgetWorkspace(path);
+        lock (_gate)
+        {
+            if (_data.CurrentWorkspacePath is { } path) ForgetWorkspace(path);
+        }
     }
 
     /// <summary>
     /// Sets the view a newly added workspace will start in. An open workspace
     /// records its own through <see cref="SaveViewState"/>.
     /// </summary>
-    public void SetViewMode(ViewMode mode) => Save(_data with { ViewMode = mode });
-
-    public void SetWindowPlacement(WindowPlacement placement) => Save(_data with
+    public void SetViewMode(ViewMode mode)
     {
-        WindowWidth = placement.Width,
-        WindowHeight = placement.Height,
-        WindowMaximized = placement.Maximized,
-    });
+        lock (_gate) Save(_data with { ViewMode = mode });
+    }
 
+    public void SetWindowPlacement(WindowPlacement placement)
+    {
+        lock (_gate)
+        {
+            Save(_data with
+            {
+                WindowWidth = placement.Width,
+                WindowHeight = placement.Height,
+                WindowMaximized = placement.Maximized,
+            });
+        }
+    }
+
+    /// <summary>
+    /// Why the settings could not last be written, or null if they were.
+    /// </summary>
+    /// <remarks>
+    /// Recorded rather than thrown, and offered here for anything that wants to
+    /// say so. See <see cref="Save"/>.
+    /// </remarks>
+    public string? LastSaveError { get; private set; }
+
+    /// <summary>
+    /// Records the new settings and writes them, keeping them either way.
+    /// </summary>
+    /// <remarks>
+    /// A failed write is not thrown. <see cref="Load"/> already treats an
+    /// unreadable file as "no preferences yet" on the grounds that losing a
+    /// remembered folder is a small annoyance and refusing to start is not; the
+    /// same holds on the way out, and more sharply — this runs on a threadpool
+    /// timer when a workspace flushes its view state, where a thrown exception
+    /// has no caller and ends the process. Losing a window size must not close
+    /// the application.
+    /// <para>
+    /// The in-memory value is kept regardless, so the session behaves as the
+    /// user asked even when the preference will not outlive it.
+    /// </para>
+    /// <para>
+    /// The temporary file is named uniquely rather than <c>settings.json.tmp</c>:
+    /// two writes landing together would otherwise race on the one temp path and
+    /// either fail to rename or publish the other's half-written bytes.
+    /// </para>
+    /// </remarks>
     private void Save(AppSettingsData data)
     {
         _data = data;
 
-        var directory = Path.GetDirectoryName(_path);
-        if (directory is not null) Directory.CreateDirectory(directory);
+        var temp = _path + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+        try
+        {
+            var directory = Path.GetDirectoryName(_path);
+            if (directory is not null) Directory.CreateDirectory(directory);
 
-        // Same temp-then-rename as the workspace: a half-written settings file
-        // would be read as corrupt and silently reset the user's preferences.
-        var temp = _path + ".tmp";
-        File.WriteAllText(temp, JsonSerializer.Serialize(data, Options));
-        File.Move(temp, _path, overwrite: true);
+            // Same temp-then-rename as the workspace: a half-written settings
+            // file would be read as corrupt and silently reset the preferences.
+            File.WriteAllText(temp, JsonSerializer.Serialize(data, Options));
+            File.Move(temp, _path, overwrite: true);
+
+            LastSaveError = null;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            LastSaveError = $"Preferences could not be saved to {_path}: {e.Message}";
+
+            try
+            {
+                if (File.Exists(temp)) File.Delete(temp);
+            }
+            catch (Exception cleanup) when (cleanup is IOException or UnauthorizedAccessException)
+            {
+                // Nothing better is available, and the failure worth reporting
+                // is the one already recorded above.
+            }
+        }
     }
 }

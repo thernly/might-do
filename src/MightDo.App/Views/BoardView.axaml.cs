@@ -82,33 +82,35 @@ public partial class BoardView : UserControl
 
     private async void OnPointerMoved(object? sender, PointerEventArgs e)
     {
-        if (_pressedTaskId is null || _press is null) return;
-
-        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
-        {
-            ForgetPress();
-            return;
-        }
-
-        var moved = e.GetPosition(this) - _pressedAt;
-        if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold) return;
-
-        var transfer = new DataTransfer();
-        transfer.Add(DataTransferItem.Create(TaskIdFormat, _pressedTaskId));
-
-        // Cleared before the drag rather than after: the platform runs its own
-        // loop until the drop, and the release that ends it is not ours to read
-        // as a click.
-        var press = _press;
-        ForgetPress();
-
         try
         {
+            if (_pressedTaskId is null || _press is null) return;
+
+            if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            {
+                ForgetPress();
+                return;
+            }
+
+            var moved = e.GetPosition(this) - _pressedAt;
+            if (Math.Abs(moved.X) < DragThreshold && Math.Abs(moved.Y) < DragThreshold) return;
+
+            var transfer = new DataTransfer();
+            transfer.Add(DataTransferItem.Create(TaskIdFormat, _pressedTaskId));
+
+            // Cleared before the drag rather than after: the platform runs its
+            // own loop until the drop, and the release that ends it is not ours
+            // to read as a click.
+            var press = _press;
+            ForgetPress();
+
             await DragDrop.DoDragDropAsync(press, transfer, DragDropEffects.Move);
         }
         catch (Exception)
         {
-            // A drag the platform refuses is not worth taking the app down for.
+            // A drag the platform refuses is not worth taking the app down for,
+            // and this is an async void: nothing above would catch it.
+            ForgetPress();
         }
     }
 
@@ -147,18 +149,34 @@ public partial class BoardView : UserControl
         e.Handled = true;
     }
 
+    /// <remarks>
+    /// An <c>async void</c>, because that is what a drop handler is: there is no
+    /// caller to hand a failure to, and anything thrown here is unhandled and
+    /// ends the application. <see cref="WorkspaceViewModel.MoveOnBoardAsync"/>
+    /// reports its own failures for that reason, and this catches whatever is
+    /// left — reading the drag payload, walking the visual tree — so that no
+    /// path out of a dropped card can close the window.
+    /// </remarks>
     private async void OnDrop(object? sender, DragEventArgs e)
     {
-        e.Handled = true;
+        try
+        {
+            e.Handled = true;
 
-        if (e.DataTransfer.TryGetValue(TaskIdFormat) is not { } taskId) return;
-        if (DataContext is not WorkspaceViewModel workspace) return;
+            if (e.DataTransfer.TryGetValue(TaskIdFormat) is not { } taskId) return;
+            if (DataContext is not WorkspaceViewModel workspace) return;
 
-        var source = e.Source as Visual;
-        var statusId = TagOf(source, "ColumnRoot");
-        if (statusId is null) return;
+            var source = e.Source as Visual;
+            var statusId = TagOf(source, "ColumnRoot");
+            if (statusId is null) return;
 
-        await workspace.MoveOnBoardAsync(taskId, statusId, TagOf(source, "CardRoot"));
+            await workspace.MoveOnBoardAsync(taskId, statusId, TagOf(source, "CardRoot"));
+        }
+        catch (Exception)
+        {
+            // A drop that cannot be read is a gesture that did not happen. The
+            // card stays where it was, which is the whole of the damage.
+        }
     }
 
     /// <summary>
