@@ -65,6 +65,13 @@ public sealed class InstantConverter : JsonConverter<DateTime>
             _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
         };
 
+        // Truncate to the precision that will be written. DateTime has 100-ns
+        // tick resolution, but the formats below only preserve milliseconds or
+        // microseconds; any sub-microsecond tick must be dropped here rather
+        // than silently on the way out so that the value serialised equals the
+        // value that will be read back.
+        utc = new DateTime(utc.Ticks - utc.Ticks % 10, DateTimeKind.Utc);
+
         var format = utc.Microsecond == 0
             ? "yyyy-MM-ddTHH:mm:ss.fffZ"
             : "yyyy-MM-ddTHH:mm:ss.ffffffZ";

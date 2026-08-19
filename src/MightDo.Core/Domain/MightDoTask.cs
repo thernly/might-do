@@ -111,7 +111,7 @@ public sealed record MightDoTask
         CalendarDate? dueDate = null,
         int? estimateMinutes = null)
     {
-        var now = DateTime.UtcNow;
+        var now = UtcNowMicros();
         return new MightDoTask
         {
             Id = Ulid.New(),
@@ -160,7 +160,7 @@ public sealed record MightDoTask
     /// Returns a copy stamped as edited now. Every mutation goes through here so
     /// <see cref="UpdatedAt"/> cannot be forgotten.
     /// </summary>
-    public MightDoTask Touch() => this with { UpdatedAt = DateTime.UtcNow };
+    public MightDoTask Touch() => this with { UpdatedAt = UtcNowMicros() };
 
     /// <summary>
     /// Moves the task to <paramref name="statusId"/>, applying the
@@ -235,6 +235,24 @@ public sealed record MightDoTask
                && Notes.SequenceEqual(other.Notes)
                && Attachments.SequenceEqual(other.Attachments)
                && Reminders.SequenceEqual(other.Reminders);
+    }
+
+    /// <summary>
+    /// The current UTC time truncated to microseconds.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="InstantConverter"/> writes timestamps with at most six
+    /// fractional digits. A <see cref="DateTime"/> from <c>UtcNow</c> may
+    /// carry a seventh (100-nanosecond) digit that would be silently dropped on
+    /// serialisation, so the value read back from disk differs from the one in
+    /// memory. Truncating here keeps in-memory and on-disk representations
+    /// identical, which is what lets <see cref="HasSameContentAs"/> reliably
+    /// return <c>true</c> when nothing has changed.
+    /// </remarks>
+    private static DateTime UtcNowMicros()
+    {
+        var now = DateTime.UtcNow;
+        return new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
     }
 
     private static IReadOnlyList<string> CapTags(IEnumerable<string> tagIds)

@@ -62,7 +62,13 @@ public sealed class PendingWork
     /// <summary>Tracks <paramref name="work"/> and hands it straight back.</summary>
     public Task Add(Task work)
     {
-        Volatile.Write(ref _all, Both(Volatile.Read(ref _all), work));
+        Task snapshot, combined;
+        do
+        {
+            snapshot = Volatile.Read(ref _all);
+            combined = Both(snapshot, work);
+        }
+        while (Interlocked.CompareExchange(ref _all, combined, snapshot) != snapshot);
         return work;
     }
 
