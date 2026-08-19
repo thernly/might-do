@@ -47,6 +47,9 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     [ObservableProperty] private string? _completedLabel;
     [ObservableProperty] private string _varianceLabel = "";
 
+    /// <summary>Set when a save failed, so the pane can say so.</summary>
+    [ObservableProperty] private string? _saveError;
+
     public TaskDetailViewModel(WorkspaceSession session, MightDoTask task, IFilePicker filePicker)
     {
         _session = session;
@@ -56,6 +59,12 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     }
 
     public string TaskId { get; }
+
+    /// <summary>
+    /// The most recent scalar save, so a caller that needs the write to have
+    /// landed can wait for it. Completes even when the save failed.
+    /// </summary>
+    public Task PendingSave { get; private set; } = Task.CompletedTask;
 
     public ObservableCollection<StatusOption> Statuses { get; } = [];
     public ObservableCollection<CategoryOption> Categories { get; } = [];
@@ -156,7 +165,7 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var task = Current;
         if (task is null || task.StatusId == value.Id) return;
 
-        _ = _session.MoveToStatusAsync(task, value.Id);
+        PendingSave = Report(_session.MoveToStatusAsync(task, value.Id));
     }
 
     [RelayCommand]
@@ -285,6 +294,21 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
 
     // ---- plumbing ----------------------------------------------------------
 
+    /// <summary>
+    /// Hands the change itself to the session rather than a finished record.
+    /// </summary>
+    /// <remarks>
+    /// A control raises its change as the user makes it, so two quick edits are
+    /// both built from whatever the pane last read. Passing the edit lets the
+    /// session apply it to the task current when the write actually happens, so
+    /// the second edit cannot revert the first — including a status move, whose
+    /// completion-date rule a whole-record write would undo.
+    /// <para>
+    /// The write is not awaited here, so <see cref="PendingSave"/> keeps hold of
+    /// it: tests await it, and a failure becomes <see cref="SaveError"/> rather
+    /// than vanishing.
+    /// </para>
+    /// </remarks>
     private void Save(Func<MightDoTask, MightDoTask> edit)
     {
         if (_loading) return;
@@ -292,10 +316,20 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var task = Current;
         if (task is null) return;
 
-        var updated = edit(task);
-        if (updated.HasSameContentAs(task)) return; // nothing actually changed
+        PendingSave = Report(_session.EditTaskAsync(task, edit));
+    }
 
-        _ = _session.UpdateTaskAsync(updated.Touch());
+    private async Task Report(Task write)
+    {
+        try
+        {
+            await write;
+            SaveError = null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            SaveError = $"This change could not be saved: {ex.Message}";
+        }
     }
 
     private static int? ParseMinutes(string value) =>

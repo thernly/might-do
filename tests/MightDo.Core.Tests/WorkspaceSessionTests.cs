@@ -77,6 +77,64 @@ public class WorkspaceSessionTests : IAsyncLifetime
         Assert.True(string.CompareOrdinal(first.BoardRank, second.BoardRank) < 0);
     }
 
+    // ---- edits against a stale record --------------------------------------
+
+    [Fact]
+    public async Task AnEditBuiltFromAStaleRecordOnlyChangesItsOwnField()
+    {
+        var task = await _session.CreateTaskAsync("Original");
+        await _session.EditTaskAsync(task, current => current with { Description = "Notes" });
+
+        // `task` predates the description edit, as a pane that has not been
+        // told about it yet would hold.
+        await _session.EditTaskAsync(task, current => current with { Priority = Priority.High });
+
+        Assert.Equal("Notes", Reload(task).Description);
+        Assert.Equal(Priority.High, Reload(task).Priority);
+    }
+
+    [Fact]
+    public async Task AStaleEditDoesNotUndoAStatusMove()
+    {
+        // The damaging case: a status move carries the completion-date rule,
+        // and a whole-record write from before the move would put both back.
+        var task = await _session.CreateTaskAsync("Finish");
+        var done = StatusOfType(StatusType.Final);
+        await _session.MoveToStatusAsync(task, done.Id);
+
+        await _session.EditTaskAsync(task, current => current with { Summary = "Finish it" });
+
+        Assert.Equal(done.Id, Reload(task).StatusId);
+        Assert.NotNull(Reload(task).CompletedAt);
+        Assert.Equal("Finish it", Reload(task).Summary);
+    }
+
+    [Fact]
+    public async Task ConcurrentEditsToDifferentFieldsBothSurvive()
+    {
+        var task = await _session.CreateTaskAsync("Race");
+
+        // Both are launched from the same record, so whichever the gate lets
+        // through second is working from a stale snapshot.
+        var first = _session.EditTaskAsync(task, c => c with { Summary = "Renamed" });
+        var second = _session.EditTaskAsync(task, c => c with { EstimateMinutes = 30 });
+        await Task.WhenAll(first, second);
+
+        Assert.Equal("Renamed", Reload(task).Summary);
+        Assert.Equal(30, Reload(task).EstimateMinutes);
+    }
+
+    [Fact]
+    public async Task AnEditThatChangesNothingWritesNothing()
+    {
+        var task = await _session.CreateTaskAsync("Unchanged");
+        var before = Reload(task).UpdatedAt;
+
+        await _session.EditTaskAsync(task, current => current);
+
+        Assert.Equal(before, Reload(task).UpdatedAt);
+    }
+
     // ---- the completion-date rule ------------------------------------------
 
     [Fact]
