@@ -27,7 +27,12 @@ public sealed record Note(string Id, DateTime CreatedAt, string Body)
     /// <summary>Kept storable. See <see cref="Instants"/>.</summary>
     public DateTime CreatedAt { get; init; } = Instants.AtStoredPrecision(CreatedAt);
 
-    public static Note Create(string body) => new(Ulid.New(), Instants.Now(), body);
+    /// <param name="time">
+    /// The clock to date the note by. The session passes its own; left out, it
+    /// is the machine's.
+    /// </param>
+    public static Note Create(string body, TimeProvider? time = null) =>
+        new(Ulid.New(), Instants.Now(time ?? TimeProvider.System), body);
 }
 
 /// <summary>
