@@ -599,6 +599,28 @@ public class WorkspaceSessionTests : IAsyncLifetime
         Assert.Equal(0, changes);
     }
 
+    /// <remarks>
+    /// The case above depends on the machine's clock producing a digit the file
+    /// cannot hold, which only some do. This one supplies the awkward moment
+    /// itself, through the caller-facing door a reminder time comes in by, so it
+    /// asks the same question everywhere.
+    /// </remarks>
+    [Fact]
+    public async Task ARefreshSaysNothingAboutAMomentFinerThanTheFileCanHold()
+    {
+        var task = await _session.CreateTaskAsync("Settled");
+        await _session.AddReminderAsync(
+            Reload(task),
+            new DateTime(2026, 8, 19, 12, 0, 0, DateTimeKind.Utc).AddTicks(1_234_567));
+
+        var changes = 0;
+        _session.Changed += (_, _) => Interlocked.Increment(ref changes);
+
+        await _session.RefreshAsync();
+
+        Assert.Equal(0, changes);
+    }
+
     [Fact]
     public async Task ARefreshThatFindsAnExternalEditAnnouncesIt()
     {

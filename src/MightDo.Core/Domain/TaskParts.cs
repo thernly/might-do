@@ -24,7 +24,10 @@ public sealed record Step(string Id, string Text, bool Done = false)
 /// </remarks>
 public sealed record Note(string Id, DateTime CreatedAt, string Body)
 {
-    public static Note Create(string body) => new(Ulid.New(), DateTime.UtcNow, body);
+    /// <summary>Kept storable. See <see cref="Instants"/>.</summary>
+    public DateTime CreatedAt { get; init; } = Instants.AtStoredPrecision(CreatedAt);
+
+    public static Note Create(string body) => new(Ulid.New(), Instants.Now(), body);
 }
 
 /// <summary>
@@ -44,7 +47,11 @@ public sealed record Attachment(
     string OriginalName,
     string StoredName,
     long SizeBytes,
-    DateTime AddedAt);
+    DateTime AddedAt)
+{
+    /// <summary>Kept storable. See <see cref="Instants"/>.</summary>
+    public DateTime AddedAt { get; init; } = Instants.AtStoredPrecision(AddedAt);
+}
 
 /// <summary>
 /// A request to be notified about a task at a given moment.
@@ -62,6 +69,20 @@ public sealed record Reminder(
     DateTime? FiredAt = null,
     DateTime? DismissedAt = null)
 {
+    /// <summary>
+    /// Kept storable, like the two below. See <see cref="Instants"/>. This is
+    /// the one that shows why the domain type normalises rather than the code
+    /// that stamps: the moment comes from a caller, not from a clock this type
+    /// owns.
+    /// </summary>
+    public DateTime RemindAt { get; init; } = Instants.AtStoredPrecision(RemindAt);
+
+    /// <summary>Kept storable. See <see cref="Instants"/>.</summary>
+    public DateTime? FiredAt { get; init; } = Instants.AtStoredPrecision(FiredAt);
+
+    /// <summary>Kept storable. See <see cref="Instants"/>.</summary>
+    public DateTime? DismissedAt { get; init; } = Instants.AtStoredPrecision(DismissedAt);
+
     public static Reminder Create(DateTime remindAt) =>
         new(Ulid.New(), remindAt.ToUniversalTime());
 

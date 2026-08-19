@@ -73,7 +73,11 @@ public sealed record MightDoTask
     /// than surface it.
     /// </remarks>
     [JsonInclude]
-    public DateTime? CompletedAt { get; private init; }
+    public DateTime? CompletedAt
+    {
+        get;
+        private init => field = Instants.AtStoredPrecision(value);
+    }
 
     /// <summary>Expected effort in whole minutes, recorded up front.</summary>
     public int? EstimateMinutes { get; init; }
@@ -96,9 +100,23 @@ public sealed record MightDoTask
 
     public IReadOnlyList<Reminder> Reminders { get; init; } = [];
 
-    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    /// <summary>
+    /// Kept at the precision the file can hold. See <see cref="Instants"/>: a
+    /// task carrying a moment its own file cannot record is a task that differs
+    /// from itself the moment it is read back.
+    /// </summary>
+    public DateTime CreatedAt
+    {
+        get;
+        init => field = Instants.AtStoredPrecision(value);
+    } = Instants.Now();
 
-    public DateTime UpdatedAt { get; init; } = DateTime.UtcNow;
+    /// <inheritdoc cref="CreatedAt"/>
+    public DateTime UpdatedAt
+    {
+        get;
+        init => field = Instants.AtStoredPrecision(value);
+    } = Instants.Now();
 
     public static MightDoTask Create(
         string summary,
@@ -111,7 +129,7 @@ public sealed record MightDoTask
         CalendarDate? dueDate = null,
         int? estimateMinutes = null)
     {
-        var now = UtcNowMicros();
+        var now = Instants.Now();
         return new MightDoTask
         {
             Id = Ulid.New(),
@@ -160,7 +178,7 @@ public sealed record MightDoTask
     /// Returns a copy stamped as edited now. Every mutation goes through here so
     /// <see cref="UpdatedAt"/> cannot be forgotten.
     /// </summary>
-    public MightDoTask Touch() => this with { UpdatedAt = UtcNowMicros() };
+    public MightDoTask Touch() => this with { UpdatedAt = Instants.Now() };
 
     /// <summary>
     /// Moves the task to <paramref name="statusId"/>, applying the
@@ -187,7 +205,7 @@ public sealed record MightDoTask
             StatusId = statusId,
             BoardRank = boardRank ?? BoardRank,
             CompletedAt = isFinal
-                ? (wasFinal ? CompletedAt : DateTime.UtcNow)
+                ? (wasFinal ? CompletedAt : Instants.Now())
                 : null,
         };
     }
@@ -235,24 +253,6 @@ public sealed record MightDoTask
                && Notes.SequenceEqual(other.Notes)
                && Attachments.SequenceEqual(other.Attachments)
                && Reminders.SequenceEqual(other.Reminders);
-    }
-
-    /// <summary>
-    /// The current UTC time truncated to microseconds.
-    /// </summary>
-    /// <remarks>
-    /// <see cref="InstantConverter"/> writes timestamps with at most six
-    /// fractional digits. A <see cref="DateTime"/> from <c>UtcNow</c> may
-    /// carry a seventh (100-nanosecond) digit that would be silently dropped on
-    /// serialisation, so the value read back from disk differs from the one in
-    /// memory. Truncating here keeps in-memory and on-disk representations
-    /// identical, which is what lets <see cref="HasSameContentAs"/> reliably
-    /// return <c>true</c> when nothing has changed.
-    /// </remarks>
-    private static DateTime UtcNowMicros()
-    {
-        var now = DateTime.UtcNow;
-        return new DateTime(now.Ticks - now.Ticks % 10, DateTimeKind.Utc);
     }
 
     private static IReadOnlyList<string> CapTags(IEnumerable<string> tagIds)

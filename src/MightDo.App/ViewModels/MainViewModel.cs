@@ -159,17 +159,7 @@ public sealed partial class MainViewModel : ViewModelBase
 
             OnUiThread(() =>
             {
-                foreach (var (path, missing) in probed) _missing[path] = missing;
-
-                for (var i = 0; i < Workspaces.Count; i++)
-                {
-                    var row = Workspaces[i];
-                    if (probed.TryGetValue(row.Path, out var missing)
-                        && missing != row.IsMissing)
-                    {
-                        Workspaces[i] = row with { IsMissing = missing };
-                    }
-                }
+                foreach (var (path, missing) in probed) Mark(path, missing);
             });
         }
         catch (Exception error) when (!IsShutdown(error))
@@ -232,8 +222,32 @@ public sealed partial class MainViewModel : ViewModelBase
     private async Task<string?> WhyUnavailableAsync(string path)
     {
         var problem = await Task.Run(() => WhyUnavailable(path));
-        _missing[path] = problem is not null;
+        Mark(path, missing: problem is not null);
         return problem;
+    }
+
+    /// <summary>
+    /// Records what was found about a folder, and marks the row for it.
+    /// </summary>
+    /// <remarks>
+    /// The row as well as the cache, and in one place, because otherwise an
+    /// answer that arrives after its row was built never reaches it: opening a
+    /// remembered workspace that has gone left the switcher showing it as
+    /// present, since nothing rebuilt the list between the answer and the
+    /// screen.
+    /// </remarks>
+    private void Mark(string path, bool missing)
+    {
+        _missing[path] = missing;
+
+        for (var i = 0; i < Workspaces.Count; i++)
+        {
+            var row = Workspaces[i];
+            if (row.Path == path && row.IsMissing != missing)
+            {
+                Workspaces[i] = row with { IsMissing = missing };
+            }
+        }
     }
 
     private string NameOf(string path) =>
