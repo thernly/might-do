@@ -25,6 +25,18 @@ public enum StatusDeletionBlocker
 }
 
 /// <summary>
+/// A change that had to write several files failed partway through.
+/// </summary>
+/// <remarks>
+/// The writes that landed stayed there — there is no way to take them back that
+/// isn't itself a write that can fail — so the session re-reads the workspace
+/// before throwing this. Memory therefore matches disk; what neither matches is
+/// what the user asked for, which is what this says.
+/// </remarks>
+public sealed class PartiallyAppliedException(string message, Exception inner)
+    : Exception(message, inner);
+
+/// <summary>
 /// Holds the whole workspace in memory and is the only thing that writes to it.
 /// </summary>
 /// <remarks>
@@ -454,7 +466,7 @@ public sealed class WorkspaceSession : IDisposable
     /// <summary>Deletes a status, moving any tasks using it to <paramref name="reassignTo"/>.</summary>
     public Task DeleteStatusAsync(
         string statusId, string reassignTo, CancellationToken cancellationToken = default) =>
-        MutateAsync(async snapshot =>
+        CascadeAsync(snapshot =>
         {
             var blocker = StatusDeletionBlockerFor(statusId);
             if (blocker != StatusDeletionBlocker.None)
@@ -467,11 +479,13 @@ public sealed class WorkspaceSession : IDisposable
             {
                 throw new ArgumentException($"Unknown status: '{reassignTo}'", nameof(reassignTo));
             }
-
+        },
+        async snapshot =>
+        {
             // One batch: every affected task is written, then the config, then a
-            // single change is published. The Flutter implementation writes and
-            // notifies once per task, so a failure halfway leaves the workspace
-            // half-migrated with no record of it.
+            // single change is published, so nothing sees the migration halfway
+            // through. A write that fails halfway is not undone — see
+            // CascadeAsync.
             var tasks = new List<MightDoTask>(snapshot.Tasks.Count);
             foreach (var task in snapshot.Tasks)
             {
@@ -493,7 +507,7 @@ public sealed class WorkspaceSession : IDisposable
             };
             await SaveConfigAsync(config, cancellationToken);
 
-            return (Rebuild(snapshot, tasks, config), true);
+            return Rebuild(snapshot, tasks, config);
         }, cancellationToken);
 
     public Task SetDefaultStatusAsync(
@@ -537,7 +551,7 @@ public sealed class WorkspaceSession : IDisposable
     public Task DeleteCategoryAsync(
         string categoryId, string? reassignTo = null,
         CancellationToken cancellationToken = default) =>
-        MutateAsync(async snapshot =>
+        CascadeAsync(async snapshot =>
         {
             var tasks = new List<MightDoTask>(snapshot.Tasks.Count);
             foreach (var task in snapshot.Tasks)
@@ -559,7 +573,7 @@ public sealed class WorkspaceSession : IDisposable
             };
             await SaveConfigAsync(config, cancellationToken);
 
-            return (Rebuild(snapshot, tasks, config), true);
+            return Rebuild(snapshot, tasks, config);
         }, cancellationToken);
 
     /// <summary>Adds a tag, or returns the existing one with that name.</summary>
@@ -587,7 +601,7 @@ public sealed class WorkspaceSession : IDisposable
     /// categories this needs no prompt — tags are deliberately lightweight.
     /// </summary>
     public Task DeleteTagAsync(string tagId, CancellationToken cancellationToken = default) =>
-        MutateAsync(async snapshot =>
+        CascadeAsync(async snapshot =>
         {
             var tasks = new List<MightDoTask>(snapshot.Tasks.Count);
             foreach (var task in snapshot.Tasks)
@@ -609,7 +623,7 @@ public sealed class WorkspaceSession : IDisposable
             };
             await SaveConfigAsync(config, cancellationToken);
 
-            return (Rebuild(snapshot, tasks, config), true);
+            return Rebuild(snapshot, tasks, config);
         }, cancellationToken);
 
     // ----------------------------------------------------------------- plumbing
@@ -670,6 +684,62 @@ public sealed class WorkspaceSession : IDisposable
         RaiseChanged();
         return result;
     }
+
+    /// <summary>
+    /// Runs a change that writes several files, re-reading the workspace if one
+    /// of those writes fails.
+    /// </summary>
+    /// <remarks>
+    /// Deleting a status, category or tag rewrites every task that used it and
+    /// then the config. If a write fails partway, the ones before it are already
+    /// on disk while the snapshot describes none of them, so memory and disk
+    /// disagree until something happens to rescan. Reloading here makes that
+    /// deterministic, and <see cref="PartiallyAppliedException"/> tells the user
+    /// what state they are in rather than surfacing a bare I/O error for a
+    /// change that half-happened.
+    /// <para>
+    /// <paramref name="validate"/> runs before anything is written, so a domain
+    /// refusal stays the exception the caller expects instead of being dressed
+    /// up as a partial application.
+    /// </para>
+    /// </remarks>
+    private async Task CascadeAsync(
+        Action<WorkspaceSnapshot>? validate,
+        Func<WorkspaceSnapshot, Task<WorkspaceSnapshot>> apply,
+        CancellationToken cancellationToken)
+    {
+        Exception? failure = null;
+
+        await MutateAsync(async snapshot =>
+        {
+            validate?.Invoke(snapshot);
+
+            try
+            {
+                return (await apply(snapshot), true);
+            }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                failure = error;
+                var loaded = await _store.LoadAsync(cancellationToken);
+                return (WorkspaceSnapshot.From(loaded, _time.GetUtcNow()), true);
+            }
+        }, cancellationToken);
+
+        if (failure is null) return;
+
+        throw new PartiallyAppliedException(
+            "That change was only partly applied: some tasks were updated before the "
+            + $"workspace stopped accepting writes ({failure.Message}) It has been re-read "
+            + "from disk, so what you see is what is there. Try again once the problem is "
+            + "fixed.",
+            failure);
+    }
+
+    private Task CascadeAsync(
+        Func<WorkspaceSnapshot, Task<WorkspaceSnapshot>> apply,
+        CancellationToken cancellationToken) =>
+        CascadeAsync(validate: null, apply, cancellationToken);
 
     private Task<MightDoTask> EditAsync(
         MightDoTask task,

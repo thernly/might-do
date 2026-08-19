@@ -80,8 +80,11 @@ public sealed class TaskStore(Workspace workspace)
     {
         try
         {
-            return await WorkspaceFiles
+            var read = await WorkspaceFiles
                 .ReadJsonVersionedAsync<WorkspaceConfig>(Workspace.ConfigFile, cancellationToken);
+
+            if (read.Value is not null) RequireUsableConfig(read.Value);
+            return read;
         }
         catch (Exception error) when (error is not OperationCanceledException
                                           and not IOException
@@ -333,10 +336,34 @@ public sealed class TaskStore(Workspace workspace)
         var storedName = $"{id}-{originalName}";
         var destination = Workspace.AttachmentFile(storedName);
 
-        await using (var source = File.OpenRead(sourcePath))
-        await using (var target = File.Create(destination))
+        // Temp-and-rename, as every other write in the workspace does: a copy
+        // that fails partway (disk full, source pulled, network volume dropped)
+        // would otherwise leave a truncated file under a name no task will ever
+        // reference, and nothing collects those.
+        var temp = destination + ".tmp";
+        try
         {
-            await source.CopyToAsync(target, cancellationToken);
+            await using (var source = File.OpenRead(sourcePath))
+            await using (var target = File.Create(temp))
+            {
+                await source.CopyToAsync(target, cancellationToken);
+            }
+
+            File.Move(temp, destination, overwrite: true);
+        }
+        catch
+        {
+            try
+            {
+                File.Delete(temp);
+            }
+            catch (Exception cleanup) when (cleanup is IOException
+                                                or UnauthorizedAccessException)
+            {
+                // Nothing more to do: the original failure is the one to report.
+            }
+
+            throw;
         }
 
         return new Attachment(
@@ -403,6 +430,56 @@ public sealed class TaskStore(Workspace workspace)
     /// when the statuses the tasks refer to are written in a dialect we do not
     /// speak.
     /// </remarks>
+    /// <summary>
+    /// Checks that a config that parsed also describes a usable workspace.
+    /// </summary>
+    /// <remarks>
+    /// <c>required</c> only guarantees the key is present, not that its value
+    /// means anything — <c>"defaultStatusId": null</c> deserialises happily.
+    /// Task files are refused at this boundary when they fail their invariants;
+    /// a hand-edited or sync-merged config that names a status that isn't there
+    /// deserves the same treatment, rather than opening and then quietly
+    /// misbehaving: tasks written into a status id nothing resolves, "Unknown
+    /// status" in the list, missing board columns.
+    /// <para>
+    /// Thrown as <see cref="InvalidOperationException"/> so the caller's catch
+    /// turns it into the same <see cref="UnreadableConfigException"/> an
+    /// unparseable file gets — it names the file, says nothing was changed, and
+    /// says how to recover, which is exactly right here too.
+    /// </para>
+    /// </remarks>
+    private static void RequireUsableConfig(WorkspaceConfig config)
+    {
+        if (config.Statuses.Count == 0)
+        {
+            throw new InvalidOperationException("it defines no statuses.");
+        }
+
+        var missing = Enum.GetValues<StatusType>()
+            .Where(type => !config.Statuses.Any(status => status.Type == type))
+            .ToList();
+        if (missing.Count > 0)
+        {
+            throw new InvalidOperationException(
+                $"it has no status of type {string.Join(", ", missing)}, and a workspace "
+                + "needs one of each.");
+        }
+
+        var fallback = config.StatusById(config.DefaultStatusId);
+        if (fallback is null)
+        {
+            throw new InvalidOperationException(
+                $"its defaultStatusId ('{config.DefaultStatusId}') is not one of its statuses.");
+        }
+
+        if (fallback.Type != StatusType.Initial)
+        {
+            throw new InvalidOperationException(
+                $"its defaultStatusId names '{fallback.Name}', which is not an Initial "
+                + "status, so new tasks would not start at the beginning.");
+        }
+    }
+
     private static void RequireSupportedSchema(string fileName, int version, int supported)
     {
         if (version <= supported) return;

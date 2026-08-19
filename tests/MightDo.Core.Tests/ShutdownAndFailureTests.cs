@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Time.Testing;
 using MightDo.Core.Domain;
 using MightDo.Core.Reminders;
@@ -227,5 +228,192 @@ public class UnreadableConfigTests : IDisposable
         var config = await store.InitialiseAsync();
 
         Assert.NotEmpty(config.Statuses);
+    }
+}
+
+/// <summary>
+/// What is left behind when a change that touches several files fails partway.
+/// </summary>
+/// <remarks>
+/// The storage layer is built for folders that stop accepting writes mid-change
+/// — a full disk, an unmounted drive, a sync client holding a file. A cascade
+/// that gives up halfway may not leave memory describing a workspace that is no
+/// longer on disk, and a copy that gives up halfway may not leave bytes nothing
+/// refers to.
+/// </remarks>
+public class PartialFailureTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), "mightdo-partial-" + Guid.NewGuid().ToString("N")[..8]);
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        GC.SuppressFinalize(this);
+    }
+
+    [Fact]
+    public async Task AStatusDeletionThatFailsHalfwayResyncsAndSaysSo()
+    {
+        var workspace = new Core.Storage.Workspace(_root);
+        using var session = await WorkspaceSession.OpenAsync(new TaskStore(workspace));
+
+        var doomed = await session.AddStatusAsync("Doomed", StatusType.Active);
+        var active = session.Snapshot.Config.Statuses.First(
+            s => s.Type == StatusType.Active && s.Id != doomed.Id);
+
+        foreach (var i in Enumerable.Range(0, 3))
+        {
+            var created = await session.CreateTaskAsync($"Task {i}");
+            await session.MoveToStatusAsync(created, doomed.Id);
+        }
+
+        // A directory where the atomic write wants to put its temp file, so the
+        // last task in the batch cannot be saved and the ones before it already
+        // have been.
+        var tasks = session.Snapshot.Tasks.Where(t => t.StatusId == doomed.Id).ToList();
+        var blocked = tasks[^1];
+        Directory.CreateDirectory(workspace.TaskFile(blocked.Id) + ".tmp");
+
+        await Assert.ThrowsAsync<PartiallyAppliedException>(
+            () => session.DeleteStatusAsync(doomed.Id, active.Id));
+
+        // Memory matches disk: the tasks that were written stayed written, the
+        // one that wasn't didn't, and the status is still there because the
+        // config was never reached.
+        var onDisk = await new TaskStore(new Core.Storage.Workspace(_root)).LoadAsync();
+        Assert.NotNull(session.Snapshot.Config.StatusById(doomed.Id));
+        Assert.NotNull(onDisk.Config.StatusById(doomed.Id));
+
+        foreach (var task in onDisk.Tasks)
+        {
+            Assert.Equal(task.StatusId, session.Snapshot.TaskById(task.Id)!.StatusId);
+        }
+
+        Assert.Equal(doomed.Id, session.Snapshot.TaskById(blocked.Id)!.StatusId);
+        Assert.Contains(onDisk.Tasks, t => t.StatusId == active.Id);
+    }
+
+    [Fact]
+    public async Task ADomainRefusalIsStillADomainRefusalNotAPartialApplication()
+    {
+        using var session = await WorkspaceSession.OpenAsync(
+            new TaskStore(new Core.Storage.Workspace(_root)));
+
+        var doomed = await session.AddStatusAsync("Doomed", StatusType.Active);
+
+        await Assert.ThrowsAsync<ArgumentException>(
+            () => session.DeleteStatusAsync(doomed.Id, "01m07z0000000000000000gone"));
+    }
+
+    [Fact]
+    public async Task AnAttachmentCopyThatFailsLeavesNothingBehind()
+    {
+        var workspace = new Core.Storage.Workspace(_root);
+        workspace.EnsureLayout();
+
+        var source = Path.Combine(_root, "source.bin");
+        await File.WriteAllBytesAsync(source, new byte[64 * 1024], CancellationToken.None);
+
+        var store = new TaskStore(workspace);
+        using var cancelled = new CancellationTokenSource();
+        await cancelled.CancelAsync();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+            () => store.CopyAttachmentAsync(source, DateTime.UtcNow, cancelled.Token));
+
+        // The bytes were opened and the destination created before the copy gave
+        // up; nothing collects a file no task refers to, so it has to go now.
+        Assert.Empty(Directory.GetFiles(workspace.AttachmentsDir));
+    }
+}
+
+/// <summary>
+/// A config that parses but doesn't describe a workspace anything can run on.
+/// </summary>
+/// <remarks>
+/// Task files are refused at this boundary when they break their invariants.
+/// <c>config.json</c> is the file a hand-edit or a sync merge is most likely to
+/// break, and the damage is quiet: tasks written into a status id nothing
+/// resolves, and a board missing columns.
+/// </remarks>
+public class InvalidConfigTests : IDisposable
+{
+    private readonly string _root = Path.Combine(
+        Path.GetTempPath(), "mightdo-invalidconfig-" + Guid.NewGuid().ToString("N")[..8]);
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_root)) Directory.Delete(_root, recursive: true);
+        GC.SuppressFinalize(this);
+    }
+
+    private async Task<UnreadableConfigException> RefusalAfterAsync(
+        Func<JsonNode, JsonNode> edit)
+    {
+        var workspace = new Core.Storage.Workspace(_root);
+        await new TaskStore(workspace).InitialiseAsync();
+
+        var config = JsonNode.Parse(await File.ReadAllTextAsync(
+            workspace.ConfigFile, CancellationToken.None))!;
+        await File.WriteAllTextAsync(
+            workspace.ConfigFile, edit(config).ToJsonString(), CancellationToken.None);
+
+        return await Assert.ThrowsAsync<UnreadableConfigException>(
+            () => new TaskStore(new Core.Storage.Workspace(_root)).LoadAsync());
+    }
+
+    [Fact]
+    public async Task RefusesAConfigWhoseDefaultStatusDoesNotExist()
+    {
+        var error = await RefusalAfterAsync(config =>
+        {
+            config["defaultStatusId"] = "01m07z0000000000000000gone";
+            return config;
+        });
+
+        Assert.Contains("config.json", error.Message);
+        Assert.Contains("defaultStatusId", error.Message);
+    }
+
+    [Fact]
+    public async Task RefusesANullDefaultStatusEvenThoughTheKeyIsPresent() =>
+        // `required` only means the key is there; null deserialises happily.
+        Assert.Contains("defaultStatusId", (await RefusalAfterAsync(config =>
+        {
+            config["defaultStatusId"] = null;
+            return config;
+        })).Message);
+
+    [Fact]
+    public async Task RefusesADefaultStatusThatIsNotAnInitialStatus() =>
+        Assert.Contains("Initial", (await RefusalAfterAsync(config =>
+        {
+            var active = config["statuses"]!.AsArray()
+                .First(s => s!["type"]!.GetValue<string>() == "active");
+            config["defaultStatusId"] = active!["id"]!.GetValue<string>();
+            return config;
+        })).Message);
+
+    [Fact]
+    public async Task RefusesAConfigWithNoStatusOfSomeType() =>
+        Assert.Contains("Final", (await RefusalAfterAsync(config =>
+        {
+            config["statuses"] = new JsonArray(
+                [.. config["statuses"]!.AsArray()
+                    .Where(s => s!["type"]!.GetValue<string>() != "final")
+                    .Select(s => JsonNode.Parse(s!.ToJsonString()))]);
+            return config;
+        })).Message);
+
+    [Fact]
+    public async Task StillOpensAWorkspaceWhoseConfigIsFine()
+    {
+        var store = new TaskStore(new Core.Storage.Workspace(_root));
+        await store.InitialiseAsync();
+
+        var reopened = await new TaskStore(new Core.Storage.Workspace(_root)).LoadAsync();
+
+        Assert.NotEmpty(reopened.Config.Statuses);
     }
 }
