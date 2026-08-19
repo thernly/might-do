@@ -281,6 +281,41 @@ public class BoardInteractionTests : IDisposable
         Assert.Same(accent, CardFor(window, "Mark me").BorderBrush);
     }
 
+    // ---- dragging across columns -------------------------------------------
+
+    [AvaloniaFact]
+    public async Task ACardDroppedOntoTwoCardsSharingARankStillChangesColumn()
+    {
+        // How two cards come to share a rank: a status change from the detail
+        // pane carries the card's rank into the new column, and the first card
+        // of every column is given the same first rank. Dropping onto the
+        // second of the pair then asked for a rank between a value and itself,
+        // which threw out of the drop handler — the card simply stayed put.
+        var (window, workspace) = await OpenBoardAsync(
+            ("Already there", "In Progress"), ("Arriving by pane", null), ("Dragged", null));
+
+        var target = workspace.Statuses.First(status => status.Name == "In Progress");
+
+        ClickCard(window, "Arriving by pane");
+        workspace.Detail!.SelectedStatus =
+            workspace.Detail.Statuses.First(status => status.Id == target.Id);
+        await workspace.Detail.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+
+        var column = workspace.Columns.First(c => c.StatusId == target.Id);
+        Assert.Equal(2, column.Cards.Count);
+
+        var dragged = workspace.Columns.SelectMany(c => c.Cards)
+            .First(card => card.Summary == "Dragged");
+
+        await workspace.MoveOnBoardAsync(dragged.Id, target.Id, column.Cards[1].Id);
+        Dispatcher.UIThread.RunJobs();
+
+        var moved = workspace.Columns.First(c => c.StatusId == target.Id).Cards;
+        Assert.Equal(3, moved.Count);
+        Assert.Contains(moved, card => card.Summary == "Dragged");
+    }
+
     // ---- an edit still in a field when the next card is clicked -------------
 
     [AvaloniaFact]

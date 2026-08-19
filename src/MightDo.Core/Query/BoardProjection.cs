@@ -69,8 +69,28 @@ public static class BoardProjection
     /// A rank placing a task between two others, either of which may be absent
     /// at the ends of the column.
     /// </summary>
-    public static string RankBetween(MightDoTask? above, MightDoTask? below) =>
-        Rank.Between(above?.BoardRank ?? "", below?.BoardRank ?? "");
+    /// <remarks>
+    /// Ranks that do not sort strictly apart — two cards sharing one, or a rank
+    /// a sync conflict or a hand-edited file left malformed — have nothing
+    /// between them, and asking for one is an error. That error used to reach
+    /// the board's drop handler, where it meant the card silently did not move
+    /// at all. Landing just below the pair is a place; refusing the drop is not.
+    /// </remarks>
+    public static string RankBetween(MightDoTask? above, MightDoTask? below)
+    {
+        var before = Usable(above?.BoardRank);
+        var after = Usable(below?.BoardRank);
+
+        if (before.Length > 0 && after.Length > 0 && string.CompareOrdinal(before, after) >= 0)
+        {
+            after = "";
+        }
+
+        return Rank.Between(before, after);
+
+        static string Usable(string? rank) =>
+            rank is not null && Rank.IsValid(rank) ? rank : "";
+    }
 
     /// <summary>
     /// The neighbours a dropped card lands between: above
