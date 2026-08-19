@@ -4,4 +4,8 @@
     <RootNamespace>MightDo.Core</RootNamespace>
   </PropertyGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="MightDo.Core.Tests" />
+  </ItemGroup>
+
 </Project>

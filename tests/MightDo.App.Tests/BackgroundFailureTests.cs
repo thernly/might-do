@@ -16,8 +16,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class BackgroundFailureTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-background-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-background-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private MainViewModel? _main;
 

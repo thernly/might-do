@@ -56,6 +56,34 @@ public sealed class PartiallyAppliedException(string message, Exception inner)
 /// </remarks>
 public sealed class WorkspaceSession : IDisposable
 {
+    /// <summary>
+    /// Whether a task is being written because the user changed it.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="MightDoTask.UpdatedAt"/> is what "Recently updated" sorts by, so
+    /// it has to mean one thing. It means: the user did something to this task.
+    /// Adding a note, ticking a step, moving it to another status, attaching a
+    /// file and editing a field are all that. A reminder is not: firing happens on
+    /// a timer to a task nobody touched, and dismissing one acknowledges a
+    /// notification rather than changing the task it points at — the reminder was
+    /// recorded when it was set. Neither is a task being rewritten because a tag or
+    /// a status it happened to use was deleted in settings: a workspace-wide
+    /// tidy-up that marked every task as freshly updated would empty the sort of
+    /// its meaning.
+    /// </remarks>
+    private enum TaskChange
+    {
+        /// <summary>The user changed this task. Stamps <see cref="MightDoTask.UpdatedAt"/>.</summary>
+        Edit,
+
+        /// <summary>
+        /// Something else changed the task's file: a reminder marked as fired or
+        /// acknowledged, or a settings change rewriting every task that used what
+        /// was deleted. Written as it stands.
+        /// </summary>
+        Bookkeeping,
+    }
+
     private readonly TaskStore _store;
     private readonly TimeProvider _time;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -162,6 +190,7 @@ public sealed class WorkspaceSession : IDisposable
         {
             var targetStatus = statusId ?? snapshot.Config.DefaultStatusId;
             var task = MightDoTask.Create(
+                time: _time,
                 summary: summary,
                 statusId: targetStatus,
                 boardRank: BoardProjection.RankForBottomOf(
@@ -173,7 +202,9 @@ public sealed class WorkspaceSession : IDisposable
                 dueDate: dueDate,
                 estimateMinutes: estimateMinutes);
 
-            await SaveAsync(task, cancellationToken);
+            // Created and updated in the same breath, by the same clock, so
+            // there is nothing for a stamp to add.
+            await WriteAsync(task, TaskChange.Bookkeeping, cancellationToken);
             return (WithTask(snapshot, task), task);
         }, cancellationToken);
 
@@ -196,8 +227,7 @@ public sealed class WorkspaceSession : IDisposable
             var edited = edit(current);
             if (edited.HasSameContentAs(current)) return (snapshot, current);
 
-            var updated = edited.Touch();
-            await SaveAsync(updated, cancellationToken);
+            var updated = await WriteAsync(edited, TaskChange.Edit, cancellationToken);
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
@@ -209,9 +239,16 @@ public sealed class WorkspaceSession : IDisposable
         CancellationToken cancellationToken = default) =>
         MutateAsync(async snapshot =>
         {
-            var moved = Current(snapshot, task).WithStatus(statusId, snapshot.Config, boardRank);
-            await SaveAsync(moved, cancellationToken);
-            return (WithTask(snapshot, moved), moved);
+            var current = Current(snapshot, task);
+            var moved = current.WithStatus(statusId, snapshot.Config, boardRank, _time);
+
+            // Dropping a card back where it came from is not an edit. Without
+            // this it writes the same bytes and stamps the task as updated,
+            // which reorders a list sorted by exactly that.
+            if (moved.HasSameContentAs(current)) return (snapshot, current);
+
+            var updated = await WriteAsync(moved, TaskChange.Edit, cancellationToken);
+            return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
     /// <summary>
@@ -229,7 +266,9 @@ public sealed class WorkspaceSession : IDisposable
 
     public Task<MightDoTask> AddNoteAsync(
         MightDoTask task, string body, CancellationToken cancellationToken = default) =>
-        EditAsync(task, current => current with { Notes = [.. current.Notes, Note.Create(body)] },
+        EditAsync(
+            task,
+            current => current with { Notes = [.. current.Notes, Note.Create(body, _time)] },
             cancellationToken);
 
     public Task<MightDoTask> DeleteNoteAsync(
@@ -302,7 +341,7 @@ public sealed class WorkspaceSession : IDisposable
                         ? r with { FiredAt = firedAt }
                         : r),
             ],
-        }, cancellationToken);
+        }, cancellationToken, TaskChange.Bookkeeping);
     }
 
     /// <summary>Dismisses reminders, all in one write. See <see cref="MarkRemindersFiredAsync"/>.</summary>
@@ -320,7 +359,7 @@ public sealed class WorkspaceSession : IDisposable
                         ? r with { DismissedAt = dismissedAt }
                         : r),
             ],
-        }, cancellationToken);
+        }, cancellationToken, TaskChange.Bookkeeping);
     }
 
     /// <summary>
@@ -356,9 +395,9 @@ public sealed class WorkspaceSession : IDisposable
             return await MutateAsync(async snapshot =>
             {
                 var current = Current(snapshot, task);
-                var updated = current with { Attachments = [.. current.Attachments, attachment] };
+                var attached = current with { Attachments = [.. current.Attachments, attachment] };
 
-                await SaveAsync(updated, cancellationToken);
+                var updated = await WriteAsync(attached, TaskChange.Edit, cancellationToken);
                 return (WithTask(snapshot, updated), updated);
             }, cancellationToken);
         }
@@ -369,7 +408,18 @@ public sealed class WorkspaceSession : IDisposable
             // operation never happened, neither should the copy. This covers the
             // session closing mid-copy too, which is a workspace the user has
             // already left.
-            _store.TrashAttachment(attachment.StoredName);
+            try
+            {
+                _store.TrashAttachment(attachment.StoredName);
+            }
+            catch (Exception cleanup) when (cleanup is not OperationCanceledException)
+            {
+                // Whatever stopped the save — the folder unmounted, most
+                // likely — is just as able to stop the tidying up, and it is
+                // the failure worth reporting. A stray file in attachments/ is
+                // what the workspace is left with.
+            }
+
             throw;
         }
     }
@@ -390,11 +440,11 @@ public sealed class WorkspaceSession : IDisposable
             var current = Current(snapshot, task);
             var attachment = current.Attachments.FirstOrDefault(a => a.Id == attachmentId);
 
-            var updated = current with
+            var detached = current with
             {
                 Attachments = [.. current.Attachments.Where(a => a.Id != attachmentId)],
             };
-            await SaveAsync(updated, cancellationToken);
+            var updated = await WriteAsync(detached, TaskChange.Edit, cancellationToken);
 
             if (attachment is not null) _store.TrashAttachment(attachment.StoredName);
 
@@ -516,8 +566,8 @@ public sealed class WorkspaceSession : IDisposable
                     continue;
                 }
 
-                var moved = task.WithStatus(reassignTo, snapshot.Config);
-                await SaveAsync(moved, cancellationToken);
+                var moved = task.WithStatus(reassignTo, snapshot.Config, time: _time);
+                await WriteAsync(moved, TaskChange.Bookkeeping, cancellationToken);
                 tasks.Add(moved);
             }
 
@@ -584,7 +634,7 @@ public sealed class WorkspaceSession : IDisposable
                 }
 
                 var updated = task with { CategoryId = reassignTo };
-                await SaveAsync(updated, cancellationToken);
+                await WriteAsync(updated, TaskChange.Bookkeeping, cancellationToken);
                 tasks.Add(updated);
             }
 
@@ -634,7 +684,7 @@ public sealed class WorkspaceSession : IDisposable
                 }
 
                 var updated = task.WithTags(task.TagIds.Where(id => id != tagId));
-                await SaveAsync(updated, cancellationToken);
+                await WriteAsync(updated, TaskChange.Bookkeeping, cancellationToken);
                 tasks.Add(updated);
             }
 
@@ -762,14 +812,20 @@ public sealed class WorkspaceSession : IDisposable
         CancellationToken cancellationToken) =>
         CascadeAsync(validate: null, apply, cancellationToken);
 
+    /// <param name="change">
+    /// Defaults to <see cref="TaskChange.Edit"/>: a command that forgets to say
+    /// gets the stamp, which is the direction that only ever makes a task look
+    /// more recently touched than it was.
+    /// </param>
     private Task<MightDoTask> EditAsync(
         MightDoTask task,
         Func<MightDoTask, MightDoTask> edit,
-        CancellationToken cancellationToken) =>
+        CancellationToken cancellationToken,
+        TaskChange change = TaskChange.Edit) =>
         MutateAsync(async snapshot =>
         {
-            var updated = edit(Current(snapshot, task));
-            await SaveAsync(updated, cancellationToken);
+            var edited = edit(Current(snapshot, task));
+            var updated = await WriteAsync(edited, change, cancellationToken);
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
@@ -789,8 +845,24 @@ public sealed class WorkspaceSession : IDisposable
     private static MightDoTask Current(WorkspaceSnapshot snapshot, MightDoTask task) =>
         snapshot.TaskById(task.Id) ?? task;
 
-    private Task SaveAsync(MightDoTask task, CancellationToken cancellationToken) =>
-        _store.SaveTaskAsync(task, cancellationToken);
+    /// <summary>
+    /// Writes a task, stamping <see cref="MightDoTask.UpdatedAt"/> if the change
+    /// is one the user made to it, and returns what was written.
+    /// </summary>
+    /// <remarks>
+    /// The one place a task is written, so the stamping policy is a property of
+    /// the session rather than a convention each command has to remember. It was
+    /// the latter, and the result was that editing a field counted as an update
+    /// while adding a note, ticking a step, moving a column or attaching a file
+    /// did not — with "Recently updated" in the list offering to sort by it.
+    /// </remarks>
+    private async Task<MightDoTask> WriteAsync(
+        MightDoTask task, TaskChange change, CancellationToken cancellationToken)
+    {
+        var written = change is TaskChange.Edit ? task.Touch(_time) : task;
+        await _store.SaveTaskAsync(written, cancellationToken);
+        return written;
+    }
 
     private Task SaveConfigAsync(WorkspaceConfig config, CancellationToken cancellationToken) =>
         _store.SaveConfigAsync(config, cancellationToken);

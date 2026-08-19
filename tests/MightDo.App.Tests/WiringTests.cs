@@ -21,8 +21,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class WorkspaceServicesTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-wiring-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-wiring-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     /// <summary>
     /// Started at the wall clock, because a reminder due "a minute ago" has to
@@ -40,7 +40,7 @@ public class WorkspaceServicesTests : IDisposable
     [AvaloniaFact]
     public async Task AReminderFiresOnAClockTheTestOwns()
     {
-        var folder = Path.Combine(_root, "ws");
+        var folder = Directory.CreateDirectory(Path.Combine(_root, "ws")).FullName;
         var store = new TaskStore(new Core.Storage.Workspace(folder));
 
         // Seeded through its own session, which is closed again before the view
@@ -198,8 +198,8 @@ public class PendingWorkTests
 /// </remarks>
 public class WorkspaceAvailabilityTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-availability-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-availability-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     public void Dispose()
     {

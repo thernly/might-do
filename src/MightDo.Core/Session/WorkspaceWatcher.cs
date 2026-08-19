@@ -27,6 +27,13 @@ public sealed class WorkspaceWatcher : IDisposable
     /// root produces no events at all (measured — see ADR-0003), so an unmounted
     /// drive or a moved folder has to be asked about rather than waited for.
     /// </summary>
+    /// <remarks>
+    /// It follows that a folder deleted and recreated inside one interval is
+    /// never seen to have gone: the handle stays attached to something that is
+    /// no longer there, and live reload is dead until the manual refresh. The
+    /// alternative is polling identity rather than existence on every tick, for
+    /// a case a manual refresh already covers.
+    /// </remarks>
     public static readonly TimeSpan DefaultExistencePoll = TimeSpan.FromSeconds(15);
 
     private readonly Storage.Workspace _workspace;
@@ -62,6 +69,20 @@ public sealed class WorkspaceWatcher : IDisposable
 
     /// <summary>The workspace folder is no longer there.</summary>
     public event EventHandler? RootVanished;
+
+    /// <summary>
+    /// Whether a live handle on the folder is open.
+    /// </summary>
+    /// <remarks>
+    /// Watching survives the folder going away and coming back, and the failure
+    /// that matters is invisible from outside: a handle left over from a
+    /// vanished root looks like a working watcher while raising nothing ever
+    /// again. This is how a test can tell the difference.
+    /// </remarks>
+    internal bool IsWatching
+    {
+        get { lock (_gate) return _watcher is not null; }
+    }
 
     public void Start()
     {
@@ -160,26 +181,43 @@ public sealed class WorkspaceWatcher : IDisposable
     private void CheckRootExists()
     {
         bool vanished;
+        bool returned;
         lock (_gate)
         {
             if (_disposed) return;
 
             var present = _workspace.Exists;
             vanished = _rootWasPresent && !present;
+            returned = !_rootWasPresent && present;
             _rootWasPresent = present;
 
-            // The folder came back — an unmounted drive remounted, say. The
-            // watcher's handle is stale, so take a fresh one.
-            if (present && _watcher is null) Restart();
+            // The handle a vanished root leaves behind is dead and nothing else
+            // clears it: deleting a watched root produces no event, so the error
+            // callback never runs. Dropping it here is also what lets the folder
+            // coming back be noticed at all — the branch below asks for a fresh
+            // handle, and a stale non-null one would answer for it.
+            if (vanished) Stop();
+
+            // The folder came back — an unmounted drive remounted, say.
+            if (returned) Start();
         }
 
         if (vanished) RootVanished?.Invoke(this, EventArgs.Empty);
+
+        // Everything that happened while it was away happened unwatched, so the
+        // only honest answer is to reload the lot.
+        if (returned) Poke();
+    }
+
+    private void Stop()
+    {
+        _watcher?.Dispose();
+        _watcher = null;
     }
 
     private void Restart()
     {
-        _watcher?.Dispose();
-        _watcher = null;
+        Stop();
         Start();
     }
 

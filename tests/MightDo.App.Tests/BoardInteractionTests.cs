@@ -23,8 +23,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class BoardInteractionTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-board-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-board-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly List<IDisposable> _disposables = [];
 
@@ -395,7 +395,8 @@ public class BoardInteractionTests : IDisposable
         params (string Summary, string? StatusName)[] tasks)
     {
         var settings = AppSettings.Load(Path.Combine(_root, "settings.json"));
-        var store = new TaskStore(new Core.Storage.Workspace(Path.Combine(_root, "ws")));
+        var store = new TaskStore(new Core.Storage.Workspace(
+            Directory.CreateDirectory(Path.Combine(_root, "ws")).FullName));
         var workspace = await WorkspaceViewModel.OpenAsync(store, settings, new NoPicker());
         _disposables.Add(workspace);
 

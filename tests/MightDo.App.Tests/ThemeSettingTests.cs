@@ -26,8 +26,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class ThemeSettingTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-theme-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-theme-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly List<IDisposable> _disposables = [];
     private readonly ThemeVariant? _original = Application.Current?.RequestedThemeVariant;
@@ -154,7 +154,8 @@ public class ThemeSettingTests : IDisposable
     {
         var path = Path.Combine(_root, "settings.json");
         var session = await WorkspaceSession.OpenAsync(
-            new TaskStore(new Core.Storage.Workspace(Path.Combine(_root, "ws"))));
+            new TaskStore(new Core.Storage.Workspace(
+            Directory.CreateDirectory(Path.Combine(_root, "ws")).FullName)));
         _disposables.Add(session);
 
         var viewModel = new SettingsViewModel(session, AppSettings.Load(path));

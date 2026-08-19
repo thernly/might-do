@@ -11,8 +11,8 @@ namespace MightDo.Core.Tests;
 /// </summary>
 public class WorkspaceSessionTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-session-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-session-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private WorkspaceSession _session = null!;
 

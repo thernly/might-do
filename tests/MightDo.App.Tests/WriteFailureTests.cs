@@ -26,8 +26,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class WriteFailureTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-writefail-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-writefail-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly List<WorkspaceViewModel> _opened = [];
 
@@ -216,8 +216,8 @@ public class WriteFailureTests : IAsyncLifetime
 /// </remarks>
 public class SettingsThreadingTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-settings-thread-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-settings-thread-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private WorkspaceSession _session = null!;
 

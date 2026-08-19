@@ -5,8 +5,8 @@ namespace MightDo.Platform.Tests;
 
 public class AppSettingsTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(
-        Path.GetTempPath(), "mightdo-settings-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _dir = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-settings-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private string Path_ => System.IO.Path.Combine(_dir, "settings.json");
 
@@ -294,8 +294,8 @@ public class NotifierSelectionTests
 /// </summary>
 public class WorkspaceListTests : IDisposable
 {
-    private readonly string _dir = Path.Combine(
-        Path.GetTempPath(), "mightdo-workspaces-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _dir = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-workspaces-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private string SettingsPath => Path.Combine(_dir, "settings.json");
 

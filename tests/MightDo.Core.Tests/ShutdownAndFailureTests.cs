@@ -20,8 +20,8 @@ namespace MightDo.Core.Tests;
 /// </remarks>
 public class ShutdownTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-shutdown-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-shutdown-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     public void Dispose()
     {
@@ -147,9 +147,11 @@ public class ShutdownTests : IDisposable
         await session.AddReminderAsync(
             session.Snapshot.TaskById(task.Id)!, time.GetUtcNow().UtcDateTime.AddMinutes(-1));
 
-        // A directory where the write's temporary file goes: nothing can be
-        // written there, which is what an unmounted drive looks like from here.
-        Directory.CreateDirectory(session.Workspace.TaskFile(task.Id) + ".tmp");
+        // A directory where the task's file belongs: the save cannot put
+        // anything there, which is what a locked or unmountable path looks
+        // like from here.
+        File.Delete(session.Workspace.TaskFile(task.Id));
+        Directory.CreateDirectory(session.Workspace.TaskFile(task.Id));
 
         using var scheduler = new ReminderScheduler(session, time: time);
         var reported = new TaskCompletionSource<Exception>();
@@ -188,8 +190,8 @@ public class ShutdownTests : IDisposable
 /// </remarks>
 public class UnreadableConfigTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-badconfig-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-badconfig-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     public void Dispose()
     {
@@ -243,8 +245,8 @@ public class UnreadableConfigTests : IDisposable
 /// </remarks>
 public class PartialFailureTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-partial-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-partial-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     public void Dispose()
     {
@@ -268,19 +270,19 @@ public class PartialFailureTests : IDisposable
             await session.MoveToStatusAsync(created, doomed.Id);
         }
 
-        // A directory where the atomic write wants to put its temp file, so the
-        // last task in the batch cannot be saved and the ones before it already
-        // have been.
+        // A directory where the last task's file belongs, so it cannot be
+        // saved while the ones before it in the batch already have been.
         var tasks = session.Snapshot.Tasks.Where(t => t.StatusId == doomed.Id).ToList();
         var blocked = tasks[^1];
-        Directory.CreateDirectory(workspace.TaskFile(blocked.Id) + ".tmp");
+        File.Delete(workspace.TaskFile(blocked.Id));
+        Directory.CreateDirectory(workspace.TaskFile(blocked.Id));
 
         await Assert.ThrowsAsync<PartiallyAppliedException>(
             () => session.DeleteStatusAsync(doomed.Id, active.Id));
 
         // Memory matches disk: the tasks that were written stayed written, the
-        // one that wasn't didn't, and the status is still there because the
-        // config was never reached.
+        // one that could not be saved is gone from both, and the status is
+        // still there because the config was never reached.
         var onDisk = await new TaskStore(new Core.Storage.Workspace(_root)).LoadAsync();
         Assert.NotNull(session.Snapshot.Config.StatusById(doomed.Id));
         Assert.NotNull(onDisk.Config.StatusById(doomed.Id));
@@ -290,7 +292,8 @@ public class PartialFailureTests : IDisposable
             Assert.Equal(task.StatusId, session.Snapshot.TaskById(task.Id)!.StatusId);
         }
 
-        Assert.Equal(doomed.Id, session.Snapshot.TaskById(blocked.Id)!.StatusId);
+        Assert.Null(session.Snapshot.TaskById(blocked.Id));
+        Assert.DoesNotContain(onDisk.Tasks, t => t.Id == blocked.Id);
         Assert.Contains(onDisk.Tasks, t => t.StatusId == active.Id);
     }
 
@@ -413,8 +416,8 @@ public class PartialFailureTests : IDisposable
 /// </remarks>
 public class InvalidConfigTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-invalidconfig-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-invalidconfig-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     public void Dispose()
     {

@@ -118,6 +118,10 @@ public sealed record MightDoTask
         init => field = Instants.AtStoredPrecision(value);
     } = Instants.Now();
 
+    /// <param name="time">
+    /// The clock to stamp with. The session passes its own, so a test that owns
+    /// time owns these stamps too; left out, it is the machine's.
+    /// </param>
     public static MightDoTask Create(
         string summary,
         string statusId,
@@ -127,9 +131,10 @@ public sealed record MightDoTask
         IReadOnlyList<string>? tagIds = null,
         Priority priority = Priority.Medium,
         CalendarDate? dueDate = null,
-        int? estimateMinutes = null)
+        int? estimateMinutes = null,
+        TimeProvider? time = null)
     {
-        var now = Instants.Now();
+        var now = Instants.Now(time ?? TimeProvider.System);
         return new MightDoTask
         {
             Id = Ulid.New(),
@@ -175,10 +180,16 @@ public sealed record MightDoTask
     }
 
     /// <summary>
-    /// Returns a copy stamped as edited now. Every mutation goes through here so
-    /// <see cref="UpdatedAt"/> cannot be forgotten.
+    /// Returns a copy stamped as edited now.
     /// </summary>
-    public MightDoTask Touch() => this with { UpdatedAt = Instants.Now() };
+    /// <remarks>
+    /// Applied by <c>WorkspaceSession</c> to every change the user makes to a
+    /// task, in one place, rather than by each command — see its remarks on the
+    /// stamping policy for what counts as an edit and what does not.
+    /// </remarks>
+    /// <inheritdoc cref="Create" path="/param[@name='time']"/>
+    public MightDoTask Touch(TimeProvider? time = null) =>
+        this with { UpdatedAt = Instants.Now(time ?? TimeProvider.System) };
 
     /// <summary>
     /// Moves the task to <paramref name="statusId"/>, applying the
@@ -192,8 +203,12 @@ public sealed record MightDoTask
     /// done status" — see ADR-0002.
     /// </remarks>
     /// <param name="boardRank">Null keeps the task's current position.</param>
+    /// <inheritdoc cref="Create" path="/param[@name='time']"/>
     public MightDoTask WithStatus(
-        string statusId, WorkspaceConfig config, string? boardRank = null)
+        string statusId,
+        WorkspaceConfig config,
+        string? boardRank = null,
+        TimeProvider? time = null)
     {
         ArgumentNullException.ThrowIfNull(config);
 
@@ -205,7 +220,7 @@ public sealed record MightDoTask
             StatusId = statusId,
             BoardRank = boardRank ?? BoardRank,
             CompletedAt = isFinal
-                ? (wasFinal ? CompletedAt : Instants.Now())
+                ? (wasFinal ? CompletedAt : Instants.Now(time ?? TimeProvider.System))
                 : null,
         };
     }

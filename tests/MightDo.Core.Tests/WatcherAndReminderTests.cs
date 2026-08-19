@@ -8,8 +8,8 @@ namespace MightDo.Core.Tests;
 
 public class WorkspaceWatcherTests : IDisposable
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-watch-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-watch-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly FakeTimeProvider _time = new();
     private readonly Core.Storage.Workspace _workspace;
@@ -109,6 +109,49 @@ public class WorkspaceWatcherTests : IDisposable
     }
 
     [Fact]
+    public void DropsTheDeadHandleWhenTheFolderVanishes()
+    {
+        // Nothing else clears it: a deleted root produces no event, so the
+        // watcher's error callback never runs and the handle would sit there
+        // looking like live reload while raising nothing ever again.
+        using var watcher = Watcher();
+        watcher.Start();
+        Assert.True(watcher.IsWatching);
+
+        Directory.Delete(_root, recursive: true);
+        _time.Advance(watcher.ExistencePoll);
+
+        Assert.False(watcher.IsWatching);
+    }
+
+    [Fact]
+    public void TakesAFreshHandleAndRescansWhenTheFolderComesBack()
+    {
+        // An unmounted drive remounting, or a synced folder finishing its trip
+        // back. Everything that happened while it was away happened unwatched,
+        // so the only honest answer is to reload the lot.
+        using var watcher = Watcher();
+        var rescans = 0;
+        watcher.RescanRequested += (_, _) => rescans++;
+        watcher.Start();
+
+        Directory.Delete(_root, recursive: true);
+        _time.Advance(watcher.ExistencePoll);
+
+        Directory.CreateDirectory(_root);
+        _time.Advance(watcher.ExistencePoll);
+        _time.Advance(TimeSpan.FromMilliseconds(400));
+
+        Assert.True(watcher.IsWatching);
+
+        // At least one: the fresh handle is a real one on a real folder, so the
+        // recreation itself can land as an event of its own alongside the poll's
+        // request. Before, this was zero — the stale handle answered for the
+        // fresh one and nothing asked for a reload at all.
+        Assert.True(rescans >= 1, $"asked for {rescans} rescans after the folder came back");
+    }
+
+    [Fact]
     public void SaysNothingWhileTheFolderIsPresent()
     {
         using var watcher = Watcher();
@@ -165,8 +208,8 @@ public class WorkspaceWatcherTests : IDisposable
 
 public class ReminderSchedulerTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-remind-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-remind-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly FakeTimeProvider _time =
         new(new DateTimeOffset(2026, 8, 17, 9, 0, 0, TimeSpan.Zero));

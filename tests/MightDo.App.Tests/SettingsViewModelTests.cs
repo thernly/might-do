@@ -16,8 +16,8 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public class SettingsViewModelTests : IAsyncLifetime
 {
-    private readonly string _root = Path.Combine(
-        Path.GetTempPath(), "mightdo-settings-vm-" + Guid.NewGuid().ToString("N")[..8]);
+    private readonly string _root = Directory.CreateDirectory(Path.Combine(
+        Path.GetTempPath(), "mightdo-settings-vm-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private WorkspaceSession _session = null!;
     private SettingsViewModel _vm = null!;

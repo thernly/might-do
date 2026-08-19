@@ -42,6 +42,34 @@ public sealed class UnreadableConfigException(string message, Exception inner)
     : Exception(message, inner);
 
 /// <summary>
+/// The workspace folder is not there.
+/// </summary>
+/// <remarks>
+/// A workspace can go away under a running app: a drive is unmounted, a synced
+/// folder is moved on another machine, a user deletes it in Finder. Every write
+/// therefore asks first, because the alternative is worse than an error — the
+/// atomic write and the trash both create what they need, so an ordinary edit
+/// or a reminder coming due would build a partial workspace at the old path,
+/// which then collides with the real folder when it comes back.
+/// </remarks>
+public sealed class WorkspaceUnavailableException(string message) : Exception(message);
+
+/// <summary>
+/// One of the folders the app owns is a link to somewhere else.
+/// </summary>
+/// <remarks>
+/// <see cref="UnsafeWorkspaceNameException"/> keeps persisted names from
+/// naming a file outside the workspace, but a name that stays put is only half
+/// the boundary: if <c>attachments/</c> or <c>.trash/</c> is itself a symlink
+/// or a junction, the escape happens while the filesystem resolves the path,
+/// after the name has passed every check. So the directories the app writes
+/// through must be real directories. The root is exempt — whatever it resolves
+/// to is the folder the user chose, and that is the boundary rather than a
+/// breach of it.
+/// </remarks>
+public sealed class LinkedWorkspaceDirectoryException(string message) : Exception(message);
+
+/// <summary>
 /// The on-disk layout of a workspace folder.
 /// </summary>
 /// <remarks>
@@ -121,12 +149,59 @@ public sealed class Workspace(string root)
         && !name.Contains(':')
         && !Path.IsPathRooted(name);
 
+    /// <summary>The folders the app writes through, all of which it owns.</summary>
+    private string[] OwnedDirectories =>
+        [TasksDir, AttachmentsDir, TrashDir, TrashTasksDir, TrashAttachmentsDir];
+
+    /// <summary>
+    /// Creates the folders the app owns. The root is not one of them.
+    /// </summary>
+    /// <remarks>
+    /// A workspace folder is chosen by the user, never invented by the app: if
+    /// it is not there we are looking at a moved, unmounted or deleted
+    /// workspace, and creating it is how a shadow workspace appears at the old
+    /// path. The folders inside it are ours to replace, so a user who deletes
+    /// <c>tasks/</c> gets it back rather than an error.
+    /// </remarks>
     public void EnsureLayout()
     {
-        foreach (var dir in (string[])
-                 [Root, TasksDir, AttachmentsDir, TrashTasksDir, TrashAttachmentsDir])
+        RequireWritable();
+        foreach (var dir in OwnedDirectories) Directory.CreateDirectory(dir);
+    }
+
+    /// <summary>
+    /// Checks the workspace is somewhere we may write: still there, and not
+    /// wired to somewhere else.
+    /// </summary>
+    /// <remarks>
+    /// Asked again before every mutation rather than once at open, because both
+    /// conditions change under a running app — a drive unmounts, and a link can
+    /// be swapped in by whatever else has write access to the folder. It costs
+    /// a handful of stats against a save that is about to write a file.
+    /// </remarks>
+    public void RequireWritable()
+    {
+        if (!Exists)
         {
-            Directory.CreateDirectory(dir);
+            throw new WorkspaceUnavailableException(
+                $"The workspace folder {Root} is no longer there, so nothing can be "
+                + "written to it. Nothing has been created in its place. If it is on a "
+                + "drive or in a synced folder, it may come back.");
+        }
+
+        foreach (var dir in OwnedDirectories)
+        {
+            // Asked of the entry rather than of what it points at, so a link
+            // whose target is currently missing is refused too rather than
+            // being created over.
+            if (new DirectoryInfo(dir).LinkTarget is { } target)
+            {
+                throw new LinkedWorkspaceDirectoryException(
+                    $"'{Path.GetFileName(dir)}' in {Root} is a link to '{target}' rather "
+                    + "than a folder. MightDo will not write through it: everything it "
+                    + "owns has to stay inside the workspace. Replace the link with a "
+                    + "real folder to open this workspace.");
+            }
         }
     }
 
