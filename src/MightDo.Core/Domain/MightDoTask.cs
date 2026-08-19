@@ -11,8 +11,7 @@ namespace MightDo.Core.Domain;
 /// <para>
 /// The domain term is simply "Task". C# already has
 /// <see cref="System.Threading.Tasks.Task"/>, and storage and UI are async
-/// throughout, so the identifier carries a prefix the domain does not — the same
-/// accommodation the Flutter implementation makes for <c>final</c>.
+/// throughout, so the identifier carries a prefix the domain does not.
 /// </para>
 /// <para>
 /// Property order is the on-disk key order, which is deliberately stable so a
@@ -49,9 +48,9 @@ public sealed record MightDoTask
 
     /// <summary>
     /// Set through <see cref="WithTags"/> so the <see cref="MaxTags"/> cap lives
-    /// in one place. The Flutter implementation caps on create, not on update,
-    /// and re-checks it again in the UI; this makes over-tagging unrepresentable
-    /// instead.
+    /// in one place. Capping on create only, and re-checking in the UI, leaves
+    /// every other write free to exceed it; this makes over-tagging
+    /// unrepresentable instead.
     /// </summary>
     [JsonInclude]
     public IReadOnlyList<string> TagIds { get; private init; } = [];
@@ -197,10 +196,9 @@ public sealed record MightDoTask
     /// Replaces the task's tags, keeping at most <see cref="MaxTags"/>.
     /// </summary>
     /// <remarks>
-    /// Truncates rather than throwing, matching what the Flutter implementation
-    /// does on create. Tags are a lightweight convenience; refusing an edit
-    /// outright over the eleventh one would be a worse experience than quietly
-    /// keeping the first ten.
+    /// Truncates rather than throwing, as creating a task does. Tags are a
+    /// lightweight convenience; refusing an edit outright over the eleventh one
+    /// would be a worse experience than quietly keeping the first ten.
     /// </remarks>
     public MightDoTask WithTags(IEnumerable<string> tagIds) =>
         this with { TagIds = CapTags(tagIds) };

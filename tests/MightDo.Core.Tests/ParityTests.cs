@@ -7,7 +7,7 @@ using MightDo.Core.Storage;
 namespace MightDo.Core.Tests;
 
 /// <summary>
-/// Behavioural parity with the Flutter implementation.
+/// Behavioural parity with the original implementation.
 /// </summary>
 /// <remarks>
 /// The interop tests prove each implementation can read what the other wrote,
@@ -15,8 +15,8 @@ namespace MightDo.Core.Tests;
 /// operations, run through each, should leave workspaces that mean the same
 /// thing.
 /// <para>
-/// The expectation was written by <c>test/format/parity_test.dart</c> and
-/// committed, so this still runs now that the Flutter implementation has been
+/// The expectation was written by the original implementation's parity test
+/// and committed, so this still runs now that implementation has been
 /// deleted — but it can no longer be regenerated, so a failure here is a
 /// behaviour change to justify, not a fixture to refresh. Ids are ULIDs and
 /// timestamps are real moments, so both are normalised away — what remains is
@@ -104,8 +104,8 @@ public class ParityTests : IDisposable
     }
 
     /// <summary>
-    /// Reduces a workspace to what it means. Must stay in step with
-    /// <c>normalise</c> on the Flutter side.
+    /// Reduces a workspace to what it means. Must stay in step with the
+    /// <c>normalise</c> that produced the committed expectation.
     /// </summary>
     private static JsonNode Normalise(WorkspaceSession session)
     {
@@ -113,7 +113,7 @@ public class ParityTests : IDisposable
         var config = snapshot.Config;
 
         // The enum names are the wire values with a capital letter, and the wire
-        // values are what the Flutter side emits.
+        // values are what the committed expectation holds.
         static string Wire(object value) => value.ToString()!.ToLowerInvariant();
 
         JsonNode Task(MightDoTask task) => new JsonObject

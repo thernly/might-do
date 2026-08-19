@@ -4,9 +4,9 @@ using MightDo.Core.Query;
 namespace MightDo.Core.Tests;
 
 /// <summary>
-/// Ports <c>test/app/task_query_test.dart</c> case for case, then adds the cases
-/// the Flutter suite left uncovered. Filtering and sorting are specified nowhere
-/// but in the code and these tests, so they are the specification.
+/// Ports the original implementation's query suite case for case, then adds the
+/// cases it left uncovered. Filtering and sorting are specified nowhere but in
+/// the code and these tests, so they are the specification.
 /// </summary>
 public class TaskQueryTests
 {
@@ -132,8 +132,8 @@ public class TaskQueryTests
     {
         // Concluded work is hidden unless the user says otherwise, and ticking
         // the Status Type `Final` says so as plainly as ticking the Status
-        // `Done`. A deliberate divergence from the Flutter implementation, which
-        // consults selected Statuses only and so shows an empty list here.
+        // `Done`. A deliberate divergence from the original implementation,
+        // which consults selected Statuses only and so shows an empty list here.
         List<MightDoTask> tasks = [Task("Open"), Task("Shipped", _done)];
 
         var result = new TaskQuery { StatusTypes = Set(StatusType.Final) }
@@ -448,9 +448,9 @@ public class TaskQueryTests
     [Fact]
     public void TiedTasksComeOutInAStableDefinedOrder()
     {
-        // The Flutter sort has no total tie-break and is not stable, so tied
-        // tasks are ordered arbitrarily there. Here Id settles it, which makes
-        // the list reproducible across reloads.
+        // A sort with no total tie-break leaves tied tasks in whatever order
+        // the algorithm happens to produce. Here Id settles it, which makes the
+        // list reproducible across reloads.
         List<MightDoTask> tasks = [Task("Same"), Task("Same"), Task("Same")];
 
         var first = Summaries(new TaskQuery { Sort = TaskSort.Summary }.Apply(tasks, _config));

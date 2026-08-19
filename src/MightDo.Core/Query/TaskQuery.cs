@@ -119,7 +119,7 @@ public sealed record TaskQuery
         // Concluded work is hidden unless the user has said otherwise, and there
         // are three equally explicit ways of saying so: the Completed toggle,
         // ticking this task's Status, or ticking its Status Type. The last of
-        // those is a deliberate divergence from the Flutter implementation,
+        // those is a deliberate divergence from the original implementation,
         // which consults selected Statuses only — so there, ticking the Status
         // `Done` shows your done tasks while ticking the Status Type `Final`
         // shows an empty list, though `Done` is Final. Same intent, two
@@ -186,10 +186,10 @@ public sealed record TaskQuery
             _ => throw new ArgumentOutOfRangeException(nameof(Sort)),
         };
 
-        // No sort in the Flutter implementation has a total tie-break, and its
-        // sort is not stable, so tied tasks come out in an undefined order. Id
-        // is a ULID, so this settles ties by creation time and makes the result
-        // reproducible — defining behaviour that was previously unspecified.
+        // None of these comparisons has a total tie-break of its own, and a
+        // sort that isn't stable would leave tied tasks in an undefined order.
+        // Id is a ULID, so this settles ties by creation time and makes the
+        // result reproducible — behaviour the format leaves unspecified.
         return result != 0 ? result : string.CompareOrdinal(a.Id, b.Id);
     }
 

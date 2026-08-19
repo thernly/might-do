@@ -58,8 +58,8 @@ public class WorkspaceSessionTests : IAsyncLifetime
     [Fact]
     public async Task UpdatingTagsCapsThemToo()
     {
-        // The Flutter implementation caps on create but not on update, and
-        // re-checks the limit in the UI instead. Here it is one rule in one place.
+        // The cap is one rule in one place, rather than something create
+        // applies and update leaves to the UI to re-check.
         var task = await _session.CreateTaskAsync("Tagged");
 
         var updated = await _session.SetTagsAsync(
@@ -211,8 +211,8 @@ public class WorkspaceSessionTests : IAsyncLifetime
     [Fact]
     public async Task MovingStatusWithoutARankKeepsTheBoardPosition()
     {
-        // Not covered by the Flutter suite, and the kind of thing a port of
-        // copyWith's null-means-unset sentinel gets backwards.
+        // The kind of thing a null-means-unset sentinel gets backwards: a
+        // move with no rank must leave the rank alone, not clear it.
         var task = await _session.CreateTaskAsync("Stays put");
         var rank = task.BoardRank;
 
@@ -317,8 +317,8 @@ public class WorkspaceSessionTests : IAsyncLifetime
     [Fact]
     public async Task DeletingAStatusIsOneChangeNotOnePerTask()
     {
-        // The Flutter implementation writes and notifies once per affected task,
-        // so a failure halfway leaves the workspace half-migrated. One batch,
+        // Writing and notifying once per affected task would redraw the whole
+        // list once per task and show the migration halfway through. One batch,
         // one event.
         var extra = await _session.AddStatusAsync("Doomed", StatusType.Active);
         foreach (var i in Enumerable.Range(0, 5))
@@ -487,10 +487,9 @@ public class WorkspaceSessionTests : IAsyncLifetime
     [Fact]
     public async Task TwoRemindersDueAtOnceBothStayFired()
     {
-        // Regression test for a bug in the Flutter implementation: it marks
-        // reminders one at a time from a task snapshot captured before the loop,
-        // so the second write discards the first's firedAt and that reminder
-        // re-fires on every tick, forever.
+        // Marking reminders one at a time from a task snapshot captured before
+        // the loop would have the second write discard the first's firedAt, and
+        // that reminder would re-fire on every tick, forever.
         var task = await _session.CreateTaskAsync("Two reminders");
         await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-2));
         await _session.AddReminderAsync(Reload(task), DateTime.UtcNow.AddHours(-1));

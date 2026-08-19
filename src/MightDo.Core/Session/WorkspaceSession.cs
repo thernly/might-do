@@ -45,9 +45,9 @@ public sealed class PartiallyAppliedException(string message, Exception inner)
 /// change things, which keeps a view from mutating the workspace through the
 /// object it draws from.
 /// <para>
-/// Every mutation and every reload is serialised. The Flutter implementation got
-/// that free from Dart's single isolate; .NET does not, and a rescan landing
-/// halfway through a cascade would otherwise clobber it.
+/// Every mutation and every reload is serialised. Nothing in .NET gives that
+/// for free, and a rescan landing halfway through a cascade would otherwise
+/// clobber it.
 /// </para>
 /// <para>
 /// This type knows nothing about <see cref="TaskQuery"/>, watching, or
@@ -282,12 +282,11 @@ public sealed class WorkspaceSession : IDisposable
     /// Marks reminders as having fired, all in one write.
     /// </summary>
     /// <remarks>
-    /// Takes a set of ids rather than one, because the Flutter implementation
-    /// marks them one at a time from a stale copy of the task: with two
-    /// reminders due at once, the second write is built from the pre-first-write
-    /// task and silently drops the first's <c>firedAt</c>, so that reminder
-    /// re-fires on every tick forever. Applying them together makes that
-    /// unrepresentable.
+    /// Takes a set of ids rather than one, because marking them one at a time
+    /// works from a stale copy of the task: with two reminders due at once, the
+    /// second write is built from the pre-first-write task and silently drops
+    /// the first's <c>firedAt</c>, so that reminder re-fires on every tick
+    /// forever. Applying them together makes that unrepresentable.
     /// </remarks>
     public Task<MightDoTask> MarkRemindersFiredAsync(
         MightDoTask task, IReadOnlySet<string> reminderIds,

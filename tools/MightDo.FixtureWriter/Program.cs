@@ -1,16 +1,15 @@
 // Writes fixtures/interop/dotnet-written/ — a workspace produced by
-// MightDo.Core rather than by the Flutter implementation.
+// MightDo.Core rather than by the original implementation.
 //
-// The rest of the conformance suite proves one direction: Flutter wrote
+// The rest of the conformance suite proves one direction: the original wrote
 // fixtures/workspace-v1/, and .NET reads it and writes it back without losing a
-// value. This closed the other direction. The Dart test
-// test/format/interop_test.dart read what this writes and asserted it
-// normalises to the canonical form, so "the two implementations can share a
-// folder" was verified rather than assumed.
+// value. This closed the other direction. The original's own interop test read
+// what this writes and asserted it normalises to the canonical form, so "the
+// two implementations can share a folder" was verified rather than assumed.
 //
 //   dotnet run --project tools/MightDo.FixtureWriter
 //
-// The Flutter implementation has since been deleted, so nothing reads this
+// The original implementation has since been deleted, so nothing reads this
 // output any more. It is kept because the committed fixtures document what this
 // implementation writes, for any future port written against
 // docs/format/workspace-v1.md. Regenerating it now changes that specification
@@ -30,8 +29,8 @@ var target = new Workspace(destination);
 target.EnsureLayout();
 
 // Read the canonical corpus through MightDo.Core, then write it back out with
-// MightDo.Core's own serializer. Every value the Flutter implementation wrote
-// makes the round trip through .NET types on the way.
+// MightDo.Core's own serializer. Every value the original implementation
+// wrote makes the round trip through .NET types on the way.
 var config = await WorkspaceFiles.ReadJsonAsync<WorkspaceConfig>(source.ConfigFile)
              ?? throw new InvalidOperationException($"no config at {source.ConfigFile}");
 await WorkspaceFiles.WriteJsonAtomicAsync(target.ConfigFile, config);

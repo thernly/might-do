@@ -74,9 +74,9 @@ public sealed class WorkspaceWatcher : IDisposable
 
             if (_watcher is not null || !Directory.Exists(_workspace.Root)) return;
 
-            // The whole root, not just tasks/: the Flutter implementation
-            // watches only the tasks folder and so never notices an external
-            // edit to config.json, even though it reloads it.
+            // The whole root, not just tasks/: watching only the tasks folder
+            // would never notice an external edit to config.json, even though a
+            // rescan reloads it.
             _watcher = new FileSystemWatcher(_workspace.Root)
             {
                 IncludeSubdirectories = true,

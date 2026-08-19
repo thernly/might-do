@@ -5,7 +5,7 @@ namespace MightDo.Core.Tests;
 
 /// <summary>
 /// Locates <c>fixtures/</c> — the portable definition of the on-disk format,
-/// shared with the Flutter implementation and described by
+/// shared with the original implementation and described by
 /// <c>docs/format/workspace-v1.md</c>.
 /// </summary>
 public static class Fixtures

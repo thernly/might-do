@@ -107,11 +107,11 @@ public sealed class ReminderScheduler : IDisposable
     /// Fires every reminder that is due and hasn't fired yet.
     /// </summary>
     /// <remarks>
-    /// Reminders are grouped by task and applied in a single edit per task. The
-    /// Flutter implementation marks them one at a time from a task captured
-    /// before the loop, so with two reminders due at once the second write
-    /// discards the first's <c>firedAt</c> and that reminder re-fires on every
-    /// tick, forever — the exact loop marking-before-showing was meant to stop.
+    /// Reminders are grouped by task and applied in a single edit per task.
+    /// Marking them one at a time from a task captured before the loop means
+    /// that with two reminders due at once the second write discards the first's
+    /// <c>firedAt</c> and that reminder re-fires on every tick, forever — the
+    /// exact loop marking-before-showing was meant to stop.
     /// <para>
     /// Marking happens before notifying, so a notifier that throws cannot cause
     /// the same reminder to fire again on the next tick.
