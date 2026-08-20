@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace MightDo.Core.Domain;
 
 /// <summary>
@@ -49,4 +51,48 @@ public static class Instants
     /// <inheritdoc cref="AtStoredPrecision(DateTime)"/>
     public static DateTime? AtStoredPrecision(DateTime? value) =>
         value is { } moment ? AtStoredPrecision(moment) : null;
+
+    /// <summary>
+    /// <paramref name="value"/> as an ISO-8601 instant in UTC.
+    /// </summary>
+    /// <remarks>
+    /// The one spelling of a moment, shared by <c>InstantConverter</c> and the
+    /// CSV format so a value written to one and read by the other is the same
+    /// string. Three fractional digits unless the moment needs six, which keeps
+    /// the common case readable without ever losing what the format can hold.
+    /// </remarks>
+    public static string ToIso(DateTime value)
+    {
+        var utc = value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            // An unspecified kind is a bug upstream, but guessing "local" here
+            // would shift the value; treat it as already-UTC and move on.
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+        };
+
+        utc = AtStoredPrecision(utc);
+
+        return utc.ToString(
+            utc.Microsecond == 0 ? "yyyy-MM-ddTHH:mm:ss.fffZ" : "yyyy-MM-ddTHH:mm:ss.ffffffZ",
+            CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Parses an ISO-8601 instant, or returns null.
+    /// </summary>
+    /// <remarks>
+    /// Read as a <see cref="DateTimeOffset"/> so a value written with an offset
+    /// converts rather than being silently reinterpreted as UTC, which is what
+    /// the JSON reader does with the same input.
+    /// </remarks>
+    public static DateTime? TryParseIso(string? value) =>
+        DateTimeOffset.TryParse(
+            value,
+            CultureInfo.InvariantCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? AtStoredPrecision(parsed.UtcDateTime)
+            : null;
 }

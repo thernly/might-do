@@ -56,26 +56,13 @@ public sealed class InstantConverter : JsonConverter<DateTime>
     public override void Write(
         Utf8JsonWriter writer, DateTime value, JsonSerializerOptions options)
     {
-        var utc = value.Kind switch
-        {
-            DateTimeKind.Utc => value,
-            DateTimeKind.Local => value.ToUniversalTime(),
-            // An unspecified kind is a bug upstream, but guessing "local" here
-            // would shift the value; treat it as already-UTC and move on.
-            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
-        };
-
-        // The last line of defence rather than the fix. Every moment that
-        // reaches here has already been normalised by the domain type holding
-        // it (see Instants), which is what makes an in-memory task equal to the
-        // one read back from its file. This only makes the loss deliberate for
-        // anything that has not been: the formats below carry six fractional
-        // digits and a DateTime carries seven.
-        utc = Instants.AtStoredPrecision(utc);
-
-        var format = utc.Microsecond == 0
-            ? "yyyy-MM-ddTHH:mm:ss.fffZ"
-            : "yyyy-MM-ddTHH:mm:ss.ffffffZ";
-        writer.WriteStringValue(utc.ToString(format, System.Globalization.CultureInfo.InvariantCulture));
+        // Instants.ToIso is the last line of defence rather than the fix. Every
+        // moment that reaches here has already been normalised by the domain
+        // type holding it (see Instants), which is what makes an in-memory task
+        // equal to the one read back from its file. Going through the shared
+        // spelling only makes the loss deliberate for anything that has not
+        // been: the format carries six fractional digits and a DateTime carries
+        // seven.
+        writer.WriteStringValue(Instants.ToIso(value));
     }
 }

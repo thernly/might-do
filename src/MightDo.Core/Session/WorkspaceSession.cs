@@ -1,4 +1,5 @@
 ﻿using MightDo.Core.Domain;
+using MightDo.Core.Interchange;
 using MightDo.Core.Query;
 using MightDo.Core.Storage;
 
@@ -35,6 +36,9 @@ public enum StatusDeletionBlocker
 /// </remarks>
 public sealed class PartiallyAppliedException(string message, Exception inner)
     : Exception(message, inner);
+
+/// <summary>What an import actually did.</summary>
+public sealed record ImportOutcome(int Created, int Updated, int Unchanged);
 
 /// <summary>
 /// A change was asked for on a task that is no longer in the workspace.
@@ -686,6 +690,112 @@ public sealed class WorkspaceSession : IDisposable
 
             return Rebuild(snapshot, tasks, config);
         }, cancellationToken);
+
+    // ---------------------------------------------------------------- import
+
+    /// <summary>
+    /// Works out what a CSV file would do to this workspace, writing nothing.
+    /// </summary>
+    /// <remarks>
+    /// The trash is read here because a row naming a trashed task is a row
+    /// error, and only the store knows what is in <c>.trash/</c>.
+    /// </remarks>
+    /// <exception cref="CsvFormatException">The file is not a task list this app can read.</exception>
+    public async Task<ImportPlan> PlanImportAsync(
+        string csv,
+        ImportOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+
+        var snapshot = _snapshot;
+        var read = TaskCsv.Read(csv, snapshot.Config);
+        var trashed = await _store.LoadTrashAsync(cancellationToken);
+
+        return ImportPlan.Build(
+            read,
+            snapshot.Tasks,
+            snapshot.Config,
+            trashed.Select(task => task.Id).ToHashSet(StringComparer.OrdinalIgnoreCase),
+            options,
+            _time);
+    }
+
+    /// <summary>
+    /// Applies an import plan: the categories and tags it needs, then the tasks.
+    /// </summary>
+    /// <remarks>
+    /// One entry point rather than a loop of the existing ones, for three
+    /// reasons none of those can serve. Two hundred calls to
+    /// <see cref="EditTaskAsync"/> would mean two hundred snapshots and two
+    /// hundred redraws; the categories and tags have to exist before the tasks
+    /// referencing them are written; and a task created straight into a Final
+    /// status has to be able to carry the completion date it had in the tool it
+    /// came from, which the plan has already worked out.
+    /// <para>
+    /// Imports are <see cref="TaskChange.Edit"/>: the user did this to these
+    /// tasks, and "recently updated" should say so.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="PartiallyAppliedException">
+    /// A write failed partway. What landed stays written, as everywhere else in
+    /// this session — rolling back two hundred files without a transaction is
+    /// not something this storage model can honestly offer.
+    /// </exception>
+    public async Task<ImportOutcome> ImportAsync(
+        ImportPlan plan, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+
+        await CascadeAsync(async snapshot =>
+        {
+            var config = snapshot.Config;
+            if (plan.NewCategories.Count > 0 || plan.NewTags.Count > 0)
+            {
+                config = config with
+                {
+                    Categories = [.. config.Categories, .. plan.NewCategories],
+                    Tags = [.. config.Tags, .. plan.NewTags],
+                };
+
+                await SaveConfigAsync(config, cancellationToken);
+            }
+
+            // An import of nothing but Unchanged rows is not a change, and
+            // returning a fresh snapshot for it would redraw the whole window
+            // to show the same thing — which is exactly what makes
+            // export-then-import-unchanged worth calling a no-op.
+            if (!plan.WritesAnything) return snapshot;
+
+            var tasks = snapshot.Tasks.ToList();
+            foreach (var change in plan.Changes)
+            {
+                if (change.Kind is ImportRowKind.Unchanged) continue;
+
+                // A new task goes to the bottom of its column, exactly as
+                // CreateTaskAsync does: boardRank is not a CSV column, because a
+                // hand-edited fractional index would break the invariant the
+                // board depends on.
+                var task = change.Kind is ImportRowKind.Create
+                    ? change.Task with
+                    {
+                        BoardRank = BoardProjection.RankForBottomOf(
+                            BoardProjection.Column(tasks, change.Task.StatusId)),
+                    }
+                    : change.Task;
+
+                var written = await WriteAsync(task, TaskChange.Edit, cancellationToken);
+
+                var at = tasks.FindIndex(other => other.Id == written.Id);
+                if (at >= 0) tasks[at] = written;
+                else tasks.Add(written);
+            }
+
+            return Rebuild(snapshot, tasks, config);
+        }, cancellationToken);
+
+        return new ImportOutcome(plan.CreateCount, plan.UpdateCount, plan.UnchangedCount);
+    }
 
     /// <summary>Adds a tag, or returns the existing one with that name.</summary>
     public Task<Tag> AddTagAsync(string name, CancellationToken cancellationToken = default) =>
