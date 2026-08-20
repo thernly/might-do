@@ -58,6 +58,21 @@ alone rather than seeding an empty workspace over the top of it. The workspace
 stays in the switcher, because it may come back, and whatever else you have
 is one click away.
 
+### Getting tasks in and out
+
+Settings has an **Import and export** section. Export writes the tasks the list
+is currently showing to a CSV file you choose — filtered, if you have filtered
+it, and the button says so. Import reads one back, shows you exactly what it
+would create, update and leave alone, and writes nothing until you say yes.
+
+CSV is for spreadsheets and for moving tasks in from another tracker. **It is
+not a backup** — the folder above is the backup. A round trip through CSV loses
+attachments, reminders that have already fired, and the board positions of tasks
+it creates. See
+[docs/format/csv-v1.md](docs/format/csv-v1.md) for exactly what survives, and
+[docs/adr/0005](docs/adr/0005-csv-is-interchange-not-backup.md) for why it is
+shaped that way.
+
 The list of workspaces, what you call each one, and how you left each one — the
 view, the sort, the filters — are remembered per machine, not in the folders:
 they sit at different paths on each machine, and a name is not part of the
@@ -208,6 +223,10 @@ format and behaviour automatically:
 - **The format reads both ways.** `fixtures/workspace-v1/` is a corpus that is
   loaded and written back without losing a value; `fixtures/interop/` is what
   this implementation writes and is checked against the same expectations.
+- **The interchange format reads both ways.** `fixtures/csv-v1/` pins the export
+  byte for byte, the files a foreign tool might hand us, and every documented row
+  error — including the round trip that matters most: exporting a workspace and
+  importing it back writes nothing at all.
 - **The behaviour matches.** A sixteen-step scenario, and the workspace left
   after running it, are committed in `fixtures/parity/` and replayed on every
   test run — down to the board ranks.
@@ -231,6 +250,9 @@ justify, not a fixture to refresh.
 - [docs/format/workspace-v1.md](docs/format/workspace-v1.md) — the on-disk
   format, with a conformance corpus in [fixtures/](fixtures/). What any other
   implementation is written against.
+- [docs/format/csv-v1.md](docs/format/csv-v1.md) — the import and export format,
+  with its own corpus in [fixtures/csv-v1/](fixtures/csv-v1/). A view of a
+  workspace shaped for a spreadsheet, not a second copy of one.
 
 ## Not in this version
 

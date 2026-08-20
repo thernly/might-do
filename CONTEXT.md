@@ -112,6 +112,23 @@ The moment a task entered a status of type `Final`. Set by the application, not
 the user, and cleared if the task leaves that status.
 _Avoid_: Done date, closed date, finished date
 
+### Getting tasks in and out
+
+**Export**:
+Writing the tasks the List View is currently showing to a CSV file the user
+chooses. A view of a workspace shaped for a spreadsheet — it carries status,
+category and tag *names* rather than ids, and leaves out attachments and board
+positions. Copying the workspace folder is how a user keeps a copy of their
+data; this is not that.
+_Avoid_: Backup, save a copy, archive, dump
+
+**Import**:
+Applying the rows of a CSV file to the open workspace: creating tasks it does
+not have, updating the ones it does, and leaving everything the file does not
+mention alone. Never deletes a task and never creates a Status. The user sees
+what it would do before anything is written.
+_Avoid_: Restore, sync, merge, migrate, load
+
 ### Views
 
 **List View**:
