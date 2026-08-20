@@ -114,9 +114,9 @@ From the repo root, build the app in Release configuration:
 dotnet build src/MightDo.App/MightDo.App.csproj -c Release
 ```
 
-This compiles the .NET 10 app and produces the publishable binaries for the
-current machine. Use the platform-specific commands below if you want to build a
-native app bundle or installer for a target OS.
+This compiles the .NET 10 app for the current machine. Use the platform-specific
+commands below to produce deployable output for a target OS or build a native
+app bundle or installer.
 
 ### macOS
 
@@ -211,8 +211,8 @@ If you want a fully self-contained single-binary deployment, replace
 | `src/MightDo.Platform` | Machine-local settings and the per-platform notifiers. |
 | `src/MightDo.App` | The Avalonia application. |
 | `tests/` | Three suites, mirroring the three projects. |
-| `fixtures/` | The on-disk format's conformance corpus, shared by both implementations. |
-| `tools/` | The fixture writer. |
+| `fixtures/` | Conformance corpora for the on-disk workspace and CSV interchange formats. |
+| `tools/` | The fixture writer and macOS release-packaging script. |
 | `spikes/` | Throwaway code backing the measurements in ADR-0003 and ADR-0004. |
 
 ## The format is verified
@@ -235,7 +235,7 @@ format and behaviour automatically:
   rather than a launch.
 
 ```sh
-dotnet test                                        # 244 tests
+dotnet test
 dotnet run --project tools/MightDo.FixtureWriter   # rewrites fixtures/interop
 ```
 
@@ -269,6 +269,7 @@ in-app banner is the promise; an operating-system notification is attempted on
 top and allowed to fail — see
 [docs/adr/0004](docs/adr/0004-reminders-notify-in-app-first.md), which also
 explains why no maintained cross-platform library does this. Today macOS
-notifications appear credited to Script Editor rather than to might-do, which
-goes away once the app is signed and bundled, and Windows shows none at all for
-the same reason.
+notifications appear credited to Script Editor rather than to might-do; fixing
+that requires replacing the `osascript` notifier with a native implementation.
+Windows shows no operating-system notification yet because it likewise needs a
+native implementation tied to a packaged application identity.
