@@ -81,12 +81,7 @@ public class DeletionAndLockingTests : IAsyncLifetime
 
         // The bytes are copied outside the gate on purpose, so the trash can and
         // does land first — which is the race the fallback used to lose.
-        var trashed = false;
-        var attaching = _session.AttachFileAsync(task, source, new Progress<long>(async _ =>
-        {
-            if (Interlocked.Exchange(ref trashed, true)) return;
-            await _session.TrashTaskAsync(task);
-        }));
+        var attaching = _session.AttachFileAsync(task, source, new TrashOnFirstChunk(_session, task));
 
         await Assert.ThrowsAsync<TaskNoLongerExistsException>(() => attaching);
 
@@ -96,6 +91,36 @@ public class DeletionAndLockingTests : IAsyncLifetime
         // The copy is undone as well: bytes nothing points at do not belong in
         // the active attachments folder.
         Assert.Empty(Directory.GetFiles(Workspace.AttachmentsDir));
+    }
+
+    /// <summary>
+    /// Trashes the task while the copy is still running, and does not let it
+    /// continue until the trash has landed.
+    /// </summary>
+    /// <remarks>
+    /// The ordering is the whole point of the test, so it is made to hold
+    /// rather than raced for. A <see cref="Progress{T}"/> with an async lambda —
+    /// which is what this was — posts an <c>async void</c> call and returns
+    /// immediately, leaving "does the trash beat the remaining three megabytes"
+    /// to be decided by how loaded the machine is. It passed on a quiet one and
+    /// failed on CI, where three test assemblies run at once.
+    /// <para>
+    /// Blocking inside <see cref="Report"/> is safe here for the reason the test
+    /// is about: the bytes are copied outside the session's gate, so nothing
+    /// this waits for is waiting on the copy.
+    /// </para>
+    /// </remarks>
+    private sealed class TrashOnFirstChunk(WorkspaceSession session, MightDoTask task)
+        : IProgress<long>
+    {
+        private int _trashed;
+
+        public void Report(long value)
+        {
+            if (Interlocked.Exchange(ref _trashed, 1) == 1) return;
+
+            session.TrashTaskAsync(task).GetAwaiter().GetResult();
+        }
     }
 
     [Fact]
