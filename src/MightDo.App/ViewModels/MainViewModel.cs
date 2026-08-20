@@ -103,7 +103,8 @@ public sealed partial class MainViewModel : ViewModelBase
         IFolderPicker picker,
         IFilePicker filePicker,
         WorkspaceServices? services = null,
-        Func<TaskStore, Task<WorkspaceViewModel>>? open = null)
+        Func<TaskStore, Task<WorkspaceViewModel>>? open = null,
+        IFileSaver? fileSaver = null)
     {
         _settings = settings;
         _picker = picker;
@@ -114,7 +115,7 @@ public sealed partial class MainViewModel : ViewModelBase
         _services = services ?? WorkspaceServices.Real;
 
         _open = open ?? (store => WorkspaceViewModel.OpenAsync(
-            store, _settings, _filePicker, _services));
+            store, _settings, _filePicker, _services, fileSaver));
     }
 
     /// <summary>A parameterless constructor for the XAML designer.</summary>

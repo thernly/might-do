@@ -3,10 +3,33 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MightDo.Core.Domain;
+using MightDo.Core.Interchange;
 using MightDo.Core.Session;
 using MightDo.Platform;
 
 namespace MightDo.App.ViewModels;
+
+/// <summary>Asks the user where to write a file. Implemented by the view layer.</summary>
+public interface IFileSaver
+{
+    Task<string?> PickSaveFileAsync(string title, string suggestedName);
+}
+
+/// <summary>
+/// What Export would write, as the list view currently stands.
+/// </summary>
+/// <remarks>
+/// Exactly the rows the list is showing, in the order it is showing them — not
+/// "all tasks", because a user who has filtered to one category and clicks
+/// Export means that category, and not a second filter UI either, because one
+/// that disagreed with the app's own would be worse than either.
+/// </remarks>
+/// <param name="IsFiltered">
+/// Whether the query narrowed anything, so the button can say which it is
+/// rather than leaving the user to discover it by opening the file.
+/// </param>
+public sealed record ExportSelection(
+    IReadOnlyList<MightDoTask> Tasks, bool IsFiltered, string SuggestedName);
 
 /// <summary>
 /// Managing the things a workspace is made of: its Statuses, Categories and
@@ -22,13 +45,17 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 {
     private readonly WorkspaceSession _session;
     private readonly AppSettings _settings;
+    private readonly IFilePicker? _filePicker;
+    private readonly IFileSaver? _fileSaver;
+    private readonly Func<ExportSelection>? _exportSelection;
     private bool _loading;
     private bool _disposed;
 
     [ObservableProperty] private string _newStatusName = "";
     [ObservableProperty] private StatusType _newStatusType = StatusType.Active;
     [ObservableProperty] private string _newCategoryName = "";
-    [ObservableProperty] private string _newCategoryColor = "FF4F6D7A";
+    [ObservableProperty]
+    private string _newCategoryColor = Category.ColorAt(0).ToString("X8", CultureInfo.InvariantCulture);
     [ObservableProperty] private string _newTagName = "";
     [ObservableProperty] private string? _error;
 
@@ -41,13 +68,51 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [NotifyPropertyChangedFor(nameof(IsConfirmingCategoryDelete))]
     private CategoryRowViewModel? _categoryPendingDelete;
 
+    /// <summary>The plan awaiting a yes or no, if any. Nothing is written until it gets one.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(IsPreviewingImport))]
+    [NotifyPropertyChangedFor(nameof(ImportSummary))]
+    [NotifyPropertyChangedFor(nameof(ImportRemovalWarning))]
+    [NotifyPropertyChangedFor(nameof(HasImportRemovals))]
+    [NotifyPropertyChangedFor(nameof(ImportNewNames))]
+    [NotifyPropertyChangedFor(nameof(HasImportNewNames))]
+    [NotifyPropertyChangedFor(nameof(HasImportErrors))]
+    private ImportPlan? _pendingImport;
+
+    [ObservableProperty] private string _importFileName = "";
+
+    /// <summary>
+    /// Whether unknown categories and tags should be created. On by default.
+    /// </summary>
+    /// <remarks>
+    /// Read when the file is planned, so changing it re-plans rather than
+    /// silently applying to a preview the user is no longer looking at.
+    /// </remarks>
+    [ObservableProperty] private bool _createCategoriesAndTags = true;
+
+    [ObservableProperty] private string? _importResult;
+
     [ObservableProperty] private StatusOption? _statusReassignTarget;
     [ObservableProperty] private CategoryOption? _categoryReassignTarget;
 
-    public SettingsViewModel(WorkspaceSession session, AppSettings settings)
+    /// <param name="filePicker">Null leaves Import unavailable, as the designer's copy of this page is.</param>
+    /// <param name="fileSaver">Null leaves Export unavailable, for the same reason.</param>
+    /// <param name="exportSelection">
+    /// What the list view is showing, asked for at the moment Export is pressed
+    /// rather than held here — the filter is view state, and it moves.
+    /// </param>
+    public SettingsViewModel(
+        WorkspaceSession session,
+        AppSettings settings,
+        IFilePicker? filePicker = null,
+        IFileSaver? fileSaver = null,
+        Func<ExportSelection>? exportSelection = null)
     {
         _session = session;
         _settings = settings;
+        _filePicker = filePicker;
+        _fileSaver = fileSaver;
+        _exportSelection = exportSelection;
         _session.Changed += OnWorkspaceChanged;
         Refresh();
         RefreshTrashInBackground();
@@ -65,6 +130,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
     public bool IsConfirmingStatusDelete => StatusPendingDelete is not null;
     public bool IsConfirmingCategoryDelete => CategoryPendingDelete is not null;
+
+    public ObservableCollection<string> ImportErrors { get; } = [];
 
     // ---- appearance --------------------------------------------------------
 
@@ -323,6 +390,157 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         await Guarded(() => _session.DeleteTagAsync(row.Id));
     }
 
+    // ---- import and export -------------------------------------------------
+
+    public bool CanExport => _fileSaver is not null && _exportSelection is not null;
+
+    public bool CanImport => _filePicker is not null;
+
+    /// <summary>
+    /// What Export would write, said out loud, so nobody discovers the filter
+    /// applied by opening the file.
+    /// </summary>
+    public string ExportLabel
+    {
+        get
+        {
+            if (_exportSelection is null) return "Export tasks to CSV";
+
+            var selection = _exportSelection();
+            return selection.IsFiltered
+                ? $"Export {Count(selection.Tasks.Count)} (filtered)"
+                : $"Export all {Count(selection.Tasks.Count)}";
+        }
+    }
+
+    public bool IsPreviewingImport => PendingImport is not null;
+
+    public bool HasImportErrors => PendingImport is { Errors.Count: > 0 };
+
+    public bool HasImportNewNames =>
+        PendingImport is { } plan && (plan.NewCategories.Count > 0 || plan.NewTags.Count > 0);
+
+    public bool HasImportRemovals =>
+        PendingImport is { } plan && (plan.NotesRemoved > 0 || plan.StepsRemoved > 0);
+
+    public string ImportSummary => PendingImport is not { } plan
+        ? ""
+        : $"Create {plan.CreateCount} · Update {plan.UpdateCount} · "
+          + $"Unchanged {plan.UnchangedCount} · Errors {plan.Errors.Count}";
+
+    public string ImportNewNames => PendingImport is not { } plan
+        ? ""
+        : $"Also creates {Phrase((plan.NewCategories.Count, "category", "categories"), (plan.NewTags.Count, "tag", "tags"))}.";
+
+    /// <summary>
+    /// The one irreversible thing an import does that a user could easily not
+    /// have meant — a spreadsheet that truncated a multi-line cell shows up here.
+    /// </summary>
+    public string ImportRemovalWarning => PendingImport is not { } plan
+        ? ""
+        : $"Removes {Phrase((plan.NotesRemoved, "note", "notes"), (plan.StepsRemoved, "step", "steps"))} from existing tasks.";
+
+    /// <summary>
+    /// Writes what the list view is showing to a file the user chooses.
+    /// </summary>
+    /// <remarks>
+    /// Not a backup: the workspace folder is the backup (ADR-0001), and a round
+    /// trip through CSV loses attachments, fired reminders and the board
+    /// positions of tasks it creates. The hint text beside the button says so.
+    /// </remarks>
+    [RelayCommand]
+    private Task ExportAsync() => Guarded(async () =>
+    {
+        if (_fileSaver is null || _exportSelection is null) return;
+
+        ImportResult = null;
+        var selection = _exportSelection();
+        var path = await _fileSaver.PickSaveFileAsync("Export tasks", selection.SuggestedName);
+
+        // Cancelling the picker writes nothing, and says nothing either.
+        if (path is null) return;
+
+        await TaskCsv.WriteFileAsync(path, selection.Tasks, _session.Snapshot.Config);
+        OnUiThread(() => ImportResult = $"Exported {Count(selection.Tasks.Count)} to {Path.GetFileName(path)}.");
+    });
+
+    /// <summary>
+    /// Reads a file and works out what it would do. Writes nothing.
+    /// </summary>
+    [RelayCommand]
+    private Task ChooseImportFileAsync() => Guarded(async () =>
+    {
+        if (_filePicker is null) return;
+
+        var path = await _filePicker.PickFileAsync("Import tasks", "CSV files", "csv");
+        if (path is null) return;
+
+        await PreviewAsync(path);
+    });
+
+    private async Task PreviewAsync(string path)
+    {
+        var csv = await TaskCsv.ReadFileAsync(path);
+        var plan = await _session.PlanImportAsync(
+            csv, new ImportOptions(CreateCategoriesAndTags));
+
+        OnUiThread(() =>
+        {
+            ImportResult = null;
+            ImportFileName = Path.GetFileName(path);
+            _importPath = path;
+            PendingImport = plan;
+
+            Replace(
+                ImportErrors,
+                plan.Errors.Select(error => $"line {error.Line} — {error.Column} — {error.Message}"));
+        });
+    }
+
+    /// <summary>The file being previewed, so the option checkbox can re-plan it.</summary>
+    private string? _importPath;
+
+    partial void OnCreateCategoriesAndTagsChanged(bool value)
+    {
+        if (_importPath is null) return;
+
+        _pending.Add(Guarded(() => PreviewAsync(_importPath)));
+    }
+
+    [RelayCommand]
+    private Task ApplyImportAsync() => Guarded(async () =>
+    {
+        if (PendingImport is not { } plan) return;
+
+        var outcome = await _session.ImportAsync(plan);
+
+        OnUiThread(() =>
+        {
+            CancelImport();
+            ImportResult =
+                $"Imported: {outcome.Created} created, {outcome.Updated} updated, "
+                + $"{outcome.Unchanged} already up to date.";
+        });
+    });
+
+    [RelayCommand]
+    private void CancelImport()
+    {
+        PendingImport = null;
+        _importPath = null;
+        ImportFileName = "";
+        ImportErrors.Clear();
+    }
+
+    private static string Count(int value, string one = "task", string? many = null) =>
+        value == 1 ? $"1 {one}" : $"{value} {many ?? one + "s"}";
+
+    /// <summary>"2 categories and 5 tags", leaving out whichever is none.</summary>
+    private static string Phrase(params (int Value, string One, string Many)[] parts) =>
+        string.Join(
+            " and ",
+            parts.Where(part => part.Value > 0).Select(part => Count(part.Value, part.One, part.Many)));
+
     // ---- plumbing ----------------------------------------------------------
 
     /// <summary>
@@ -365,8 +583,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     /// </summary>
     private void RefreshTrashInBackground() => _pending.Add(RefreshTrashAsync());
 
-    /// <summary>The trash reload in flight, for tests to await.</summary>
-    public Task PendingTrashRefresh => _pending.All;
+    /// <summary>Work this page started without a caller to await it, for tests to await.</summary>
+    public Task PendingWork => _pending.All;
 
     private readonly PendingWork _pending = new();
 
@@ -420,6 +638,10 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
             Replace(Tags, config.Tags.Select(tag =>
                 new TagRowViewModel(tag, snapshot.TasksUsingTag(tag.Id))));
+
+            // The count on the Export button is a fact about the list view, and
+            // adding or trashing a task changes it while this window is open.
+            OnPropertyChanged(nameof(ExportLabel));
         }
         finally
         {

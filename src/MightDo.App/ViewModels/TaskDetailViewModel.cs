@@ -11,6 +11,17 @@ namespace MightDo.App.ViewModels;
 public interface IFilePicker
 {
     Task<string?> PickFileAsync(string title);
+
+    /// <summary>
+    /// The same, offering a file type by name and extension.
+    /// </summary>
+    /// <remarks>
+    /// A default implementation rather than a parameter on the method above, so
+    /// the attachment picker — which takes anything — needs no change, and
+    /// neither does any of the test doubles that stand in for this.
+    /// </remarks>
+    Task<string?> PickFileAsync(string title, string typeName, params string[] extensions) =>
+        PickFileAsync(title);
 }
 
 /// <summary>

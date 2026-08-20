@@ -32,7 +32,8 @@ public partial class App : Application
             var viewModel = new MainViewModel(
                 settings,
                 new StorageFolderPicker(window),
-                new StorageFilePicker(window));
+                new StorageFilePicker(window),
+                fileSaver: new StorageFileSaver(window));
 
             window.DataContext = viewModel;
             window.Closed += (_, _) => viewModel.Workspace?.Dispose();

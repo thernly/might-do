@@ -256,6 +256,7 @@ public class ViewRenderingTests : IDisposable
         Assert.Contains("Statuses", texts);
         Assert.Contains("Categories", texts);
         Assert.Contains("Tags", texts);
+        Assert.Contains("Import and export", texts);
 
         // The glossary's term, not "Stage".
         Assert.Contains(texts, text => text.Contains("Status Types"));
