@@ -1,0 +1,11 @@
+﻿id,summary,description,status,statusType,category,tags,priority,dueDate,completedAt,estimateMinutes,totalTimeMinutes,steps,notes,reminders,attachments,createdAt,updatedAt
+01m07z000000000000000000t1,Draft the quarterly plan,Pull last quarter's numbers together and write the narrative before the board meeting.,In Progress,active,Work,tag-1;tag-2;needs review;tag-4;tag-5;tag-6;tag-7;tag-8;tag-9;tag-10,critical,2026-08-21,,240,315,"[x] Export the figures
+[ ] Write the narrative
+[x] Circulate for comment","2026-08-14T09:05:30.123Z	Figures are out of date; chased finance.
+2026-08-15T16:42:07.890123Z	Finance came back.\n\nNumbers now agreed with Priya.",2026-08-20T08:00:00.000Z,quarterly plan.pdf,2026-08-14T09:00:00.000Z,2026-08-16T09:15:22.004060Z
+01m07z000000000000000000t2,Buy milk,,Not Started,initial,,,medium,,,,,,,,,2026-08-15T07:30:00.000Z,2026-08-15T07:30:00.000Z
+01m07z000000000000000000t3,"Café — 日本語 🎉 ""quoted"" & <tagged>","Backslash \ slash / tab	here
+Newline above. Apostrophe’s and an ampersand & a <b>tag</b>.
+Control char:  end.",Backlog,initial,Home & Garden,needs review,low,,,,,,"2026-08-15T12:00:00.000Z	Emoji in a note: 🎉🎉 and a lone quote: """,,,2026-08-15T11:00:00.000Z,2026-08-15T12:00:00.000Z
+01m07z000000000000000000t4,Renew the domain,Expires in September.,Done,final,Work,,high,2026-09-01,2026-08-16T14:22:09.777Z,15,10,,,,,2026-08-10T10:00:00.000Z,2026-08-16T14:22:09.777Z
+01m07z000000000000000000t5,Reordered by hand,,In Progress,active,,,medium,,,,,,,,,2026-08-16T08:00:00.000Z,2026-08-16T08:00:00.000Z

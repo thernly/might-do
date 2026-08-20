@@ -233,6 +233,23 @@ public sealed record MightDoTask
     /// lightweight convenience; refusing an edit outright over the eleventh one
     /// would be a worse experience than quietly keeping the first ten.
     /// </remarks>
+    /// <summary>
+    /// Sets a completion date that came from outside this application.
+    /// </summary>
+    /// <remarks>
+    /// The exception to <see cref="WithStatus"/> owning the completion date, and
+    /// deliberately the only one. A task imported straight into a Final status
+    /// has to be able to carry the moment it was finished in the tool it came
+    /// from, and stamping <i>now</i> instead would quietly rewrite the user's
+    /// history on the way in.
+    /// <para>
+    /// Internal, so the rule stays a rule: the only caller is the import, next
+    /// to the check that the target status is Final. See ADR-0005.
+    /// </para>
+    /// </remarks>
+    internal MightDoTask WithImportedCompletion(DateTime? completedAt) =>
+        this with { CompletedAt = completedAt };
+
     public MightDoTask WithTags(IEnumerable<string> tagIds) =>
         this with { TagIds = CapTags(tagIds) };
 

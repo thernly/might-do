@@ -300,6 +300,55 @@
 
         <TextBlock Classes="hint" Margin="0,8,0,0" Text="The trash is empty."
                    IsVisible="{Binding !TrashedTasks.Count}" />
+
+        <!-- Import and export -->
+        <TextBlock Classes="section" Text="Import and export" />
+        <TextBlock Classes="hint"
+                   Text="CSV is for spreadsheets and for moving tasks in from another tool — it is not a backup. The workspace folder is the backup: copy it. A round trip through CSV loses attachments, reminders that have already fired, and the board positions of tasks it creates." />
+
+        <Grid ColumnDefinitions="Auto,Auto,*" Margin="0,10,0,0">
+          <Button Grid.Column="0" Content="{Binding ExportLabel}"
+                  Command="{Binding ExportCommand}" IsEnabled="{Binding CanExport}" />
+          <Button Grid.Column="1" Margin="6,0,0,0" Content="Import from CSV…"
+                  Command="{Binding ChooseImportFileCommand}" IsEnabled="{Binding CanImport}" />
+        </Grid>
+
+        <TextBlock Classes="hint" Margin="0,8,0,0" Text="{Binding ImportResult}"
+                   IsVisible="{Binding ImportResult, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <!-- The preview. Nothing is written until this is answered. -->
+        <Border Margin="0,10,0,0" Padding="12" CornerRadius="4"
+                BorderThickness="1" BorderBrush="{DynamicResource AppBorderBrush}"
+                IsVisible="{Binding IsPreviewingImport}">
+          <StackPanel Spacing="8">
+            <TextBlock FontWeight="SemiBold" TextTrimming="CharacterEllipsis"
+                       Text="{Binding ImportFileName, StringFormat='Import from {0}'}" />
+            <TextBlock Text="{Binding ImportSummary}" />
+
+            <TextBlock Classes="hint" Text="{Binding ImportNewNames}"
+                       IsVisible="{Binding HasImportNewNames}" />
+
+            <TextBlock Text="{Binding ImportRemovalWarning}" TextWrapping="Wrap"
+                       Foreground="{DynamicResource OverdueBrush}"
+                       IsVisible="{Binding HasImportRemovals}" />
+
+            <ItemsControl ItemsSource="{Binding ImportErrors}" IsVisible="{Binding HasImportErrors}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="x:String">
+                  <SelectableTextBlock Classes="hint" Text="{Binding}" />
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <CheckBox Content="Create categories and tags this file mentions"
+                      IsChecked="{Binding CreateCategoriesAndTags}" />
+
+            <StackPanel Orientation="Horizontal" Spacing="6">
+              <Button Content="Import" Command="{Binding ApplyImportCommand}" />
+              <Button Content="Cancel" Command="{Binding CancelImportCommand}" />
+            </StackPanel>
+          </StackPanel>
+        </Border>
       </StackPanel>
     </ScrollViewer>
 

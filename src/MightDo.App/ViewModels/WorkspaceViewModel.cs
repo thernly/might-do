@@ -27,6 +27,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     private readonly ReminderScheduler _reminders;
     private readonly AppSettings _settings;
     private readonly IFilePicker _filePicker;
+    private readonly IFileSaver? _fileSaver;
 
     /// <summary>
     /// Filter selections read from settings that no toggle exists for yet.
@@ -103,12 +104,14 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         WorkspaceSession session,
         AppSettings settings,
         IFilePicker filePicker,
+        IFileSaver? fileSaver,
         string root,
         WorkspaceServices services)
     {
         _session = session;
         _settings = settings;
         _filePicker = filePicker;
+        _fileSaver = fileSaver;
         Root = root;
 
         _session.Changed += OnWorkspaceChanged;
@@ -156,7 +159,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         TaskStore store,
         AppSettings settings,
         IFilePicker filePicker,
-        WorkspaceServices? services = null)
+        WorkspaceServices? services = null,
+        IFileSaver? fileSaver = null)
     {
         var session = await WorkspaceSession.OpenAsync(store);
         try
@@ -165,6 +169,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
                 session,
                 settings,
                 filePicker,
+                fileSaver,
                 store.Workspace.Root,
                 services ?? WorkspaceServices.Real);
         }
@@ -667,7 +672,35 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// A settings view model over this workspace's session. Created per window
     /// so it can unsubscribe when that window closes.
     /// </summary>
-    public SettingsViewModel CreateSettingsViewModel() => new(_session, _settings);
+    public SettingsViewModel CreateSettingsViewModel() =>
+        new(_session, _settings, _filePicker, _fileSaver, CurrentExportSelection);
+
+    /// <summary>
+    /// The rows the list is showing, in the order it is showing them.
+    /// </summary>
+    /// <remarks>
+    /// Asked for when Export is pressed rather than held by the settings page,
+    /// because the filter is view state and the user can change it with both
+    /// windows open. The board is governed by the same query, so switching view
+    /// does not change the answer.
+    /// </remarks>
+    private ExportSelection CurrentExportSelection()
+    {
+        var snapshot = _session.Snapshot;
+        var query = Query;
+        var name = _settings.CurrentWorkspace?.Name is { Length: > 0 } chosen
+            ? chosen
+            : Path.GetFileName(Root.TrimEnd(Path.DirectorySeparatorChar));
+
+        var suggested = $"{name} tasks {DateTime.Now:yyyy-MM-dd}.csv";
+        foreach (var invalid in Path.GetInvalidFileNameChars())
+        {
+            suggested = suggested.Replace(invalid, '-');
+        }
+
+        return new ExportSelection(
+            query.Apply(snapshot.Tasks, snapshot.Config), query.IsFiltered, suggested);
+    }
 
     [RelayCommand]
     private void ClearFilters()

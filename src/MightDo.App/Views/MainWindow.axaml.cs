@@ -186,11 +186,49 @@ public sealed class StorageFolderPicker(TopLevel topLevel) : IFolderPicker
 /// <summary>Asks for a file using the platform's own picker.</summary>
 public sealed class StorageFilePicker(TopLevel topLevel) : IFilePicker
 {
-    public async Task<string?> PickFileAsync(string title)
+    public Task<string?> PickFileAsync(string title) => PickAsync(title, filter: null);
+
+    public Task<string?> PickFileAsync(string title, string typeName, params string[] extensions) =>
+        PickAsync(
+            title,
+            new FilePickerFileType(typeName)
+            {
+                Patterns = [.. extensions.Select(extension => $"*.{extension}")],
+            });
+
+    private async Task<string?> PickAsync(string title, FilePickerFileType? filter)
     {
         var files = await topLevel.StorageProvider.OpenFilePickerAsync(
-            new FilePickerOpenOptions { Title = title, AllowMultiple = false });
+            new FilePickerOpenOptions
+            {
+                Title = title,
+                AllowMultiple = false,
+                FileTypeFilter = filter is null ? null : [filter],
+            });
 
         return files.Count == 0 ? null : files[0].TryGetLocalPath();
+    }
+}
+
+/// <summary>Asks where to write a file, using the platform's own picker.</summary>
+/// <remarks>
+/// The counterpart to <see cref="StorageFilePicker"/>, and the only thing the
+/// export needs from the view layer: everything above this line works in terms
+/// of a path.
+/// </remarks>
+public sealed class StorageFileSaver(TopLevel topLevel) : IFileSaver
+{
+    public async Task<string?> PickSaveFileAsync(string title, string suggestedName)
+    {
+        var file = await topLevel.StorageProvider.SaveFilePickerAsync(
+            new FilePickerSaveOptions
+            {
+                Title = title,
+                SuggestedFileName = suggestedName,
+                DefaultExtension = "csv",
+                FileTypeChoices = [new FilePickerFileType("CSV files") { Patterns = ["*.csv"] }],
+            });
+
+        return file?.TryGetLocalPath();
     }
 }

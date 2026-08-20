@@ -256,6 +256,7 @@ public class ViewRenderingTests : IDisposable
         Assert.Contains("Statuses", texts);
         Assert.Contains("Categories", texts);
         Assert.Contains("Tags", texts);
+        Assert.Contains("Import and export", texts);
 
         // The glossary's term, not "Stage".
         Assert.Contains(texts, text => text.Contains("Status Types"));
@@ -274,6 +275,56 @@ public class ViewRenderingTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         Assert.Contains(TextsIn(window), text => text.Contains("new tasks start in"));
+    }
+
+    /// <summary>
+    /// The preview is inside a collapsed border until there is a plan, so it is
+    /// the one part of this window a rendering test would otherwise never build.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task TheImportPreviewRendersItsCountsErrorsAndWarning()
+    {
+        var session = await WorkspaceSession.OpenAsync(new TaskStore(new Core.Storage.Workspace(
+            Directory.CreateDirectory(Path.Combine(_root, "preview")).FullName)));
+        _disposables.Add(session);
+
+        var picker = new CsvPicker(_root);
+        var settings = new SettingsViewModel(
+            session, Settings(), picker, fileSaver: null, exportSelection: null);
+        _disposables.Add(settings);
+
+        var status = session.Snapshot.Config.Statuses.First().Name;
+        var task = await session.CreateTaskAsync("Has a note");
+        await session.AddNoteAsync(task, "Worth keeping");
+
+        picker.Write(
+            "id,summary,status,notes",
+            $"{task.Id},Renamed,{status},",
+            $",Brand new,{status},",
+            $",,{status},");
+
+        var window = new SettingsWindow { DataContext = settings };
+        window.Show();
+        await settings.ChooseImportFileCommand.ExecuteAsync(null!);
+        Dispatcher.UIThread.RunJobs();
+
+        var texts = TextsIn(window);
+        Assert.Contains(texts, text => text.Contains("Create 1"));
+        Assert.Contains(texts, text => text.Contains("Removes 1 note"));
+        Assert.Contains(texts, text => text.StartsWith("line ", StringComparison.Ordinal));
+    }
+
+    private sealed class CsvPicker(string root) : IFilePicker
+    {
+        private string? _path;
+
+        public void Write(params string[] lines)
+        {
+            _path = Path.Combine(root, "import.csv");
+            File.WriteAllText(_path, string.Join("\r\n", lines) + "\r\n");
+        }
+
+        public Task<string?> PickFileAsync(string title) => Task.FromResult(_path);
     }
 
     private sealed class NoPicker : IFolderPicker, IFilePicker

@@ -392,6 +392,15 @@ In practice the two agree closely: of the seven files in the canonical
 workspace, six are byte-identical between implementations and the seventh
 differs only in the astral-plane escaping described above.
 
+## Other formats
+
+[`csv-v1`](csv-v1.md) is what might-do writes when you export tasks and reads
+when you import them. It is a **view** of a workspace shaped for a spreadsheet,
+not a second copy of it: it carries names where this format carries ids, it
+leaves out attachments and board positions, and it is not a backup. This format
+is the backup — copy the folder. See
+[ADR-0005](../adr/0005-csv-is-interchange-not-backup.md).
+
 ## Notes for the .NET port
 
 Findings from the Dart implementation, verified rather than assumed:
