@@ -82,6 +82,8 @@ jobs:
             -r ${{ matrix.rid }} \
             --self-contained true \
             -p:Version="$VERSION" \
+            -p:AssemblyVersion="$VERSION" \
+            -p:FileVersion="$VERSION" \
             -o publish/${{ matrix.artifact_name }}
 
       - name: Publish macOS bundle
@@ -95,7 +97,9 @@ jobs:
             -c Release \
             -r osx-arm64 \
             --self-contained false \
-            -p:Version="$VERSION"
+            -p:Version="$VERSION" \
+            -p:AssemblyVersion="$VERSION" \
+            -p:FileVersion="$VERSION"
           ./tools/package-macos-release.sh arm64
 
       - name: Upload Linux/Windows artifact
