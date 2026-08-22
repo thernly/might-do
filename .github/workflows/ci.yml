@@ -7,6 +7,7 @@ name: CI
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 jobs:
@@ -38,3 +39,119 @@ jobs:
 
       - name: Test
         run: dotnet test MightDo.slnx --configuration Release --no-build
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: build
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+            artifact_name: linux-x64
+          - os: windows-latest
+            rid: win-x64
+            artifact_name: win-x64
+          - os: macos-latest
+            rid: osx-arm64
+            artifact_name: macos-arm64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore MightDo.slnx
+
+      - name: Publish Linux/Windows
+        if: runner.os != 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          dotnet publish src/MightDo.App/MightDo.App.csproj \
+            -c Release \
+            -r ${{ matrix.rid }} \
+            --self-contained true \
+            -p:Version="$VERSION" \
+            -o publish/${{ matrix.artifact_name }}
+
+      - name: Publish macOS bundle
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${GITHUB_REF_NAME#v}"
+          brew install create-dmg
+          dotnet publish src/MightDo.App/MightDo.App.csproj \
+            -c Release \
+            -r osx-arm64 \
+            --self-contained false \
+            -p:Version="$VERSION"
+          ./tools/package-macos-release.sh arm64
+
+      - name: Upload Linux/Windows artifact
+        if: runner.os != 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: might-do-${{ matrix.artifact_name }}
+          path: publish/${{ matrix.artifact_name }}
+
+      - name: Upload macOS artifact
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: might-do-${{ matrix.artifact_name }}
+          path: dist
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    needs: publish
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download publish artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: might-do-*
+          path: release-assets
+
+      - name: Package release assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p packaged
+          for dir in release-assets/*; do
+            [ -d "$dir" ] || continue
+            base="$(basename "$dir")"
+            case "$base" in
+              might-do-linux-x64)
+                (cd "$dir" && zip -r "$GITHUB_WORKSPACE/packaged/might-do-linux-x64.zip" .)
+                ;;
+              might-do-win-x64)
+                (cd "$dir" && zip -r "$GITHUB_WORKSPACE/packaged/might-do-win-x64.zip" .)
+                ;;
+              might-do-macos-arm64)
+                (cd "$dir" && zip -r "$GITHUB_WORKSPACE/packaged/might-do-macos-arm64.zip" .)
+                ;;
+            esac
+          done
+          ls -1 packaged
+
+      - name: Upload release assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: packaged/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -191,6 +191,27 @@ Before publishing a release:
 
 Until all of that is in place, builds are for the machine that made them.
 
+### Releasing from GitHub
+
+To ship a release, create a version tag and push it to GitHub:
+
+```sh
+git tag v1.2.3
+git push origin v1.2.3
+```
+
+Git tags use the `v` prefix, but the assembly version is set from the same tag
+with the leading `v` stripped, so the app reports `1.2.3` while the release tag
+remains `v1.2.3`.
+
+The CI workflow will run the normal build and test jobs, then publish release
+artifacts for Linux, Windows and macOS and attach them to the GitHub Release
+for that tag. The release notes are generated automatically from the commits in
+that tag range.
+
+If you need to publish a release candidate or a follow-up fix, use a matching
+version tag such as `v1.2.3-rc1` or `v1.2.4`.
+
 ### Linux
 
 ```sh

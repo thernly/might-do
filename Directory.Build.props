@@ -10,6 +10,10 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <Version Condition="'$(Version)' == ''">0.0.0-local</Version>
+    <AssemblyVersion>$(Version)</AssemblyVersion>
+    <FileVersion>$(Version)</FileVersion>
+    <InformationalVersion>$(Version)+$(SourceRevisionId)</InformationalVersion>
 
     <!-- The port is written against a documented on-disk format; a warning
          about a possible null or an unused result is worth stopping for. -->
