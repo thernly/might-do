@@ -358,6 +358,33 @@ public class WorkspaceListTests : IDisposable
     }
 
     [Fact]
+    public void ColorsAWorkspaceUntilItIsCleared()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        settings.AddWorkspace(work);
+        Assert.Null(settings.CurrentWorkspace?.Color);
+
+        settings.SetWorkspaceColor(work, 0xFF4F6D7A);
+        Assert.Equal(0xFF4F6D7Au, AppSettings.Load(SettingsPath).CurrentWorkspace?.Color);
+
+        settings.SetWorkspaceColor(work, null);
+        Assert.Null(AppSettings.Load(SettingsPath).CurrentWorkspace?.Color);
+    }
+
+    [Fact]
+    public void ColoringAFolderNobodyAddedDoesNothing()
+    {
+        var settings = AppSettings.Load(SettingsPath);
+        var work = Folder("work");
+        settings.AddWorkspace(work);
+
+        settings.SetWorkspaceColor(Folder("elsewhere"), 0xFF4F6D7A);
+
+        Assert.Null(settings.CurrentWorkspace?.Color);
+    }
+
+    [Fact]
     public void AddingAFolderAlreadyInTheListSwitchesToItInstead()
     {
         // Two rows for one folder cannot be told apart, and one of them would

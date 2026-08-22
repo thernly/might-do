@@ -4,6 +4,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:MightDo.App.ViewModels"
         xmlns:views="clr-namespace:MightDo.App.Views"
+        xmlns:conv="clr-namespace:MightDo.App.Converters"
         mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="700"
         x:Class="MightDo.App.Views.MainWindow"
         x:DataType="vm:MainViewModel"
@@ -84,7 +85,9 @@
                 ToolTip.Tip="Switch workspace">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconWorkspace}" Width="14" Height="14"
-                      VerticalAlignment="Center" />
+                      VerticalAlignment="Center"
+                      Foreground="{Binding CurrentWorkspaceColor,
+                                   Converter={x:Static conv:ColorToBrushConverter.Instance}}" />
             <TextBlock Text="{Binding CurrentWorkspaceName}" VerticalAlignment="Center"
                        MaxWidth="140" TextTrimming="CharacterEllipsis" />
           </StackPanel>
@@ -104,14 +107,19 @@
                               IsEnabled="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).CanOpenWorkspace}"
                               Click="OnSwitcherFinished"
                               ToolTip.Tip="{Binding Path}">
-                        <Grid ColumnDefinitions="16,*,Auto">
-                          <PathIcon Grid.Column="0" Data="{StaticResource IconTick}"
+                        <Grid ColumnDefinitions="14,16,*,Auto">
+                          <PathIcon Grid.Column="0" Data="{StaticResource IconWorkspace}"
+                                    Width="12" Height="12" VerticalAlignment="Center"
+                                    Foreground="{Binding Color,
+                                                 Converter={x:Static conv:ColorToBrushConverter.Instance}}" />
+                          <PathIcon Grid.Column="1" Data="{StaticResource IconTick}"
                                     Width="11" Height="11" VerticalAlignment="Center"
+                                    Margin="4,0,0,0"
                                     IsVisible="{Binding IsCurrent}" />
-                          <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="6,0,0,0"
+                          <TextBlock Grid.Column="2" Text="{Binding Name}" Margin="6,0,0,0"
                                      VerticalAlignment="Center"
                                      TextTrimming="CharacterEllipsis" />
-                          <TextBlock Grid.Column="2" Text="missing" Classes="hint"
+                          <TextBlock Grid.Column="3" Text="missing" Classes="hint"
                                      Margin="8,0,0,0" VerticalAlignment="Center"
                                      IsVisible="{Binding IsMissing}" />
                         </Grid>
@@ -121,6 +129,39 @@
                 </ItemsControl>
 
                 <Separator Margin="0,4" />
+
+                <!-- Colour for the open workspace's folder icon. Not offered when
+                     nothing is open — Workspaces then has zero or one row and the
+                     switch above already covers picking one. -->
+                <StackPanel IsVisible="{Binding HasWorkspace}" Spacing="4" Margin="0,0,0,4">
+                  <TextBlock Text="Colour" Classes="group" />
+                  <StackPanel Orientation="Horizontal" Spacing="6">
+                    <ItemsControl ItemsSource="{Binding ColorSwatches}">
+                      <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                          <StackPanel Orientation="Horizontal" Spacing="6" />
+                        </ItemsPanelTemplate>
+                      </ItemsControl.ItemsPanel>
+                      <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:WorkspaceColorSwatch">
+                          <Button Width="20" Height="20" Padding="0" CornerRadius="10"
+                                  Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SetWorkspaceColorCommand}"
+                                  CommandParameter="{Binding Color}"
+                                  Background="{Binding Color,
+                                               Converter={x:Static conv:ColorToBrushConverter.Instance}}">
+                            <PathIcon Data="{StaticResource IconTick}" Width="10" Height="10"
+                                      Foreground="White" IsVisible="{Binding IsSelected}" />
+                          </Button>
+                        </DataTemplate>
+                      </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <Button Width="20" Height="20" Padding="0" CornerRadius="10"
+                            Command="{Binding ClearWorkspaceColorCommand}"
+                            IsVisible="{Binding HasWorkspaceColor}"
+                            ToolTip.Tip="No colour"
+                            Content="✕" FontSize="10" HorizontalContentAlignment="Center" />
+                  </StackPanel>
+                </StackPanel>
 
                 <!-- Renaming happens in place rather than in a dialog: the name
                      is machine-local decoration, and a modal window is more

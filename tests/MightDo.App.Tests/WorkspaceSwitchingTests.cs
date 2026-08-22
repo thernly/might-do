@@ -178,6 +178,30 @@ public class WorkspaceSwitchingTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task ColoringTheOpenWorkspaceChangesItsSwatchAndTheSwitcherRow()
+    {
+        var main = Shell(Settings(), Folder("work"));
+        await AddAsync(main);
+
+        Assert.Null(main.CurrentWorkspaceColor);
+        Assert.False(main.HasWorkspaceColor);
+        Assert.All(main.ColorSwatches, swatch => Assert.False(swatch.IsSelected));
+
+        var chosen = main.ColorSwatches[0].Color;
+        main.SetWorkspaceColorCommand.Execute(chosen);
+
+        Assert.Equal(chosen, main.CurrentWorkspaceColor);
+        Assert.True(main.HasWorkspaceColor);
+        Assert.Equal(chosen, main.Workspaces.Single(w => w.Name == "work").Color);
+        Assert.True(main.ColorSwatches.Single(swatch => swatch.Color == chosen).IsSelected);
+
+        main.ClearWorkspaceColorCommand.Execute(null);
+
+        Assert.Null(main.CurrentWorkspaceColor);
+        Assert.False(main.HasWorkspaceColor);
+    }
+
+    [AvaloniaFact]
     public async Task AWorkspaceWhoseFolderHasGoneIsReportedAndNotRecreated()
     {
         // Reopening is not the same act as choosing a folder: choosing creates,

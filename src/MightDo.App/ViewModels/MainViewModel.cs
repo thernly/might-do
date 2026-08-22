@@ -169,6 +169,21 @@ public sealed partial class MainViewModel : ViewModelBase
     public string CurrentWorkspaceName =>
         _settings.CurrentWorkspace?.Name ?? "No workspace";
 
+    /// <summary>
+    /// The colour of the open workspace's folder icon, or null to leave it
+    /// however the icon is otherwise drawn.
+    /// </summary>
+    public uint? CurrentWorkspaceColor => _settings.CurrentWorkspace?.Color;
+
+    /// <summary>Whether the open workspace has a colour to clear.</summary>
+    public bool HasWorkspaceColor => CurrentWorkspaceColor is not null;
+
+    /// <summary>
+    /// The swatches offered for the open workspace's icon, each knowing whether
+    /// it is the one currently chosen.
+    /// </summary>
+    public ObservableCollection<WorkspaceColorSwatch> ColorSwatches { get; } = [];
+
     public bool HasOtherWorkspaces => Workspaces.Count > 1;
 
     private void RefreshWorkspaces()
@@ -185,14 +200,40 @@ public sealed partial class MainViewModel : ViewModelBase
                 // Absent from the cache means nobody has looked yet. Assuming
                 // present is the kinder guess: a row that flickers from fine to
                 // missing is better than one that libels a folder that is there.
-                IsMissing: _missing.GetValueOrDefault(workspace.Path)));
+                IsMissing: _missing.GetValueOrDefault(workspace.Path),
+                Color: workspace.Color));
+        }
+
+        var currentColor = _settings.CurrentWorkspace?.Color;
+        ColorSwatches.Clear();
+        foreach (var color in WorkspaceColorSwatch.Palette)
+        {
+            ColorSwatches.Add(new WorkspaceColorSwatch(color, currentColor == color));
         }
 
         OnPropertyChanged(nameof(CurrentWorkspaceName));
+        OnPropertyChanged(nameof(CurrentWorkspaceColor));
+        OnPropertyChanged(nameof(HasWorkspaceColor));
         OnPropertyChanged(nameof(HasOtherWorkspaces));
         OnPropertyChanged(nameof(HasRememberedWorkspaces));
 
         ProbeInBackground();
+    }
+
+    /// <summary>Sets the open workspace's icon colour.</summary>
+    [RelayCommand]
+    private void SetWorkspaceColor(uint color) => SetWorkspaceColorTo(color);
+
+    /// <summary>Clears the open workspace's icon colour.</summary>
+    [RelayCommand]
+    private void ClearWorkspaceColor() => SetWorkspaceColorTo(null);
+
+    private void SetWorkspaceColorTo(uint? color)
+    {
+        if (_settings.CurrentWorkspace is not { } workspace) return;
+
+        _settings.SetWorkspaceColor(workspace.Path, color);
+        RefreshWorkspaces();
     }
 
     /// <summary>
@@ -538,4 +579,33 @@ public sealed partial class MainViewModel : ViewModelBase
 /// an <c>x:DataType</c> without reaching through a containing type.
 /// </para>
 /// </remarks>
-public sealed record WorkspaceChoice(string Path, string Name, bool IsCurrent, bool IsMissing);
+public sealed record WorkspaceChoice(string Path, string Name, bool IsCurrent, bool IsMissing, uint? Color);
+
+/// <summary>One colour offered for a workspace's folder icon, plus whether it is the current one.</summary>
+public sealed record WorkspaceColorSwatch(uint Color, bool IsSelected)
+{
+    /// <summary>
+    /// The colours offered for a workspace's folder icon, in the order they are
+    /// shown.
+    /// </summary>
+    /// <remarks>
+    /// A separate set from <see cref="MightDo.Core.Domain.Category.Palette"/>
+    /// rather than a shared one: a category chip sits right beside its name in
+    /// dense lists, so it is deliberately muted to not fight the text, but a
+    /// workspace's icon is a single small glyph that is often the only thing
+    /// telling two workspaces apart at a glance — it wants colours saturated and
+    /// spread far enough around the wheel that they read as different even
+    /// small and in peripheral vision, not shades of the same muted blue-grey.
+    /// </remarks>
+    public static IReadOnlyList<uint> Palette { get; } =
+    [
+        0xFFE03131, // red
+        0xFFE8590C, // orange
+        0xFFF08C00, // amber
+        0xFF2F9E44, // green
+        0xFF0C8599, // teal
+        0xFF1971C2, // blue
+        0xFF7048E8, // violet
+        0xFFD6336C, // pink
+    ];
+}

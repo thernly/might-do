@@ -101,6 +101,18 @@ public sealed record RememberedWorkspace
 
     public required string Name { get; init; }
 
+    /// <summary>
+    /// The colour the user has picked for this workspace's icon in the
+    /// switcher, or null for none.
+    /// </summary>
+    /// <remarks>
+    /// ARGB, the same shape as <c>Category.Color</c> — unsigned because an
+    /// opaque colour overflows a signed 32-bit int. Machine-local like the rest
+    /// of this file: two machines are free to colour the same workspace
+    /// differently, the same way they are free to name it differently.
+    /// </remarks>
+    public uint? Color { get; init; }
+
     public WorkspaceViewState View { get; init; } = new();
 
     /// <summary>Whether the folder is where it was left.</summary>
