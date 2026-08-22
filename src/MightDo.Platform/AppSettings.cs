@@ -346,6 +346,10 @@ public sealed class AppSettings
         Replace(path, workspace => workspace with { Name = trimmed });
     }
 
+    /// <summary>Sets or clears the icon colour for a workspace.</summary>
+    public void SetWorkspaceColor(string path, uint? color) =>
+        Replace(path, workspace => workspace with { Color = color });
+
     /// <summary>
     /// Drops a workspace from the list. The folder and everything in it is left
     /// exactly where it is.
