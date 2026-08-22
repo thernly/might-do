@@ -1,0 +1,47 @@
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+fail_fast: false
+
+repos:
+  # --- 1. Secret Scanning ---
+  - repo: https://github.com/gitleaks/gitleaks
+    # rev: v8.18.4
+    rev: 77c3c6a34b2577d71083442326c60b8fd58926ec
+    hooks:
+      - id: gitleaks
+        name: Detect Hardcoded Secrets (Gitleaks)
+
+  # --- 2. File & Tree Hygiene ---
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    # rev: v4.6.0
+    rev: 2c9f875913ee60ca25ce70243dc24d5b6415598c
+    hooks:
+      - id: check-added-large-files
+        args: ['--maxkb=5120']
+      - id: check-case-conflict
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-yaml
+        args: ['--unsafe']
+      - id: end-of-file-fixer
+        exclude: '\.(min\.js|min\.css|svg)$'
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # --- 3. .NET 10 formatting and testing ---
+  - repo: local
+    hooks:
+      - id: dotnet-format
+        name: Format C# Code (.NET 10 SDK)
+        entry: dotnet format --include
+        language: system
+        types_or: [c#]
+        pass_filenames: true
+
+      - id: dotnet-test
+        name: Run .NET Tests
+        entry: dotnet test MightDo.slnx --nologo --verbosity minimal
+        language: system
+        stages: [push]
+        pass_filenames: false
