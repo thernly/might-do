@@ -216,10 +216,14 @@
           </StackPanel>
         </ToggleButton>
 
+        <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear"
+                Command="{Binding ClearFiltersCommand}"
+                IsVisible="{Binding IsFiltered}" />
+
         <!-- Disabled rather than hidden on the board, whose order is the user's
              own drag-and-drop one and cannot also be a computed sort. Hiding it
              would reshuffle the toolbar on every view switch. -->
-        <StackPanel Grid.Column="3" Orientation="Horizontal" Margin="8,0,0,0"
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="8,0,0,0"
                     IsEnabled="{Binding IsListView}">
           <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0"
                      Foreground="{DynamicResource AppTextSecondaryBrush}" />
@@ -230,10 +234,6 @@
                     SelectedValue="{Binding Sort}"
                     ToolTip.Tip="How the list is ordered. The board keeps the order you drag cards into." />
         </StackPanel>
-
-        <Button Grid.Column="4" Margin="8,0,0,0" Content="Clear"
-                Command="{Binding ClearFiltersCommand}"
-                IsVisible="{Binding IsFiltered}" />
 
         <StackPanel Grid.Column="5" Orientation="Horizontal" Margin="12,0,0,0">
           <RadioButton GroupName="ViewMode" IsChecked="{Binding IsListView}"
