@@ -263,6 +263,62 @@ public class ViewRenderingTests : IDisposable
         Assert.DoesNotContain(texts, text => text.Contains("Stage"));
     }
 
+    /// <summary>
+    /// The type drop-down is the only way a status is retyped, so the binding
+    /// behind it is worth asserting through the window rather than the view
+    /// model: a one-way binding would leave the control inert and every
+    /// view-model test still green.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ChangingAStatusTypeInItsDropDownSavesIt()
+    {
+        var workspace = await OpenWorkspaceAsync();
+        var settings = workspace.CreateSettingsViewModel();
+        _disposables.Add(settings);
+
+        var window = new SettingsWindow { DataContext = settings };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var row = settings.Statuses.First(s => s.Name == "Blocked");
+        var combo = Descendants<ComboBox>(window)
+            .First(c => ReferenceEquals(c.DataContext, row));
+
+        combo.SelectedItem = StatusType.Final;
+        Dispatcher.UIThread.RunJobs();
+        await settings.SetStatusTypeCommand.ExecutionTask!;
+
+        Assert.Equal(StatusType.Final, row.Type);
+        Assert.Equal(
+            StatusType.Final,
+            settings.Statuses.First(s => s.Name == "Blocked").Type);
+    }
+
+    /// <summary>
+    /// A category's colour is offered by name and swatch. Eight hex digits are
+    /// how it is stored, never how it is shown.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ACategoryRowNamesItsColourRatherThanSpellingItInHex()
+    {
+        var workspace = await OpenWorkspaceAsync();
+        var settings = workspace.CreateSettingsViewModel();
+        _disposables.Add(settings);
+
+        settings.NewCategoryName = "Home";
+        settings.NewCategoryColor = Category.Palette[1];
+        await settings.AddCategoryCommand.ExecuteAsync(null!);
+
+        var window = new SettingsWindow { DataContext = settings };
+        window.Show();
+        Dispatcher.UIThread.RunJobs();
+
+        var texts = TextsIn(window);
+        Assert.Contains(Category.Palette[1].Name, texts);
+        Assert.DoesNotContain(
+            texts, text => text.Contains(Category.Palette[1].Value.ToString("X8")));
+    }
+
     [AvaloniaFact]
     public async Task TheSettingsWindowExplainsWhyAStatusCannotBeDeleted()
     {

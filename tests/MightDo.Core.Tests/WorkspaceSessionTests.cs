@@ -344,6 +344,74 @@ public class WorkspaceSessionTests : IAsyncLifetime
             () => _session.DeleteStatusAsync(extra.Id, "01m07z0000000000000000gone"));
     }
 
+    // ---- retyping a status -------------------------------------------------
+
+    [Fact]
+    public async Task AStatusCanChangeType()
+    {
+        var blocked = _session.Snapshot.Config.Statuses
+            .Last(s => s.Type == StatusType.Active);
+
+        await _session.UpdateStatusAsync(blocked with { Type = StatusType.Final });
+
+        Assert.Equal(
+            StatusType.Final, _session.Snapshot.Config.StatusById(blocked.Id)!.Type);
+    }
+
+    /// <summary>
+    /// The same invariant deletion protects, reached through the other door:
+    /// retyping the last Active status would leave a workspace with none.
+    /// </summary>
+    [Fact]
+    public async Task RetypingTheLastStatusOfATypeIsRefused()
+    {
+        var actives = _session.Snapshot.Config.Statuses
+            .Where(s => s.Type == StatusType.Active).ToList();
+        for (var i = 0; i < actives.Count - 1; i++)
+        {
+            await _session.DeleteStatusAsync(actives[i].Id, actives[^1].Id);
+        }
+
+        var last = StatusOfType(StatusType.Active);
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _session.UpdateStatusAsync(last with { Type = StatusType.Final }));
+
+        Assert.Contains("Active", error.Message);
+        Assert.Equal(StatusType.Active, _session.Snapshot.Config.StatusById(last.Id)!.Type);
+    }
+
+    [Fact]
+    public async Task RetypingTheDefaultStatusOutOfInitialIsRefused()
+    {
+        var config = _session.Snapshot.Config;
+        var @default = config.StatusById(config.DefaultStatusId)!;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _session.UpdateStatusAsync(@default with { Type = StatusType.Active }));
+
+        Assert.Equal(
+            StatusType.Initial, _session.Snapshot.Config.StatusById(@default.Id)!.Type);
+    }
+
+    /// <summary>Renaming is not retyping, and is never caught by either guard.</summary>
+    [Fact]
+    public async Task TheLastStatusOfATypeCanStillBeRenamed()
+    {
+        var actives = _session.Snapshot.Config.Statuses
+            .Where(s => s.Type == StatusType.Active).ToList();
+        for (var i = 0; i < actives.Count - 1; i++)
+        {
+            await _session.DeleteStatusAsync(actives[i].Id, actives[^1].Id);
+        }
+
+        var last = StatusOfType(StatusType.Active);
+
+        await _session.UpdateStatusAsync(last with { Name = "Underway" });
+
+        Assert.Equal("Underway", _session.Snapshot.Config.StatusById(last.Id)!.Name);
+    }
+
     // ---- default status ----------------------------------------------------
 
     [Fact]

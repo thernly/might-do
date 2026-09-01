@@ -28,24 +28,42 @@ public sealed record Status(
 public sealed record Category(string Id, string Name, uint Color)
 {
     /// <summary>
-    /// The colours offered when a category is created, in the order they are
-    /// handed out.
+    /// The colours a category may be given, in the order they are offered.
     /// </summary>
     /// <remarks>
     /// Somewhere has to choose one when the user has not: the settings pane
     /// pre-fills the first, and an import creating categories the user never
     /// saw walks the list. Muted rather than saturated, because the chip sits
-    /// beside text in both themes.
+    /// beside text in both themes. Each carries a name because that, not its
+    /// eight hex digits, is how the user picks one.
     /// </remarks>
-    public static IReadOnlyList<uint> Palette { get; } =
+    public static IReadOnlyList<CategoryColor> Palette { get; } =
     [
-        0xFF4F6D7A, 0xFF7A5C4F, 0xFF5C7A4F, 0xFF6D4F7A, 0xFF7A4F5C, 0xFF4F7A6D,
+        new("Slate", 0xFF4F6D7A),
+        new("Clay", 0xFF7A5C4F),
+        new("Moss", 0xFF5C7A4F),
+        new("Plum", 0xFF6D4F7A),
+        new("Rose", 0xFF7A4F5C),
+        new("Teal", 0xFF4F7A6D),
     ];
 
     /// <summary>The palette colour at <paramref name="index"/>, wrapping round.</summary>
     public static uint ColorAt(int index) =>
-        Palette[(index % Palette.Count + Palette.Count) % Palette.Count];
+        Palette[(index % Palette.Count + Palette.Count) % Palette.Count].Value;
+
+    /// <summary>The palette entry for <paramref name="color"/>, or null if it is not one of them.</summary>
+    /// <remarks>
+    /// A workspace written before the palette was named — or edited by hand —
+    /// may hold a colour the palette has never offered, and the settings pane
+    /// has to show that category as something.
+    /// </remarks>
+    public static CategoryColor? PaletteEntry(uint color) =>
+        Palette.FirstOrDefault(entry => entry.Value == color);
 }
+
+/// <summary>One colour a category may be given, and the name it is picked by.</summary>
+/// <param name="Value">The ARGB colour itself.</param>
+public sealed record CategoryColor(string Name, uint Value);
 
 /// <summary>A lightweight cross-cutting label. A task may carry several.</summary>
 public sealed record Tag(string Id, string Name);

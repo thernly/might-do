@@ -210,54 +210,106 @@ public class SettingsViewModelTests : IAsyncLifetime
         Assert.Equal("Backlog", Config.StatusById(Config.DefaultStatusId)!.Name);
     }
 
+    /// <summary>
+    /// Picking a type is the whole gesture, so it saves without a further press.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task PickingATypeForAStatusSavesIt()
+    {
+        var row = Row("Blocked");
+
+        row.Type = StatusType.Final;
+        await _vm.SetStatusTypeCommand.ExecutionTask!;
+
+        Assert.Null(_vm.Error);
+        Assert.Equal(StatusType.Final, Config.Statuses.First(s => s.Name == "Blocked").Type);
+    }
+
+    /// <summary>
+    /// A refused retype has to leave the drop-down showing what the workspace
+    /// actually holds — otherwise the row is the only thing on screen claiming
+    /// the change happened.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task RetypingTheDefaultStatusIsRefusedAndTheDropDownGoesBack()
+    {
+        var row = Row("Not Started");
+        Assert.True(row.IsDefault);
+
+        row.Type = StatusType.Active;
+        await _vm.SetStatusTypeCommand.ExecutionTask!;
+
+        Assert.NotNull(_vm.Error);
+        Assert.Contains("Initial", _vm.Error);
+        Assert.Equal(StatusType.Initial, row.Type);
+        Assert.Equal(
+            StatusType.Initial, Config.Statuses.First(s => s.Name == "Not Started").Type);
+    }
+
+    [AvaloniaFact]
+    public async Task RetypingTheLastStatusOfATypeIsRefusedAndTheDropDownGoesBack()
+    {
+        await _session.DeleteStatusAsync(
+            Config.Statuses.First(s => s.Name == "Blocked").Id,
+            Config.Statuses.First(s => s.Name == "In Progress").Id);
+
+        var row = Row("In Progress");
+
+        row.Type = StatusType.Final;
+        await _vm.SetStatusTypeCommand.ExecutionTask!;
+
+        Assert.NotNull(_vm.Error);
+        Assert.Contains("Active", _vm.Error);
+        Assert.Equal(StatusType.Active, row.Type);
+    }
+
     // ---- categories --------------------------------------------------------
 
     [AvaloniaFact]
-    public async Task AddingACategoryParsesItsColour()
+    public async Task AddingACategoryUsesTheColourPickedFromThePalette()
     {
         _vm.NewCategoryName = "Work";
-        _vm.NewCategoryColor = "FF2E7D32";
+        _vm.NewCategoryColor = _vm.CategoryColors[2];
 
         await _vm.AddCategoryCommand.ExecuteAsync(null!);
 
         var category = Assert.Single(Config.Categories);
-        Assert.Equal(0xFF2E7D32u, category.Color);
+        Assert.Equal(Category.Palette[2].Value, category.Color);
         Assert.True(category.Color > int.MaxValue, "an opaque colour must not overflow");
     }
 
+    /// <summary>
+    /// Picking a colour is the whole gesture, so it saves without a further
+    /// press — no command to invoke, just the selection changing.
+    /// </summary>
     [AvaloniaFact]
-    public async Task ABadColourIsExplainedRatherThanSwallowed()
+    public async Task PickingAColourForACategorySavesIt()
     {
-        _vm.NewCategoryName = "Work";
-        _vm.NewCategoryColor = "not a colour";
+        var category = await _session.AddCategoryAsync("Home", Category.Palette[0].Value);
 
-        await _vm.AddCategoryCommand.ExecuteAsync(null!);
+        var row = _vm.Categories.First(c => c.Id == category.Id);
+        row.SelectedColor = Category.Palette[3];
+        await _vm.SetCategoryColorCommand.ExecutionTask!;
 
-        Assert.Empty(Config.Categories);
-        Assert.NotNull(_vm.Error);
+        Assert.Equal(Category.Palette[3].Value, Config.CategoryById(category.Id)!.Color);
     }
 
     /// <summary>
-    /// A colour has to be all eight digits, not merely parse as a number.
+    /// A colour the palette never offered — written before the palette was
+    /// named, or edited by hand — still has to be selectable, or the row would
+    /// show nothing selected and repaint the category on the first stray click.
     /// </summary>
-    /// <remarks>
-    /// "F" parses perfectly well — as fully transparent black, which reaches the
-    /// user as a colour dot that isn't there and a message that never appeared.
-    /// The refusal says eight digits, so eight digits is what it means.
-    /// </remarks>
-    [AvaloniaTheory]
-    [InlineData("F")]
-    [InlineData("2E7D32")]
-    [InlineData("FF2E7D320")]
-    public async Task AColourShorterOrLongerThanEightDigitsIsRefused(string colour)
+    [AvaloniaFact]
+    public async Task ACategoryColourOutsideThePaletteIsOfferedAsCustom()
     {
-        _vm.NewCategoryName = "Work";
-        _vm.NewCategoryColor = colour;
+        var category = await _session.AddCategoryAsync("Home", 0xFF123456);
 
-        await _vm.AddCategoryCommand.ExecuteAsync(null!);
+        var row = _vm.Categories.First(c => c.Id == category.Id);
 
-        Assert.Empty(Config.Categories);
-        Assert.NotNull(_vm.Error);
+        Assert.Equal(0xFF123456u, row.SelectedColor.Value);
+        Assert.Equal("Custom", row.SelectedColor.Name);
+        Assert.Contains(row.SelectedColor, row.ColorOptions);
+        Assert.Equal(Category.Palette.Count + 1, row.ColorOptions.Count);
     }
 
     [AvaloniaFact]
