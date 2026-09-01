@@ -55,9 +55,16 @@ public sealed partial class BoardCardViewModel(MightDoTask task, WorkspaceConfig
 
     public bool IsCriticalPriority { get; } = task.Priority == Priority.Critical;
 
-    public string DueLabel { get; } = task.DueDate?.ToIso() ?? "";
+    /// <summary>
+    /// The one date the card carries: when it is due, or — once the task has
+    /// landed in a Final status — when it was completed. A finished card's due
+    /// date is history, and the date the reader wants is the one it finished on.
+    /// </summary>
+    public string DateLabel { get; } = task.CompletedAt is { } completed
+        ? $"Completed {completed.ToLocalTime():yyyy-MM-dd}"
+        : task.DueDate?.ToIso() ?? "";
 
-    public bool HasDue { get; } = task.DueDate is not null;
+    public bool HasDate { get; } = task.CompletedAt is not null || task.DueDate is not null;
 
     public bool IsOverdue { get; } = task.IsOverdue;
 

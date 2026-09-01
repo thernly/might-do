@@ -40,8 +40,13 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     private Status StatusOfType(StatusType type) =>
         _session.Snapshot.Config.Statuses.First(s => s.Type == type);
 
-    /// <summary>The session writes asynchronously; give it a moment to land.</summary>
-    private static async Task Settle() => await Task.Delay(50);
+    /// <summary>
+    /// The session writes asynchronously, so a test that reads the task back
+    /// has to wait for the write. Waiting on the pane's own pending work rather
+    /// than on the clock: a fixed delay passes on a fast machine and fails on a
+    /// loaded CI runner, which is exactly what it did.
+    /// </summary>
+    private Task Settle() => _vm.PendingSave;
 
     [Fact]
     public void LoadsTheTaskItWasGiven()
@@ -137,7 +142,6 @@ public class TaskDetailViewModelTests : IAsyncLifetime
 
         _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
         _vm.Summary = "Edited after moving";
-        await _vm.PendingSave;
         await Settle();
 
         Assert.Equal(done.Id, Current.StatusId);
@@ -150,7 +154,6 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     {
         _vm.Summary = "Renamed";
         _vm.EstimateMinutes = "45";
-        await _vm.PendingSave;
         await Settle();
 
         Assert.Equal("Renamed", Current.Summary);

@@ -98,9 +98,9 @@
                                 <TextBlock Text="{Binding StepsLabel}" FontSize="12" />
                               </Border>
                             </StackPanel>
-                            <TextBlock Text="{Binding DueLabel}" Classes="due"
+                            <TextBlock Text="{Binding DateLabel}" Classes="due"
                                        Classes.overdue="{Binding IsOverdue}"
-                                       IsVisible="{Binding HasDue}" />
+                                       IsVisible="{Binding HasDate}" />
                           </StackPanel>
                         </Border>
                       </DataTemplate>

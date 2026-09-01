@@ -328,6 +328,62 @@ public class BoardInteractionTests : IDisposable
         Assert.Contains(moved, card => card.Summary == "Dragged");
     }
 
+    // ---- the date a card carries -------------------------------------------
+
+    [AvaloniaFact]
+    public async Task AnUnfinishedCardShowsItsDueDate()
+    {
+        var (window, workspace) = await OpenBoardAsync(("Due soon", null));
+
+        var due = DateTime.Today.AddDays(3);
+        await SetDueDateAsync(window, workspace, "Due soon", due);
+
+        Assert.Equal(due.ToString("yyyy-MM-dd"), CardDate(window, "Due soon"));
+    }
+
+    [AvaloniaFact]
+    public async Task AFinishedCardShowsWhenItWasCompletedRatherThanWhenItWasDue()
+    {
+        // Once the work is done the due date is history; the date worth the
+        // card's one line is the day it actually finished.
+        var (window, workspace) = await OpenBoardAsync(("Shipped late", null));
+
+        var due = DateTime.Today.AddDays(-3);
+        await SetDueDateAsync(window, workspace, "Shipped late", due);
+        Assert.Equal(due.ToString("yyyy-MM-dd"), CardDate(window, "Shipped late"));
+
+        var id = CardVm(workspace, "Shipped late").Id;
+        var done = workspace.Statuses.First(status => status.Name == "Done");
+        await workspace.MoveOnBoardAsync(id, done.Id, null);
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.Equal(
+            $"Completed {DateTime.Now:yyyy-MM-dd}", CardDate(window, "Shipped late"));
+        Assert.False(CardVm(workspace, "Shipped late").IsOverdue);
+    }
+
+    /// <summary>Sets a task's due date the way the user does, through the pane.</summary>
+    private static async Task SetDueDateAsync(
+        Window window, WorkspaceViewModel workspace, string summary, DateTime due)
+    {
+        ClickCard(window, summary);
+        var detail = workspace.Detail!;
+        detail.DueDate = due;
+        await detail.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+        window.Measure(window.ClientSize);
+        window.Arrange(new Rect(window.ClientSize));
+    }
+
+    /// <summary>The date line actually drawn on a card.</summary>
+    private static string CardDate(Window window, string summary) =>
+        Descendants<TextBlock>(CardFor(window, summary))
+            .First(block => block.Classes.Contains("due")).Text ?? "";
+
+    private static BoardCardViewModel CardVm(WorkspaceViewModel workspace, string summary) =>
+        workspace.Columns.SelectMany(column => column.Cards)
+            .First(card => card.Summary == summary);
+
     // ---- an edit still in a field when the next card is clicked -------------
 
     [AvaloniaFact]
