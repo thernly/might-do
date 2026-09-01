@@ -25,8 +25,12 @@ public partial class App : Application
             var window = new MainWindow();
             var settings = AppSettings.Load();
 
-            // Before the window is shown, so it does not appear in one scheme
-            // and flip to the other.
+            // Before the window is shown, so it does not appear in one design
+            // or scheme and flip to the other. The design goes first: it
+            // carries the palette both schemes are drawn from, so applying the
+            // scheme against the outgoing theme's colours would be a repaint
+            // nobody asked to see.
+            Theme.ApplyDesign(settings.Design);
             Theme.Apply(settings.Theme);
 
             var viewModel = new MainViewModel(

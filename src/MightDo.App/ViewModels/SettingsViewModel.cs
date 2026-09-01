@@ -169,6 +169,38 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(IsDarkTheme));
     }
 
+    /// <summary>
+    /// The design theme — the whole look, as opposed to which of its two
+    /// schemes is showing. Machine-local, like the scheme.
+    /// </summary>
+    public DesignTheme Design => _settings.Design;
+
+    public bool IsCyrkDesign => Design == DesignTheme.Cyrk66;
+
+    public bool IsSageDesign => Design == DesignTheme.SageSlate;
+
+    /// <summary>
+    /// Chooses a design theme, wears it and remembers it.
+    /// </summary>
+    /// <remarks>
+    /// The scheme is re-applied afterwards because the incoming theme brings
+    /// its own light and dark dictionaries, and swapping the styles is what
+    /// tells the application to go and read them again.
+    /// </remarks>
+    [RelayCommand]
+    private void SetDesign(DesignTheme design)
+    {
+        if (Design == design) return;
+
+        _settings.SetDesign(design);
+        MightDo.App.Theme.ApplyDesign(design);
+        MightDo.App.Theme.Apply(_settings.Theme);
+
+        OnPropertyChanged(nameof(Design));
+        OnPropertyChanged(nameof(IsCyrkDesign));
+        OnPropertyChanged(nameof(IsSageDesign));
+    }
+
     // ---- statuses ----------------------------------------------------------
 
     [RelayCommand]

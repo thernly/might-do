@@ -20,12 +20,14 @@
     <Border IsVisible="{Binding !HasWorkspace}" Padding="48">
       <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
                   Spacing="12" MaxWidth="520">
-        <TextBlock Text="might-do" FontSize="30" FontWeight="SemiBold"
+        <!-- With no workspace open this screen is the whole application,
+             so it is the one place the poster face gets to speak. -->
+        <TextBlock Text="might do" Classes="wordmark"
                    HorizontalAlignment="Center" />
         <TextBlock TextWrapping="Wrap" HorizontalAlignment="Center"
                    TextAlignment="Center"
                    Text="Choose a folder for your tasks. Everything is kept as plain JSON files beneath it, one per task — put it inside OneDrive, Dropbox or iCloud Drive and your tasks follow you between machines." />
-        <Button Content="Choose a folder…"
+        <Button Content="Choose a folder…" Classes="accent"
                 Command="{Binding ChooseWorkspaceCommand}"
                 IsEnabled="{Binding CanOpenWorkspace}"
                 HorizontalAlignment="Center" />
@@ -35,7 +37,7 @@
              folder again. -->
         <StackPanel Spacing="6" IsVisible="{Binding HasRememberedWorkspaces}"
                     HorizontalAlignment="Center" Margin="0,10,0,0">
-          <TextBlock Text="Or reopen one of yours" Classes="group"
+          <TextBlock Text="OR REOPEN ONE OF YOURS" Classes="group"
                      HorizontalAlignment="Center" />
           <ItemsControl ItemsSource="{Binding Workspaces}">
             <ItemsControl.ItemTemplate>
@@ -78,7 +80,7 @@
              the window's own data context. It sits before the search box and
              stays visible at all times: two workspaces look identical once you
              are inside one, so which one you are in has to be on screen. -->
-        <Button Grid.Column="0" Margin="0,0,8,0"
+        <Button Grid.Column="0" Margin="0,0,8,0" Classes="toolbar"
                 x:Name="WorkspaceSwitcher"
                 x:DataType="vm:MainViewModel"
                 DataContext="{Binding $parent[Window].DataContext}"
@@ -95,7 +97,7 @@
           <Button.Flyout>
             <Flyout Placement="BottomEdgeAlignedLeft">
               <StackPanel MinWidth="240" Spacing="4">
-                <TextBlock Text="Workspaces" Classes="group" />
+                <TextBlock Text="WORKSPACES" Classes="group" />
 
                 <ItemsControl ItemsSource="{Binding Workspaces}">
                   <ItemsControl.ItemTemplate>
@@ -134,7 +136,7 @@
                      nothing is open — Workspaces then has zero or one row and the
                      switch above already covers picking one. -->
                 <StackPanel IsVisible="{Binding HasWorkspace}" Spacing="4" Margin="0,0,0,4">
-                  <TextBlock Text="Colour" Classes="group" />
+                  <TextBlock Text="COLOUR" Classes="group" />
                   <StackPanel Orientation="Horizontal" Spacing="6">
                     <ItemsControl ItemsSource="{Binding ColorSwatches}">
                       <ItemsControl.ItemsPanel>
@@ -144,7 +146,7 @@
                       </ItemsControl.ItemsPanel>
                       <ItemsControl.ItemTemplate>
                         <DataTemplate x:DataType="vm:WorkspaceColorSwatch">
-                          <Button Width="20" Height="20" Padding="0" CornerRadius="10"
+                          <Button Width="20" Height="20" Padding="0" CornerRadius="0"
                                   Command="{Binding $parent[ItemsControl].((vm:MainViewModel)DataContext).SetWorkspaceColorCommand}"
                                   CommandParameter="{Binding Color}"
                                   Background="{Binding Color,
@@ -155,7 +157,7 @@
                         </DataTemplate>
                       </ItemsControl.ItemTemplate>
                     </ItemsControl>
-                    <Button Width="20" Height="20" Padding="0" CornerRadius="10"
+                    <Button Width="20" Height="20" Padding="0" CornerRadius="0"
                             Command="{Binding ClearWorkspaceColorCommand}"
                             IsVisible="{Binding HasWorkspaceColor}"
                             ToolTip.Tip="No colour"
@@ -168,16 +170,16 @@
                      ceremony than relabelling a folder deserves. -->
                 <StackPanel IsVisible="{Binding !IsRenaming}" Spacing="2">
                   <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                          Command="{Binding AddWorkspaceCommand}" Content="Add workspace…"
+                          Command="{Binding AddWorkspaceCommand}" Content="Add workspace…" Classes="toolbar"
                           IsEnabled="{Binding CanOpenWorkspace}"
                           Click="OnSwitcherFinished" />
                   <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
-                          Command="{Binding BeginRenameCommand}" Content="Rename this one…"
+                          Command="{Binding BeginRenameCommand}" Content="Rename this one…" Classes="toolbar"
                           IsEnabled="{Binding HasWorkspace}" />
                   <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
                           Command="{Binding ForgetWorkspaceCommand}"
                           IsEnabled="{Binding HasWorkspace}"
-                          Content="Forget this one"
+                          Content="Forget this one" Classes="toolbar"
                           Click="OnSwitcherFinished"
                           ToolTip.Tip="Removes it from this list. The folder and its tasks are left alone." />
                 </StackPanel>
@@ -203,20 +205,24 @@
           </TextBox.InnerLeftContent>
         </TextBox>
 
-        <ToggleButton Grid.Column="2" Margin="8,0,0,0" IsChecked="{Binding FiltersOpen}">
+        <ToggleButton Grid.Column="2" Margin="8,0,0,0" Classes="toolbar"
+                      IsChecked="{Binding FiltersOpen}">
           <StackPanel Orientation="Horizontal" Spacing="6">
             <PathIcon Data="{StaticResource IconFilter}" Width="13" Height="13"
                       VerticalAlignment="Center" />
             <TextBlock Text="Filters" VerticalAlignment="Center" />
-            <Border CornerRadius="9" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
+            <!-- The count is a plate, not a pill: square, ink-edged, the
+                 same two-colour stamp the primary button is. -->
+            <Border CornerRadius="0" Padding="6,1" IsVisible="{Binding HasPanelFilters}"
+                    BorderThickness="1" BorderBrush="{DynamicResource AppInkBrush}"
                     Background="{DynamicResource AppAccentBrush}">
-              <TextBlock Text="{Binding PanelFilterCount}" FontSize="11"
+              <TextBlock Text="{Binding PanelFilterCount}" FontSize="12"
                          Foreground="{DynamicResource OnAccentBrush}" />
             </Border>
           </StackPanel>
         </ToggleButton>
 
-        <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear"
+        <Button Grid.Column="3" Margin="8,0,0,0" Content="Clear" Classes="toolbar"
                 Command="{Binding ClearFiltersCommand}"
                 IsVisible="{Binding IsFiltered}" />
 
@@ -225,8 +231,8 @@
              would reshuffle the toolbar on every view switch. -->
         <StackPanel Grid.Column="4" Orientation="Horizontal" Margin="8,0,0,0"
                     IsEnabled="{Binding IsListView}">
-          <TextBlock Text="Sort" VerticalAlignment="Center" Margin="0,0,6,0"
-                     Foreground="{DynamicResource AppTextSecondaryBrush}" />
+          <TextBlock Text="SORT" Classes="meta" VerticalAlignment="Center"
+                     Margin="0,0,6,0" />
           <ComboBox MinWidth="150"
                     ItemsSource="{Binding SortOptions}"
                     DisplayMemberBinding="{Binding Label}"
@@ -241,7 +247,7 @@
             <StackPanel Orientation="Horizontal" Spacing="5">
               <PathIcon Data="{StaticResource IconList}" Width="13" Height="13"
                         VerticalAlignment="Center" />
-              <TextBlock Text="List" VerticalAlignment="Center" />
+              <TextBlock Text="List" Classes="control" VerticalAlignment="Center" />
             </StackPanel>
           </RadioButton>
           <RadioButton GroupName="ViewMode" IsChecked="{Binding IsBoardView}"
@@ -250,7 +256,7 @@
             <StackPanel Orientation="Horizontal" Spacing="5">
               <PathIcon Data="{StaticResource IconBoard}" Width="13" Height="13"
                         VerticalAlignment="Center" />
-              <TextBlock Text="Board" VerticalAlignment="Center" />
+              <TextBlock Text="Board" Classes="control" VerticalAlignment="Center" />
             </StackPanel>
           </RadioButton>
         </StackPanel>
@@ -279,7 +285,7 @@
           <StackPanel Spacing="10">
             <WrapPanel>
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Status" Classes="group" />
+                <TextBlock Text="STATUS" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Statuses}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -290,7 +296,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Status Type" Classes="group" />
+                <TextBlock Text="STATUS TYPE" Classes="group" />
                 <ItemsControl ItemsSource="{Binding StatusTypes}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -301,7 +307,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Priority" Classes="group" />
+                <TextBlock Text="PRIORITY" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Priorities}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -312,7 +318,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Category" Classes="group" />
+                <TextBlock Text="CATEGORY" Classes="group" />
                 <ItemsControl ItemsSource="{Binding Categories}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -325,7 +331,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="140">
-                <TextBlock Text="Tags" Classes="group" />
+                <TextBlock Text="TAGS" Classes="group" />
                 <ItemsControl ItemsSource="{Binding TagFilters}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilterToggle">
@@ -338,7 +344,7 @@
               </StackPanel>
 
               <StackPanel Margin="0,0,20,6" MinWidth="120">
-                <TextBlock Text="Show" Classes="group" />
+                <TextBlock Text="SHOW" Classes="group" />
                 <CheckBox Content="Overdue only" IsChecked="{Binding OverdueOnly}" />
                 <CheckBox Content="Completed" IsChecked="{Binding IncludeCompleted}" />
               </StackPanel>
@@ -356,14 +362,14 @@
 
         <Border Classes="banner" IsVisible="{Binding OutstandingReminders.Count}">
           <StackPanel Spacing="4">
-            <TextBlock Text="Reminders" FontWeight="SemiBold" />
+            <TextBlock Text="REMINDERS" Classes="group" />
             <ItemsControl ItemsSource="{Binding OutstandingReminders}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:DueReminderViewModel">
                   <Grid ColumnDefinitions="*,Auto,Auto" Margin="0,2">
                     <TextBlock Grid.Column="0" Text="{Binding Summary}"
                                VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                    <TextBlock Grid.Column="1" Text="{Binding When}" Classes="hint"
+                    <TextBlock Grid.Column="1" Text="{Binding When}" Classes="meta"
                                Margin="8,0" VerticalAlignment="Center" />
                     <Button Grid.Column="2" Content="Dismiss"
                             Command="{Binding $parent[ItemsControl].((vm:WorkspaceViewModel)DataContext).DismissReminderCommand}"
@@ -377,14 +383,14 @@
 
         <Border Classes="banner" IsVisible="{Binding Unreadable.Count}">
           <StackPanel Spacing="4">
-            <TextBlock Text="Files that couldn't be read" FontWeight="SemiBold" />
+            <TextBlock Text="FILES THAT COULDN'T BE READ" Classes="group" />
             <TextBlock Classes="hint" TextWrapping="Wrap"
                        Text="These task files are still in your workspace but are not shown or edited here, so nothing in them is overwritten. A file written by a newer version of MightDo needs an update to open." />
             <ItemsControl ItemsSource="{Binding Unreadable}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="x:String">
                   <TextBlock Text="{Binding}" TextWrapping="Wrap"
-                             FontFamily="monospace" FontSize="12" />
+                             FontFamily="{DynamicResource FontMono}" FontSize="11" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -393,13 +399,13 @@
 
         <Border Classes="banner" IsVisible="{Binding Conflicts.Count}">
           <StackPanel Spacing="4">
-            <TextBlock Text="Sync conflicts" FontWeight="SemiBold" />
+            <TextBlock Text="SYNC CONFLICTS" Classes="group" />
             <TextBlock Classes="hint" TextWrapping="Wrap"
                        Text="These files sit beside your workspace, left either by your sync client or by this app keeping a version that another machine wrote while you were editing. They are not loaded — open the folder to resolve them." />
             <ItemsControl ItemsSource="{Binding Conflicts}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="x:String">
-                  <TextBlock Text="{Binding}" FontFamily="monospace" FontSize="12" />
+                  <TextBlock Text="{Binding}" FontFamily="{DynamicResource FontMono}" FontSize="11" />
                 </DataTemplate>
               </ItemsControl.ItemTemplate>
             </ItemsControl>
@@ -409,7 +415,7 @@
 
       <!-- The list, and the detail pane for whatever is selected -->
       <Grid Grid.Row="2" ColumnDefinitions="*,Auto,Auto">
-      <Border Grid.Column="0" BorderThickness="1" CornerRadius="8"
+      <Border Grid.Column="0" BorderThickness="1" CornerRadius="0"
               IsVisible="{Binding IsListView}"
               Background="{DynamicResource AppCardBrush}"
               BorderBrush="{DynamicResource AppCardBorderBrush}">
@@ -433,6 +439,7 @@
                     </Border>
                     <Border Classes="chip"
                             Classes.low="{Binding IsLowPriority}"
+                            Classes.medium="{Binding IsMediumPriority}"
                             Classes.high="{Binding IsHighPriority}"
                             Classes.critical="{Binding IsCriticalPriority}">
                       <TextBlock Text="{Binding PriorityLabel}" FontSize="12" />
@@ -466,16 +473,20 @@
       <GridSplitter Grid.Column="1" Width="6" Background="Transparent"
                     IsVisible="{Binding HasSelection}" />
 
-      <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="8"
+      <!-- The detail pane is a sheet laid over the list, so it takes the
+           printed shadow rather than a blur — the one shadow this design
+           system owns. -->
+      <Border Grid.Column="2" Width="400" BorderThickness="1" CornerRadius="0"
               IsVisible="{Binding HasSelection}"
               Background="{DynamicResource AppCardBrush}"
               BorderBrush="{DynamicResource AppCardBorderBrush}"
-              BoxShadow="0 1 4 0 #28280004">
+              BoxShadow="-3 3 0 0 #2D233A">
         <Grid RowDefinitions="Auto,Auto,*">
           <Grid Grid.Row="0" ColumnDefinitions="Auto,*,Auto" Margin="8,8,8,0">
             <!-- Trash, not delete: the file moves to the workspace's .trash
                  folder, so the OverdueBrush red warns without a dialog. -->
-            <Button Grid.Column="0" Command="{Binding TrashOpenTaskCommand}"
+            <Button Grid.Column="0" Classes="toolbar"
+                    Command="{Binding TrashOpenTaskCommand}"
                     Foreground="{DynamicResource OverdueBrush}"
                     ToolTip.Tip="Moves the file to the workspace's .trash folder.">
               <StackPanel Orientation="Horizontal" Spacing="5">
@@ -484,7 +495,7 @@
                 <TextBlock Text="Move to Trash" VerticalAlignment="Center" />
               </StackPanel>
             </Button>
-            <Button Grid.Column="2" Content="Close"
+            <Button Grid.Column="2" Content="Close" Classes="toolbar"
                     Command="{Binding CloseDetailCommand}" />
           </Grid>
 
@@ -515,21 +526,23 @@
             <TextBlock Text="Add" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <Button Grid.Column="2" Margin="8,0,0,0" Command="{Binding RefreshCommand}">
+        <Button Grid.Column="2" Margin="8,0,0,0" Classes="toolbar"
+                Command="{Binding RefreshCommand}">
           <StackPanel Orientation="Horizontal" Spacing="5">
             <PathIcon Data="{StaticResource IconRefresh}" Width="13" Height="13"
                       VerticalAlignment="Center" />
             <TextBlock Text="Refresh" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <Button Grid.Column="3" Margin="8,0,0,0" Click="OnOpenSettings">
+        <Button Grid.Column="3" Margin="8,0,0,0" Classes="toolbar"
+                Click="OnOpenSettings">
           <StackPanel Orientation="Horizontal" Spacing="5">
             <PathIcon Data="{StaticResource IconSettings}" Width="13" Height="13"
                       VerticalAlignment="Center" />
             <TextBlock Text="Settings" VerticalAlignment="Center" />
           </StackPanel>
         </Button>
-        <TextBlock Grid.Column="4" Margin="12,0,0,0" Classes="hint"
+        <TextBlock Grid.Column="4" Margin="12,0,0,0" Classes="meta"
                    VerticalAlignment="Center" Text="{Binding SummaryLine}" />
       </Grid>
     </Grid>

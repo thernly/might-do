@@ -1,0 +1,438 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fluent="using:Avalonia.Themes.Fluent">
+  <!-- Sage & Slate — the application's first look, kept as a theme rather
+       than deleted. Five colours: Dry Sage #CCC9A1, Blue Slate #4F6D7A,
+       Reddish Brown #A53F2B, Dark Walnut #4C230A and Rich Mahogany
+       #280004. Soft corners, the system's own font, warm paper. It is
+       the opposite of Cyrk 66 in every axis a theme has, which is the
+       point of having two. -->
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <!-- This theme predates the embedded faces and is meant to look
+           like the desktop it runs on, so it names no font at all and
+           lets Avalonia's default do the work. FontMono still has to
+           exist, because the views ask every theme for it when they
+           print a file path. -->
+      <FontFamily x:Key="FontDisplay">$Default</FontFamily>
+      <FontFamily x:Key="FontText">$Default</FontFamily>
+      <FontFamily x:Key="FontMono">Menlo, Consolas, monospace</FontFamily>
+
+      <CornerRadius x:Key="ControlCornerRadius">4</CornerRadius>
+      <CornerRadius x:Key="OverlayCornerRadius">8</CornerRadius>
+
+      <ResourceDictionary.ThemeDictionaries>
+        <!-- The palette is five colours — Dry Sage #CCC9A1, Blue Slate
+             #4F6D7A, Reddish Brown #A53F2B, Dark Walnut #4C230A and Rich
+             Mahogany #280004 — and everything below is one of them or a
+             tint of one. Sage is the neutral the surfaces are mixed from,
+             slate is the only cool colour and so becomes the accent, and
+             the three browns run from warning to ink. -->
+        <ResourceDictionary x:Key="Light">
+          <!-- Blue Slate. Fluent's own controls take the accent from
+               FluentTheme.Palettes below rather than from here; this pair
+               is what the views paint with, and the test that holds the two
+               spellings together. A Color assigned to a Background or a
+               BorderBrush resolves to nothing at all — silently, since the
+               binding simply never produces a value — so anything painted
+               accent goes through the brush. -->
+          <Color x:Key="SystemAccentColor">#4F6D7A</Color>
+          <SolidColorBrush x:Key="AppAccentBrush">#4F6D7A</SolidColorBrush>
+
+          <!-- Surface levels: window, panel, card. Sage, held to a few
+               percent — enough that the paper is warm rather than white,
+               not so much that the app looks tinted. -->
+          <SolidColorBrush x:Key="AppWindowBrush">#F8F7EF</SolidColorBrush>
+          <SolidColorBrush x:Key="AppSurfaceBrush">#EFEDDE</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBrush">#FFFEF9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppChipBrush">#E6E3CD</SolidColorBrush>
+          <SolidColorBrush x:Key="AppBorderBrush">#DAD7BF</SolidColorBrush>
+
+          <!-- Text. Two levels, both chosen against the surfaces rather
+               than faded into them with opacity: a washed-out grey and a
+               half-transparent black are not the same colour, and only the
+               first stays legible over a tinted chip. The ink is Rich
+               Mahogany itself, which is why the body text reads warm. -->
+          <SolidColorBrush x:Key="AppTextBrush">#280004</SolidColorBrush>
+          <SolidColorBrush x:Key="AppTextSecondaryBrush">#6B5348</SolidColorBrush>
+
+          <!-- Card edges are flat in light mode: a lighter top edge against
+               a near-white card has nothing to be lighter than. -->
+          <SolidColorBrush x:Key="AppCardBorderBrush">#DAD7BF</SolidColorBrush>
+
+          <!-- The one place grey is allowed. Everything else on screen
+               carries the palette, so a control that has gone properly
+               neutral reads as switched off without needing a second cue. -->
+          <SolidColorBrush x:Key="AppDisabledBrush">#E4E4E4</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledBorderBrush">#D2D2D2</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledTextBrush">#757575</SolidColorBrush>
+
+          <SolidColorBrush x:Key="OverdueBrush">#A53F2B</SolidColorBrush>
+          <!-- All four priorities, because three of them tinted and one
+               of them left plain is not a scale. Critical takes the
+               Reddish Brown family and High Dark Walnut on sand - the
+               warm end, one step apart. Medium and Low leave the warmth
+               entirely: Blue Slate for Medium, and for Low the sage the
+               theme is named after, held to a tint. Temperature says
+               whether to care; depth says how much. -->
+          <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#F3DCD4</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#8B301D</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#EFE3C4</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighForegroundBrush">#4C230A</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumBackgroundBrush">#C3D8E2</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumForegroundBrush">#29464F</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowBackgroundBrush">#E3EAE0</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowForegroundBrush">#47534A</SolidColorBrush>
+
+          <!-- Text painted over the raw accent colour. -->
+          <SolidColorBrush x:Key="OnAccentBrush">#FFFEF9</SolidColorBrush>
+
+          <!-- Not started is sage gone grey, under way is the accent, and
+               concluded is the olive the sage turns when it is darkened —
+               a green that belongs to this palette rather than a stock one
+               borrowed in for the sake of a traffic light. -->
+          <SolidColorBrush x:Key="StatusInitialBrush">#7C775B</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusActiveBrush">#4F6D7A</SolidColorBrush>
+          <!-- Keys every theme owes the views. Slate is a mid
+               colour rather than an ink, so what Cyrk 66 prints as a
+               hard keyline this theme states as a slightly firmer
+               border; the overlays stay mahogany, which is this
+               palette's black. -->
+          <SolidColorBrush x:Key="AppInkBrush">#4C230A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppStrongBorderBrush">#C4C0A4</SolidColorBrush>
+          <SolidColorBrush x:Key="AppHoverBrush">#0F280004</SolidColorBrush>
+          <SolidColorBrush x:Key="AppActiveBrush">#1C280004</SolidColorBrush>
+          <SolidColorBrush x:Key="AppFocusBrush">#4F6D7A</SolidColorBrush>
+
+          <SolidColorBrush x:Key="StatusFinalBrush">#5F7A46</SolidColorBrush>
+        </ResourceDictionary>
+
+        <!-- Dark is the same five colours with the browns doing the work
+             the greys used to: the window is Rich Mahogany opened up just
+             far enough to be a surface rather than a hole, and each level
+             up (column, card, chip) walks toward Dark Walnut, because
+             shadows carry almost nothing against a dark ground — elevation
+             has to come from the surfaces themselves. Borders sit lighter
+             than their card for the same reason. -->
+        <ResourceDictionary x:Key="Dark">
+          <!-- Blue Slate at full strength disappears into a dark ground, so
+               dark mode runs the accent up the scale until it reads. -->
+          <Color x:Key="SystemAccentColor">#83AABA</Color>
+          <SolidColorBrush x:Key="AppAccentBrush">#83AABA</SolidColorBrush>
+
+          <SolidColorBrush x:Key="AppWindowBrush">#180D0C</SolidColorBrush>
+          <SolidColorBrush x:Key="AppSurfaceBrush">#221513</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBrush">#2C1D18</SolidColorBrush>
+          <SolidColorBrush x:Key="AppChipBrush">#3D2A20</SolidColorBrush>
+          <SolidColorBrush x:Key="AppBorderBrush">#4C3428</SolidColorBrush>
+
+          <!-- Not white. Pure white on a dark ground is past legible and
+               into glare, and it is the largest area of colour on screen,
+               so it takes the sage cast that the surfaces are missing. -->
+          <SolidColorBrush x:Key="AppTextBrush">#EDEBD9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppTextSecondaryBrush">#ADA68A</SolidColorBrush>
+
+          <!-- The lit edge. A real surface catches light along its top, and
+               on a dark ground that hairline reads as depth in a way a
+               uniform border cannot — the gradient runs from a lifted edge
+               back to the plain border within the first few pixels. Warm,
+               because the light in this theme is firelight. -->
+          <LinearGradientBrush x:Key="AppCardBorderBrush"
+                               StartPoint="0%,0%" EndPoint="0%,100%">
+            <GradientStop Offset="0" Color="#6E4C3A" />
+            <GradientStop Offset="0.28" Color="#4C3428" />
+          </LinearGradientBrush>
+
+          <SolidColorBrush x:Key="AppDisabledBrush">#2B2B2B</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledBorderBrush">#3B3B3B</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledTextBrush">#8A8A8A</SolidColorBrush>
+
+          <SolidColorBrush x:Key="OverdueBrush">#E27A5F</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#4A2018</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#F09B84</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#40290F</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighForegroundBrush">#DFB77A</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumBackgroundBrush">#162C36</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumForegroundBrush">#9DC3D3</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowBackgroundBrush">#363D35</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowForegroundBrush">#B0BCA9</SolidColorBrush>
+
+          <!-- The dark accent is bright, so text on it goes dark. -->
+          <SolidColorBrush x:Key="OnAccentBrush">#111E23</SolidColorBrush>
+
+          <SolidColorBrush x:Key="StatusInitialBrush">#9C9578</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusActiveBrush">#83AABA</SolidColorBrush>
+          <SolidColorBrush x:Key="AppInkBrush">#100807</SolidColorBrush>
+          <SolidColorBrush x:Key="AppStrongBorderBrush">#5E4234</SolidColorBrush>
+          <SolidColorBrush x:Key="AppHoverBrush">#14EDEBD9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppActiveBrush">#24EDEBD9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppFocusBrush">#83AABA</SolidColorBrush>
+
+          <SolidColorBrush x:Key="StatusFinalBrush">#A6BC7C</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+      <!-- Fluent builds every stock control — button fills, field grounds,
+           hover states, the accent — from this one palette per variant, and
+           it reads it from here rather than from the dictionaries above.
+           Leaving it out is how the accent ends up stock Windows blue and
+           every button ends up grey.
+
+           Grey is the point of the exercise. Fluent's defaults are pure
+           black and pure white at low alpha, and an overlay of neutral over
+           a tinted ground averages the tint away — which is why a button on
+           warm paper came out #C7C6BF, three percent from dead neutral, no
+           matter what the surface under it was. The fills below are opaque
+           and carry the palette themselves rather than being mixed from it.
+
+           The exceptions are deliberate: ChromeDisabled* and ChromeGray
+           stay neutral, so grey means disabled and nothing else. -->
+      <FluentTheme>
+        <FluentTheme.Palettes>
+          <fluent:ColorPaletteResources x:Key="Light"
+                                        Accent="#4F6D7A"
+                                        RegionColor="#F8F7EF"
+                                        AltHigh="#FFFEF9"
+                                        AltLow="#33FFFEF9"
+                                        AltMedium="#99FFFEF9"
+                                        AltMediumHigh="#CCFFFEF9"
+                                        AltMediumLow="#66FFFEF9"
+                                        BaseHigh="#280004"
+                                        BaseLow="#E6E3CD"
+                                        BaseMedium="#99280004"
+                                        BaseMediumHigh="#CC280004"
+                                        BaseMediumLow="#66280004"
+                                        ChromeAltLow="#280004"
+                                        ChromeBlackHigh="#280004"
+                                        ChromeBlackLow="#33280004"
+                                        ChromeBlackMedium="#CC280004"
+                                        ChromeBlackMediumLow="#66280004"
+                                        ChromeHigh="#DAD7BF"
+                                        ChromeLow="#F0EEDE"
+                                        ChromeMedium="#E6E3CD"
+                                        ChromeMediumLow="#EFEDDE"
+                                        ChromeWhite="#FFFEF9"
+                                        ListLow="#19280004"
+                                        ListMedium="#33280004"
+                                        ErrorText="#A53F2B" />
+          <fluent:ColorPaletteResources x:Key="Dark"
+                                        Accent="#83AABA"
+                                        RegionColor="#180D0C"
+                                        AltHigh="#180D0C"
+                                        AltLow="#33180D0C"
+                                        AltMedium="#99180D0C"
+                                        AltMediumHigh="#CC180D0C"
+                                        AltMediumLow="#66180D0C"
+                                        BaseHigh="#EDEBD9"
+                                        BaseLow="#3D2A20"
+                                        BaseMedium="#99EDEBD9"
+                                        BaseMediumHigh="#CCEDEBD9"
+                                        BaseMediumLow="#66EDEBD9"
+                                        ChromeAltLow="#EDEBD9"
+                                        ChromeBlackHigh="#100807"
+                                        ChromeBlackLow="#33100807"
+                                        ChromeBlackMedium="#CC100807"
+                                        ChromeBlackMediumLow="#66100807"
+                                        ChromeHigh="#4C3428"
+                                        ChromeLow="#180D0C"
+                                        ChromeMedium="#221513"
+                                        ChromeMediumLow="#2C1D18"
+                                        ChromeWhite="#EDEBD9"
+                                        ListLow="#19EDEBD9"
+                                        ListMedium="#33EDEBD9"
+                                        ErrorText="#E27A5F" />
+        </FluentTheme.Palettes>
+      </FluentTheme>
+
+      <!-- Body text, stated rather than inherited. A plain TextBlock
+           defaults to 12px while everything Fluent templates takes 14, so
+           a theme that names no size is running two body sizes side by
+           side and calling the difference a hierarchy. Naming it here is
+           also what gives the roles below something to be smaller than. -->
+      <Style Selector="Window">
+        <Setter Property="FontSize" Value="14" />
+      </Style>
+
+      <!-- The typography scale. Three roles below the body text: a section
+           header, a field label, and de-emphasised metadata. -->
+      <Style Selector="TextBlock.section">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Margin" Value="0,16,0,4" />
+      </Style>
+      <Style Selector="TextBlock.group">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="Margin" Value="0,0,0,3" />
+      </Style>
+      <Style Selector="TextBlock.label">
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Margin" Value="0,8,0,2" />
+      </Style>
+      <Style Selector="TextBlock.hint">
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+      </Style>
+
+      <!-- A due date is quiet until it is overdue, then it is the loudest
+           thing on the row. -->
+      <Style Selector="TextBlock.due">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+      </Style>
+      <Style Selector="TextBlock.due.overdue">
+        <Setter Property="Foreground" Value="{DynamicResource OverdueBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+
+      <!-- Chips. Neutral for what a task simply has - a status, a
+           category, a step count - and tinted for the one field that is a
+           judgement about how much it matters.
+
+           Every priority tints. Medium used to wear no class at all,
+           which made it the plain chip and so indistinguishable from the
+           category next to it, and Low was the plain chip at 70% opacity,
+           which is the disabled signal rather than a priority. What
+           separates them now is hue for urgent against calm, depth for
+           how far along the scale, and weight as the third cue for anyone
+           who cannot use the first two - the ladder stays legible with
+           the colour taken away. -->
+      <Style Selector="Border.chip">
+        <Setter Property="Background" Value="{DynamicResource AppChipBrush}" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Padding" Value="8,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <Style Selector="Border.chip.critical">
+        <Setter Property="Background" Value="{DynamicResource PriorityCriticalBackgroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.critical > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityCriticalForegroundBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+      <Style Selector="Border.chip.high">
+        <Setter Property="Background" Value="{DynamicResource PriorityHighBackgroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.high > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityHighForegroundBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+      <Style Selector="Border.chip.medium">
+        <Setter Property="Background" Value="{DynamicResource PriorityMediumBackgroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.medium > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityMediumForegroundBrush}" />
+        <Setter Property="FontWeight" Value="Medium" />
+      </Style>
+      <Style Selector="Border.chip.low">
+        <Setter Property="Background" Value="{DynamicResource PriorityLowBackgroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.low > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityLowForegroundBrush}" />
+      </Style>
+
+      <!-- The dot that says what kind of status this is without reading it:
+           grey not started, blue under way, green concluded. -->
+      <Style Selector="Ellipse.statusdot">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.initial">
+        <Setter Property="Fill" Value="{DynamicResource StatusInitialBrush}" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.active">
+        <Setter Property="Fill" Value="{DynamicResource StatusActiveBrush}" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.final">
+        <Setter Property="Fill" Value="{DynamicResource StatusFinalBrush}" />
+      </Style>
+
+      <!-- List rows. A hairline between them gives the eye somewhere to
+           stop; without it a screenful of tasks reads as one block of text.
+           The rule goes on the item rather than into the row template so
+           the selection highlight sits over it rather than under it, and
+           nth-last-child keeps the final row from drawing a line into the
+           list's own bottom border. -->
+      <Style Selector="ListBox.rows > ListBoxItem">
+        <!-- The item's own theme sets a foreground, which otherwise wins
+             over the window's and leaves the rows on stock black or white
+             while everything around them is tinted. -->
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        <Setter Property="Padding" Value="10,3" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      </Style>
+      <Style Selector="ListBox.rows > ListBoxItem:not(:nth-last-child(1))">
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+      </Style>
+
+      <!-- Disabled. Fluent leaves a disabled button the same fill as a live
+           one and only fades the label, which on a palette this warm reads
+           as "slightly quieter" rather than "you cannot press this". These
+           take the control all the way to neutral instead: grey is reserved
+           for switched off, so switched off is the one thing that goes grey.
+
+           The fills have to be set on the template part rather than on the
+           control, because Fluent's own disabled styles target those parts
+           and would otherwise win. -->
+      <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <Style Selector="ToggleButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <Style Selector="ComboBox:disabled /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <!-- The tick is a Path, so it takes a Fill rather than a Foreground,
+           and greying the box without it leaves a disabled checkbox with no
+           way to say it is ticked. -->
+      <Style Selector="CheckBox:disabled /template/ Path#CheckGlyph">
+        <Setter Property="Fill" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <!-- Text and glyphs, which live outside the parts painted above. -->
+      <Style Selector=":is(TemplatedControl):disabled">
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+
+      <Style Selector="Border.banner">
+        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Setter Property="CornerRadius" Value="8" />
+        <Setter Property="Padding" Value="12,10" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+      </Style>
+
+      <!-- The roles Cyrk 66 introduced, answered in this theme's own
+           voice: a wordmark that is simply the app's name set large,
+           and metadata that is the hint role by another name. The
+           toolbar class is deliberately left unstyled — this theme's
+           toolbar is a row of ordinary buttons, which is what it
+           always was. -->
+      <Style Selector="TextBlock.wordmark">
+        <Setter Property="FontSize" Value="30" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+      </Style>
+      <Style Selector="TextBlock.meta">
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+      </Style>
+
+</Styles>

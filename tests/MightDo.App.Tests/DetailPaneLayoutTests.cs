@@ -154,9 +154,16 @@ public class DetailPaneLayoutTests : IDisposable
     /// so the child's bounds are pre-transform and say nothing about the pixels.
     /// A <c>Popup</c>'s contents are not in the pane at all. A scrollbar's own
     /// parts sit deliberately at the edge.
+    ///
+    /// A <c>TextBox</c>'s interior is the same kind of lie: a single-line box
+    /// lays its text presenter out at the full width of the text and then scrolls
+    /// it, so the presenter is routinely wider than the box and always clipped to
+    /// it. The box itself is still measured, which is the part that matters — if
+    /// the field runs off the pane, that is caught; if the user's text does, that
+    /// is what a text box is for.
     /// </remarks>
     private static bool Measurable(Control control) =>
-        control.GetVisualAncestors().All(a => a is not (Viewbox or ScrollBar))
+        control.GetVisualAncestors().All(a => a is not (Viewbox or ScrollBar or TextBox))
         && control.GetSelfAndVisualAncestors().OfType<Control>()
             .All(a => a.Parent is not Popup);
 

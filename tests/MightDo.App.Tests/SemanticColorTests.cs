@@ -62,15 +62,25 @@ public class SemanticColorTests : IDisposable
         var (window, _) = await OpenListAsync(
             ("Urgent", Priority.Critical, null),
             ("Soon", Priority.High, null),
-            ("Whenever", Priority.Medium, null));
+            ("Whenever", Priority.Medium, null),
+            ("Someday", Priority.Low, null));
 
-        Assert.Contains("critical", ChipFor(window, "Critical").Classes);
-        Assert.Contains("high", ChipFor(window, "High").Classes);
+        // Every level wears its own class, including Medium. It used to wear
+        // none, on the theory that the middle of a scale is the default and a
+        // default needs no marking -- which left it painted as the plain chip
+        // and so identical to the category sitting next to it.
+        foreach (var priority in Enum.GetValues<Priority>())
+        {
+            var expected = priority.ToString().ToLowerInvariant();
+            var chip = ChipFor(window, priority.Label());
 
-        var medium = ChipFor(window, "Medium");
-        Assert.DoesNotContain("critical", medium.Classes);
-        Assert.DoesNotContain("high", medium.Classes);
-        Assert.DoesNotContain("low", medium.Classes);
+            Assert.Contains(expected, chip.Classes);
+
+            foreach (var other in Enum.GetValues<Priority>().Where(p => p != priority))
+            {
+                Assert.DoesNotContain(other.ToString().ToLowerInvariant(), chip.Classes);
+            }
+        }
     }
 
     [AvaloniaFact]

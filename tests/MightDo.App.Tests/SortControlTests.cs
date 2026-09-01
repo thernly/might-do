@@ -79,7 +79,7 @@ public class SortControlTests : IDisposable
         Assert.Contains(
             window.GetVisualDescendants().OfType<TextBlock>()
                 .Where(block => block.IsEffectivelyVisible),
-            block => block.Text == "Sort");
+            block => block.Text == "SORT");
     }
 
     [AvaloniaFact]
