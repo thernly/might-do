@@ -1,0 +1,772 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:fluent="using:Avalonia.Themes.Fluent">
+  <!-- ==========================================================
+       A design theme: one complete look, palette and geometry and
+       type together, swapped as a unit at run time.
+
+       It is a Styles rather than a ResourceDictionary because a look
+       is not only colours. The corner radii, the caption face and
+       the pressed-button behaviour are as much a part of a theme as
+       the palette is, and Fluent's own palette — which paints every
+       stock control — can only be set from inside a Styles. Putting
+       all of it in one file means a theme cannot be half-applied.
+
+       Each theme file must define the same set of App* resource keys
+       in both a Light and a Dark dictionary; the views bind to those
+       keys and never to a colour.
+       ========================================================== -->
+
+  <Styles.Resources>
+    <ResourceDictionary>
+      <!-- ============================================================
+           Cyrk 66 — the design system this application is dressed in.
+           Sampled from Danuta Zukowska's 1966 Polish circus poster: a
+           night-blue ground, one hot pink accent, paper-white neutrals
+           and ink-black rules. Three things carry the identity, and
+           they are the three things a stock desktop app never does:
+
+             1. No corners. The poster is a printed sheet; everything
+                here is a rectangle. Radii are zero, not "small".
+             2. Ink borders and a hard offset shadow on anything you
+                can press. Not a blur — a second rectangle, printed
+                slightly off-register, the way two-colour litho misses.
+             3. Captions are uppercase and widely tracked. The labels
+                read as catalogue numbers on a playbill rather than as
+                form furniture. The kit sets them in a mono as well;
+                see the note on the font resources for why that part
+                does not survive the move to a desktop.
+
+           Night is the design system's default and this app's dark
+           variant; the light variant is the paper stock the poster was
+           printed on, for the same reason the kit ships one — dense
+           forms and tables want ink on paper, not glow on night.
+           ============================================================ -->
+
+      <!-- One embedded face, for the wordmark, and the platform's own for
+           everything else. Files live in Assets/Fonts (SIL OFL).
+
+           The text face used to be Space Grotesk, embedded on the argument
+           that a design system falling back to Arial is not applied at
+           all. That argument holds for a display face seen once at 44px
+           and does not hold for the body of a desktop application. Two
+           measurements settled it: Space Grotesk's x-height is 0.486 of
+           its em against the macOS system face's 0.508, so at any given
+           size its lowercase renders about four percent smaller — small
+           enough to look like a mistake rather than a choice, and a real
+           part of why the captions read as undersized. Its cap-height,
+           meanwhile, is 0.700 against 0.705, so the uppercase tracked
+           captions that carry most of this theme's voice look the same
+           either way. The identity was riding on the half of the face
+           this theme barely uses.
+
+           A system UI face is also hinted and optically sized for screen
+           text at 12px, which a display-leaning grotesque is not, and it
+           makes the two themes agree about what body text is — the point
+           of a theme here is palette and geometry, not a second opinion
+           on legibility.
+
+           What survives is what a display face is for: Bevan, italic, on
+           the wordmark alone, where the poster's voice is actually
+           audible. See TypographyTests for the one thing this costs — a
+           platform face cannot be verified the way an embedded one can.
+
+           FontMono is a key rather than a face for the same reason it
+           always was: the lists of file paths in the error banners are
+           the one place fixed width earns its keep, and the platform's
+           own mono is the right answer there. -->
+      <FontFamily x:Key="FontDisplay">avares://MightDo.App/Assets/Fonts#Bevan</FontFamily>
+      <FontFamily x:Key="FontText">$Default</FontFamily>
+      <FontFamily x:Key="FontMono">Menlo, Consolas, monospace</FontFamily>
+
+      <!-- Square by decree. Fluent reads these two for every stock
+           control it templates, so overriding them here squares the
+           whole application in one place rather than control by
+           control; the explicit setters further down are the backstop
+           for the parts that hard-code a radius instead. -->
+      <CornerRadius x:Key="ControlCornerRadius">0</CornerRadius>
+      <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
+
+      <!-- The offset ink shadow, once, so pressed states can drop it and
+           everything that carries it agrees on the register. -->
+      <BoxShadows x:Key="ShadowLetter">3 3 0 0 #2D233A</BoxShadows>
+
+      <ResourceDictionary.ThemeDictionaries>
+
+        <!-- ····· Paper (light) ····· -->
+        <ResourceDictionary x:Key="Light">
+          <!-- pink-500 is a highlight on a night ground and turns to
+               candyfloss on paper, so the light variant runs the accent
+               down to pink-600, which the design system itself uses for
+               links and focus once the ground goes light. A Color
+               assigned to a Background or a BorderBrush resolves to
+               nothing at all — silently, since the binding simply never
+               produces a value — so anything painted accent goes through
+               the brush, and the Color exists for Fluent alone. -->
+          <Color x:Key="SystemAccentColor">#C53798</Color>
+          <SolidColorBrush x:Key="AppAccentBrush">#C53798</SolidColorBrush>
+
+          <!-- Surfaces: playbill stock, warm rather than white. Sunken is
+               a level *down* from the window, not up — the poster has no
+               elevation, so the kit separates panes by pushing them into
+               the sheet and letting the card float back to plain white. -->
+          <SolidColorBrush x:Key="AppWindowBrush">#F2F0EA</SolidColorBrush>
+          <SolidColorBrush x:Key="AppSurfaceBrush">#E5E2D9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBrush">#FAF9F5</SolidColorBrush>
+          <SolidColorBrush x:Key="AppChipBrush">#E5E2D9</SolidColorBrush>
+          <SolidColorBrush x:Key="AppBorderBrush">#CFCBC0</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBorderBrush">#CFCBC0</SolidColorBrush>
+
+          <!-- Ink, and ink gone quiet. Both are real colours picked
+               against the paper rather than black at reduced opacity: a
+               half-transparent black over a tinted chip is a different
+               colour from a half-transparent black over the card, and
+               only one of them was chosen. -->
+          <SolidColorBrush x:Key="AppTextBrush">#2D233A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppTextSecondaryBrush">#6B6076</SolidColorBrush>
+
+          <!-- The ink the poster's rules and button borders are printed
+               in. Full-strength, never a tint — the 2px keyline around a
+               primary button is the design system's loudest signature. -->
+          <SolidColorBrush x:Key="AppInkBrush">#2D233A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppStrongBorderBrush">#9D95A5</SolidColorBrush>
+          <SolidColorBrush x:Key="AppHoverBrush">#0D2D233A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppActiveBrush">#172D233A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppFocusBrush">#C53798</SolidColorBrush>
+
+          <SolidColorBrush x:Key="AppDisabledBrush">#E4E4E4</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledBorderBrush">#D2D2D2</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledTextBrush">#757575</SolidColorBrush>
+
+          <!-- The lettering rose, taken down past rose-600 until it
+               clears 4.5:1 on both the window and a card. The design
+               system picked its reds against a night ground; on paper
+               they have to be darker to say the same thing. -->
+          <SolidColorBrush x:Key="OverdueBrush">#B23652</SolidColorBrush>
+
+          <!-- All four priorities, because three of them tinted and one
+               of them left plain is not a scale — it is two states and a
+               gap, and Medium fell in the gap looking exactly like the
+               category chip beside it.
+
+               The sheet runs warm for what is urgent and cool for what is
+               not: Critical takes the lettering rose, High the poster's
+               amber, Medium the periwinkle the night ground is mixed
+               from, Low the same periwinkle gone pale. Temperature says
+               whether to care; depth says how much. -->
+          <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#F7D8E4</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#9E2278</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#F6E7BE</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighForegroundBrush">#6B4E12</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumBackgroundBrush">#C6D0EE</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumForegroundBrush">#2E3789</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowBackgroundBrush">#EAE7F5</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowForegroundBrush">#575081</SolidColorBrush>
+
+          <!-- Text painted over the raw accent colour. -->
+          <SolidColorBrush x:Key="OnAccentBrush">#FAF9F5</SolidColorBrush>
+
+          <!-- Quiet, live, done. The design system's own three status
+               colours, with the quiet grey and the mint both darkened
+               until an 8px dot still separates from the header behind it —
+               a green that belongs to this palette rather than a stock
+               one borrowed in for the sake of a traffic light. -->
+          <SolidColorBrush x:Key="StatusInitialBrush">#7A7183</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusActiveBrush">#C53798</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusFinalBrush">#3F8C71</SolidColorBrush>
+        </ResourceDictionary>
+
+        <!-- ····· Night (dark) ····· -->
+        <!-- The poster ground, top to bottom: night-950 through
+             night-500. Elevation is the ramp itself — panes sink toward
+             950, cards sit at 800, chips lift to 700 — because a shadow
+             carries almost nothing against a dark ground, and the one
+             shadow this system owns is a hard ink offset that would
+             vanish into it. -->
+        <ResourceDictionary x:Key="Dark">
+          <Color x:Key="SystemAccentColor">#FC6BCC</Color>
+          <SolidColorBrush x:Key="AppAccentBrush">#FC6BCC</SolidColorBrush>
+
+          <SolidColorBrush x:Key="AppWindowBrush">#22224E</SolidColorBrush>
+          <SolidColorBrush x:Key="AppSurfaceBrush">#191940</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBrush">#2A2A5E</SolidColorBrush>
+          <SolidColorBrush x:Key="AppChipBrush">#3B3A6C</SolidColorBrush>
+          <SolidColorBrush x:Key="AppBorderBrush">#4B4B8D</SolidColorBrush>
+          <SolidColorBrush x:Key="AppCardBorderBrush">#4B4B8D</SolidColorBrush>
+
+          <!-- moon-100, not white. Pure white on a night ground is past
+               legible and into glare, and body text is the largest area
+               of colour on screen. -->
+          <SolidColorBrush x:Key="AppTextBrush">#DEE5E7</SolidColorBrush>
+          <SolidColorBrush x:Key="AppTextSecondaryBrush">#A9A9CC</SolidColorBrush>
+
+          <!-- Ink stays ink in both variants: the keyline and the offset
+               shadow are printing, not lighting, and a pink button with
+               a pale border is a different design. -->
+          <SolidColorBrush x:Key="AppInkBrush">#2D233A</SolidColorBrush>
+          <SolidColorBrush x:Key="AppStrongBorderBrush">#73DEE5E7</SolidColorBrush>
+          <SolidColorBrush x:Key="AppHoverBrush">#14DEE5E7</SolidColorBrush>
+          <SolidColorBrush x:Key="AppActiveBrush">#24DEE5E7</SolidColorBrush>
+          <SolidColorBrush x:Key="AppFocusBrush">#ECB4EC</SolidColorBrush>
+
+          <!-- The one place neutral grey is allowed, in either scheme and
+               in either theme. Everything else on screen carries the
+               palette, so a control that has gone properly grey reads as
+               switched off without a second cue — which only holds while
+               nothing else on screen is grey. -->
+          <SolidColorBrush x:Key="AppDisabledBrush">#2B2B2B</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledBorderBrush">#3B3B3B</SolidColorBrush>
+          <SolidColorBrush x:Key="AppDisabledTextBrush">#8A8A8A</SolidColorBrush>
+
+          <SolidColorBrush x:Key="OverdueBrush">#FF9DAF</SolidColorBrush>
+
+          <!-- The cool end has to work harder here, because the ground
+               is already indigo: a periwinkle Medium on a night-blue
+               sheet is the sheet. So Medium goes to steel and Low to a
+               dulled mauve, one hue either side of the ground rather than
+               on top of it. -->
+          <SolidColorBrush x:Key="PriorityCriticalBackgroundBrush">#4A2231</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityCriticalForegroundBrush">#FF8FA6</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighBackgroundBrush">#3E3720</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityHighForegroundBrush">#F2C14E</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumBackgroundBrush">#123448</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityMediumForegroundBrush">#8FCBEA</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowBackgroundBrush">#423C52</SolidColorBrush>
+          <SolidColorBrush x:Key="PriorityLowForegroundBrush">#CDC1D4</SolidColorBrush>
+
+          <!-- The night accent is a highlight, so text on it goes to ink. -->
+          <SolidColorBrush x:Key="OnAccentBrush">#2D233A</SolidColorBrush>
+
+          <SolidColorBrush x:Key="StatusInitialBrush">#7676B0</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusActiveBrush">#FC6BCC</SolidColorBrush>
+          <SolidColorBrush x:Key="StatusFinalBrush">#8FD6C0</SolidColorBrush>
+        </ResourceDictionary>
+      </ResourceDictionary.ThemeDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+      <!-- Fluent builds every stock control — button fills, field grounds,
+           hover states, the accent — from this one palette per variant, and
+           it reads it from here rather than from the dictionaries above.
+           Leaving it out is how the accent ends up stock Windows blue and
+           every button ends up grey.
+
+           Grey is the point of the exercise. Fluent's defaults are pure
+           black and pure white at low alpha, and an overlay of neutral over
+           a tinted ground averages the tint away. The fills below are opaque
+           and carry the palette themselves rather than being mixed from it.
+
+           The exceptions are deliberate: ChromeDisabled* stays flat, so
+           switched-off means switched-off and nothing else. -->
+      <FluentTheme>
+        <FluentTheme.Palettes>
+          <fluent:ColorPaletteResources x:Key="Light"
+                                        Accent="#C53798"
+                                        RegionColor="#F2F0EA"
+                                        AltHigh="#FFFFFF"
+                                        AltLow="#33FFFFFF"
+                                        AltMedium="#99FFFFFF"
+                                        AltMediumHigh="#CCFFFFFF"
+                                        AltMediumLow="#66FFFFFF"
+                                        BaseHigh="#2D233A"
+                                        BaseLow="#E5E2D9"
+                                        BaseMedium="#992D233A"
+                                        BaseMediumHigh="#CC2D233A"
+                                        BaseMediumLow="#662D233A"
+                                        ChromeAltLow="#2D233A"
+                                        ChromeBlackHigh="#2D233A"
+                                        ChromeBlackLow="#332D233A"
+                                        ChromeBlackMedium="#CC2D233A"
+                                        ChromeBlackMediumLow="#662D233A"
+                                        ChromeHigh="#CFCBC0"
+                                        ChromeLow="#FAF9F5"
+                                        ChromeMedium="#E5E2D9"
+                                        ChromeMediumLow="#F2F0EA"
+                                        ChromeWhite="#FFFFFF"
+                                        ListLow="#192D233A"
+                                        ListMedium="#332D233A"
+                                        ErrorText="#C33F5E" />
+          <fluent:ColorPaletteResources x:Key="Dark"
+                                        Accent="#FC6BCC"
+                                        RegionColor="#22224E"
+                                        AltHigh="#22224E"
+                                        AltLow="#3322224E"
+                                        AltMedium="#9922224E"
+                                        AltMediumHigh="#CC22224E"
+                                        AltMediumLow="#6622224E"
+                                        BaseHigh="#DEE5E7"
+                                        BaseLow="#3B3A6C"
+                                        BaseMedium="#99DEE5E7"
+                                        BaseMediumHigh="#CCDEE5E7"
+                                        BaseMediumLow="#66DEE5E7"
+                                        ChromeAltLow="#DEE5E7"
+                                        ChromeBlackHigh="#191940"
+                                        ChromeBlackLow="#33191940"
+                                        ChromeBlackMedium="#CC191940"
+                                        ChromeBlackMediumLow="#66191940"
+                                        ChromeHigh="#4B4B8D"
+                                        ChromeLow="#191940"
+                                        ChromeMedium="#22224E"
+                                        ChromeMediumLow="#2A2A5E"
+                                        ChromeWhite="#DEE5E7"
+                                        ListLow="#19DEE5E7"
+                                        ListMedium="#33DEE5E7"
+                                        ErrorText="#E85878" />
+        </FluentTheme.Palettes>
+      </FluentTheme>
+
+      <!-- ============================================================
+           Type. One face, the platform's, doing every job — what
+           separates the furniture from the content is size, weight,
+           tracking, case and colour rather than a second family. The
+           design system splits those roles across two faces, and this
+           is the same split made without the second file: the caption
+           roles are small, uppercase, tracked and secondary, which is
+           four signals of not-body-text before a typeface is asked to
+           be a fifth. It still stops a dense form from
+           looking like a form: the furniture recedes into catalogue
+           type and the content stays plain.
+
+           FontFamily inherits down the visual tree, so the two window
+           selectors reach every control including the ones in popups,
+           which hang off the window's own overlay layer.
+           ============================================================ -->
+      <Style Selector="Window">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontSize" Value="14" />
+      </Style>
+      <Style Selector="UserControl">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+      </Style>
+
+      <!-- The three caption roles, all mono, all tracked wide enough to
+           read as printing rather than as small text. Uppercase is set
+           on the strings themselves — Avalonia has no text-transform,
+           and a converter on every label would be a lot of machinery
+           for eight words that never change. -->
+      <Style Selector="TextBlock.section">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LetterSpacing" Value="1.6" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        <Setter Property="Margin" Value="0,18,0,6" />
+      </Style>
+      <Style Selector="TextBlock.group">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LetterSpacing" Value="1.5" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="Margin" Value="0,0,0,5" />
+      </Style>
+      <Style Selector="TextBlock.label">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LetterSpacing" Value="1.5" />
+        <Setter Property="Margin" Value="0,10,0,3" />
+      </Style>
+      <Style Selector="TextBlock.hint">
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontSize" Value="12" />
+      </Style>
+
+      <!-- Interactive labels: the words on something you press that is
+           not a stock button — the view switcher, a radio in a strip of
+           chrome. These are not captions. A caption states something and
+           is meant to recede; a control label is a target, sits beside
+           real buttons, and has to look like it belongs to them. They
+           take the toolbar's size, weight and tracking so a row of mixed
+           chrome reads as one row.
+
+           They also take the primary ink rather than the secondary: a
+           control you can press should not be quieter than the count
+           printed next to it. -->
+      <Style Selector="TextBlock.control">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LetterSpacing" Value="0.85" />
+      </Style>
+
+      <!-- The one place the display face appears in the application
+           chrome: the wordmark. Bevan is a poster slab and is unreadable
+           below about 20px, so it is never allowed near a control. -->
+      <Style Selector="TextBlock.wordmark">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}" />
+        <Setter Property="FontStyle" Value="Italic" />
+        <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="FontSize" Value="44" />
+      </Style>
+
+      <!-- Counts, sizes, timestamps and the status line. UI faces set
+           proportional figures by default, so a count reflows every time
+           it changes and shoves its neighbours along with it. tnum is the
+           face's own tabular set, which is all a mono was being asked for
+           here — honoured by the macOS system face and by Segoe UI, and
+           ignored without complaint by anything that has no OpenType
+           features to offer. -->
+      <Style Selector="TextBlock.meta">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LetterSpacing" Value="0.6" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+      </Style>
+
+      <!-- A due date is quiet until it is overdue, then it is the loudest
+           thing on the row. -->
+      <Style Selector="TextBlock.due">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="LetterSpacing" Value="0.4" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+      </Style>
+      <Style Selector="TextBlock.due.overdue">
+        <Setter Property="Foreground" Value="{DynamicResource OverdueBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+      </Style>
+
+      <!-- ============================================================
+           Geometry. Fluent hard-codes a radius into several templates
+           rather than reading ControlCornerRadius, so the square corners
+           are asserted again here on the controls this app actually
+           uses. Cheap, and it is the single most visible thing about
+           this design system.
+           ============================================================ -->
+      <Style Selector=":is(TemplatedControl)">
+        <Setter Property="CornerRadius" Value="0" />
+      </Style>
+      <Style Selector="Border">
+        <Setter Property="CornerRadius" Value="0" />
+      </Style>
+
+      <!-- ============================================================
+           Buttons. The default is the design system's secondary: a
+           hairline keyline, no fill, body text. Only the accent class
+           gets the full poster treatment — pink plate, 2px ink keyline,
+           and the hard offset shadow that snaps flat when pressed, so
+           the button behaves like a stamp coming down on the page.
+           ============================================================ -->
+      <Style Selector="Button">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppStrongBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        <Setter Property="Padding" Value="12,6" />
+        <Setter Property="FontWeight" Value="Medium" />
+      </Style>
+      <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppHoverBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppStrongBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      </Style>
+      <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppActiveBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppStrongBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      </Style>
+
+      <Style Selector="Button.accent">
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppInkBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+        <Setter Property="LetterSpacing" Value="0.8" />
+      </Style>
+      <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppInkBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        <!-- The shadow goes on the presenter rather than the button: a
+             Button is not a Border and has no BoxShadow of its own. -->
+        <Setter Property="BoxShadow" Value="{StaticResource ShadowLetter}" />
+      </Style>
+      <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppInkBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        <Setter Property="Opacity" Value="0.88" />
+      </Style>
+      <!-- Pressed drops the shadow and moves the plate onto where the
+           shadow was: the whole button travels 3px down and right and
+           lands flush with the page. -->
+      <Style Selector="Button.accent:pressed">
+        <Setter Property="RenderTransform" Value="translate(3px, 3px)" />
+      </Style>
+      <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppInkBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource OnAccentBrush}" />
+        <Setter Property="BoxShadow" Value="none" />
+      </Style>
+      <Style Selector="Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="BoxShadow" Value="none" />
+      </Style>
+
+      <!-- Toolbar chrome. Quieter than a button until you are over it —
+           the design system's toolbars are borderless until touched, so
+           a row of six controls does not read as six boxes.
+
+           The text face, not the caption mono. The kit is specific about
+           this and it is worth saying why: mono is for the things the
+           application states about itself and never changes — a label, a
+           count, a timestamp — where the fixed width is the point. A
+           toolbar is words you read and press, six of them in a row, and
+           setting those in a mono makes the busiest strip in the window
+           the hardest part of it to scan. Medium weight and open tracking
+           carry the voice instead. -->
+      <Style Selector="Button.toolbar, ToggleButton.toolbar">
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextSecondaryBrush}" />
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LetterSpacing" Value="0.85" />
+        <Setter Property="Padding" Value="10,6" />
+      </Style>
+      <Style Selector="Button.toolbar:pointerover, ToggleButton.toolbar:pointerover">
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+      </Style>
+      <!-- The toolbar buttons hold explicit TextBlocks beside their
+           icons rather than a bare string, and a TextBlock brings its own
+           defaults for anything the theme has not spoken about. This
+           reaches them so the face and tracking survive the trip through
+           the content template. -->
+      <Style Selector="Button.toolbar TextBlock, ToggleButton.toolbar TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="Medium" />
+        <Setter Property="LetterSpacing" Value="0.85" />
+      </Style>
+
+      <Style Selector="ToggleButton.toolbar:checked /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppActiveBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppAccentBrush}" />
+      </Style>
+
+      <Style Selector="ToggleButton">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppStrongBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        <Setter Property="Padding" Value="12,6" />
+      </Style>
+
+      <!-- ============================================================
+           Fields. Sunken rather than raised — the design system puts
+           inputs a level *below* the surface they sit on, which is why
+           a form here reads as slots cut into the sheet. Focus is the
+           accent keyline; there is no glow, because the poster has no
+           glow anywhere except the moon.
+           ============================================================ -->
+      <Style Selector="TextBox /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+      </Style>
+      <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource AppFocusBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+      </Style>
+      <Style Selector="ComboBox /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+      </Style>
+
+      <!-- Ticked boxes take the accent plate and the ink keyline, the
+           same two-colour move as the primary button, one size down. -->
+      <Style Selector="CheckBox:checked /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppInkBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+      </Style>
+      <Style Selector="CheckBox:checked /template/ Path#CheckGlyph">
+        <Setter Property="Fill" Value="{DynamicResource AppInkBrush}" />
+      </Style>
+
+      <!-- ============================================================
+           Chips. Square, hairline, mono. The pill was the one shape the
+           poster does not contain, and it was on every chip in the app.
+           ============================================================ -->
+      <Style Selector="Border.chip">
+        <Setter Property="Background" Value="{DynamicResource AppChipBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Padding" Value="7,2" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <!-- Chips carry a status or a category the user named, so they are
+           the last place to spend width on a fixed-width face: a board
+           column is 260px and "Waiting on someone else" has to fit in it.
+           Tabular figures because a chip often is one ("3 of 5"). -->
+      <Style Selector="Border.chip > StackPanel > TextBlock, Border.chip > TextBlock">
+        <Setter Property="FontFeatures" Value="tnum" />
+        <Setter Property="LetterSpacing" Value="0.2" />
+      </Style>
+      <!-- Every priority tints its chip and takes its own keyline, all
+           four built the same way. Medium used to wear no class at all,
+           which made it the plain chip - indistinguishable from the
+           category beside it - and Low was the plain chip at 70% opacity,
+           which is the disabled signal and not a priority at all.
+
+           What separates them now is hue for urgent against calm, depth
+           for how far along the scale, and weight as the third cue for
+           anyone who cannot use the first two. Bold, bold, medium,
+           normal: the ladder is legible in greyscale. -->
+      <Style Selector="Border.chip.critical">
+        <Setter Property="Background" Value="{DynamicResource PriorityCriticalBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PriorityCriticalForegroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.critical > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityCriticalForegroundBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+      </Style>
+      <Style Selector="Border.chip.high">
+        <Setter Property="Background" Value="{DynamicResource PriorityHighBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PriorityHighForegroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.high > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityHighForegroundBrush}" />
+        <Setter Property="FontWeight" Value="Bold" />
+      </Style>
+      <Style Selector="Border.chip.medium">
+        <Setter Property="Background" Value="{DynamicResource PriorityMediumBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PriorityMediumForegroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.medium > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityMediumForegroundBrush}" />
+        <Setter Property="FontWeight" Value="Medium" />
+      </Style>
+      <Style Selector="Border.chip.low">
+        <Setter Property="Background" Value="{DynamicResource PriorityLowBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource PriorityLowForegroundBrush}" />
+      </Style>
+      <Style Selector="Border.chip.low > TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource PriorityLowForegroundBrush}" />
+      </Style>
+
+      <!-- The dot that says what kind of status this is without reading
+           it. The one round thing the design system allows, and only
+           because it is a badge marker rather than a container. -->
+      <Style Selector="Ellipse.statusdot">
+        <Setter Property="Width" Value="8" />
+        <Setter Property="Height" Value="8" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.initial">
+        <Setter Property="Fill" Value="{DynamicResource StatusInitialBrush}" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.active">
+        <Setter Property="Fill" Value="{DynamicResource StatusActiveBrush}" />
+      </Style>
+      <Style Selector="Ellipse.statusdot.final">
+        <Setter Property="Fill" Value="{DynamicResource StatusFinalBrush}" />
+      </Style>
+
+      <!-- ============================================================
+           List rows. A hairline between them gives the eye somewhere to
+           stop; without it a screenful of tasks reads as one block of
+           text. The rule goes on the item rather than into the row
+           template so the selection highlight sits over it rather than
+           under it, and nth-last-child keeps the final row from drawing
+           a line into the list's own bottom border.
+
+           Selection lifts the ground rather than filling a bar, so the
+           row stays as readable selected as not — see below for why it
+           is not the leading accent rule the rest of the system uses.
+           ============================================================ -->
+      <Style Selector="ListBox.rows > ListBoxItem">
+        <!-- The item's own theme sets a foreground, which otherwise wins
+             over the window's and leaves the rows on stock black or white
+             while everything around them is tinted. -->
+        <Setter Property="Foreground" Value="{DynamicResource AppTextBrush}" />
+        <Setter Property="Padding" Value="10,4" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      </Style>
+      <Style Selector="ListBox.rows > ListBoxItem:not(:nth-last-child(1))">
+        <Setter Property="BorderThickness" Value="0,0,0,1" />
+      </Style>
+      <!-- The presenter is also what draws the divider, since Fluent binds
+           its border straight from the item's — so selection is expressed in
+           the ground rather than in a leading rule. Setting a thickness here
+           for a marker would overwrite the row separator, and one of the two
+           has to give: a list that has lost its rules is worse than a
+           selection that is a shade rather than a stripe. It is also what the
+           design system does for table rows, which is what these are. -->
+      <Style Selector="ListBox.rows > ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="CornerRadius" Value="0" />
+      </Style>
+      <Style Selector="ListBox.rows > ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppHoverBrush}" />
+      </Style>
+      <Style Selector="ListBox.rows > ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppActiveBrush}" />
+      </Style>
+
+      <!-- ============================================================
+           Disabled. Fluent leaves a disabled button the same fill as a
+           live one and only fades the label, which reads as "slightly
+           quieter" rather than "you cannot press this". These take the
+           control all the way to the flat end of the ramp instead.
+
+           The fills have to be set on the template part rather than on
+           the control, because Fluent's own disabled styles target those
+           parts and would otherwise win.
+           ============================================================ -->
+      <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <Style Selector="ToggleButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <Style Selector="TextBox:disabled /template/ Border#PART_BorderElement">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <Style Selector="ComboBox:disabled /template/ Border#Background">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <Style Selector="CheckBox:disabled /template/ Border#NormalRectangle">
+        <Setter Property="Background" Value="{DynamicResource AppDisabledBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppDisabledBorderBrush}" />
+      </Style>
+      <!-- The tick is a Path, so it takes a Fill rather than a Foreground,
+           and greying the box without it leaves a disabled checkbox with no
+           way to say it is ticked. -->
+      <Style Selector="CheckBox:disabled /template/ Path#CheckGlyph">
+        <Setter Property="Fill" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+      <!-- Text and glyphs, which live outside the parts painted above. -->
+      <Style Selector=":is(TemplatedControl):disabled">
+        <Setter Property="Foreground" Value="{DynamicResource AppDisabledTextBrush}" />
+      </Style>
+
+      <!-- Banners are a slab of the sunken ground with an accent rule
+           down the leading edge — the design system's notice, and the
+           same marker the selected row uses, so "look here" means one
+           thing throughout. -->
+      <Style Selector="Border.banner">
+        <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
+        <Setter Property="BorderThickness" Value="2,0,0,0" />
+        <Setter Property="CornerRadius" Value="0" />
+        <Setter Property="Padding" Value="14,10" />
+        <Setter Property="Margin" Value="0,0,0,8" />
+      </Style>
+</Styles>

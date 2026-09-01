@@ -73,8 +73,11 @@ public class TextAndSurfaceTests : IDisposable
         // used to look muddy over a tinted chip. A brush is a brush anywhere.
         var window = await OpenAsync("Anything");
 
+        // "meta" is the same role in the mono caption face: both are
+        // secondary text, and a theme is free to use either.
         var hint = Descendants<TextBlock>(window)
-            .First(block => block.Classes.Contains("hint"));
+            .First(block => block.Classes.Contains("hint")
+                         || block.Classes.Contains("meta"));
 
         Assert.Same(Resource("AppTextSecondaryBrush"), hint.Foreground);
         Assert.Equal(1, hint.Opacity);
@@ -96,29 +99,41 @@ public class TextAndSurfaceTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void TheDarkCardEdgeIsLitAlongTheTop()
+    public void TheSageSlateDarkCardEdgeIsLitAlongTheTop()
     {
-        // The whole point of the gradient: it must start lighter than it ends,
-        // or the border is a flat line wearing a gradient's clothes.
-        Assert.True(Application.Current!.TryGetResource(
-            "AppCardBorderBrush", ThemeVariant.Dark, out var value));
+        // The lit edge belongs to one theme, not to the application: it is how
+        // Sage & Slate says "raised" on a ground too dark to take a shadow.
+        // The whole point of the gradient is that it must start lighter than it
+        // ends, or the border is a flat line wearing a gradient's clothes.
+        Wearing(DesignTheme.SageSlate, () =>
+        {
+            Assert.True(Application.Current!.TryGetResource(
+                "AppCardBorderBrush", ThemeVariant.Dark, out var value));
 
-        var gradient = Assert.IsType<LinearGradientBrush>(value);
-        var top = gradient.GradientStops.First().Color;
-        var below = gradient.GradientStops.Last().Color;
+            var gradient = Assert.IsType<LinearGradientBrush>(value);
+            var top = gradient.GradientStops.First().Color;
+            var below = gradient.GradientStops.Last().Color;
 
-        Assert.True(Luminance(top) > Luminance(below));
+            Assert.True(Luminance(top) > Luminance(below));
+        });
     }
 
     [AvaloniaFact]
-    public void TheLightCardEdgeStaysFlat()
+    public void TheCyrkCardEdgeIsFlatInBothSchemes()
     {
-        // A white card has nothing to lift its edge above, so light mode opts
-        // out rather than drawing a gradient nobody can see.
-        Assert.True(Application.Current!.TryGetResource(
-            "AppCardBorderBrush", ThemeVariant.Light, out var value));
+        // And the opposite theme makes the opposite choice, deliberately: Cyrk
+        // 66 is printing rather than lighting, so an edge that catches the
+        // light would be the one thing on screen pretending to be a surface.
+        Wearing(DesignTheme.Cyrk66, () =>
+        {
+            foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                Assert.True(Application.Current!.TryGetResource(
+                    "AppCardBorderBrush", variant, out var value));
 
-        Assert.IsAssignableFrom<ISolidColorBrush>(value);
+                Assert.IsAssignableFrom<ISolidColorBrush>(value);
+            }
+        });
     }
 
     [AvaloniaFact]
@@ -132,6 +147,31 @@ public class TextAndSurfaceTests : IDisposable
 
     private static WorkspaceViewModel Workspace(Window window) =>
         ((MainViewModel)window.DataContext!).Workspace!;
+
+    /// <summary>
+    /// Runs an assertion with the application wearing one particular design
+    /// theme, and puts back whatever it was wearing before.
+    /// </summary>
+    /// <remarks>
+    /// The headless application is shared across the tests in this class, so a
+    /// theme left on would decide the outcome of whichever test ran next.
+    /// </remarks>
+    private static void Wearing(DesignTheme design, Action assert)
+    {
+        var before = Application.Current!.Styles.Count > 0
+            ? Application.Current.Styles[0]
+            : null;
+
+        try
+        {
+            Theme.ApplyDesign(design);
+            assert();
+        }
+        finally
+        {
+            if (before is not null) Application.Current.Styles[0] = before;
+        }
+    }
 
     private static double Luminance(Color color) =>
         (0.2126 * color.R) + (0.7152 * color.G) + (0.0722 * color.B);

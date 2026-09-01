@@ -133,7 +133,7 @@ public class ThemeSettingTests : IDisposable
         window.Arrange(new Rect(window.ClientSize));
 
         var radios = window.GetVisualDescendants().OfType<RadioButton>()
-            .Where(radio => radio.GroupName == "Theme")
+            .Where(radio => radio.GroupName == "Scheme")
             .ToList();
 
         Assert.Equal(3, radios.Count);

@@ -200,17 +200,17 @@ public class FilterPanelTests : IDisposable
         window.Show();
         Dispatcher.UIThread.RunJobs();
 
-        Assert.DoesNotContain("Status Type", VisibleTexts(window));
+        Assert.DoesNotContain("STATUS TYPE", VisibleTexts(window));
 
         workspace.ToggleFiltersCommand.Execute(null);
         Dispatcher.UIThread.RunJobs();
 
         var texts = VisibleTexts(window);
-        Assert.Contains("Status", texts);
-        Assert.Contains("Status Type", texts);
-        Assert.Contains("Priority", texts);
-        Assert.Contains("Category", texts);
-        Assert.Contains("Tags", texts);
+        Assert.Contains("STATUS", texts);
+        Assert.Contains("STATUS TYPE", texts);
+        Assert.Contains("PRIORITY", texts);
+        Assert.Contains("CATEGORY", texts);
+        Assert.Contains("TAGS", texts);
 
         // Q7: the glossary's term, never "Stage".
         Assert.DoesNotContain(texts, text => text.Contains("Stage"));

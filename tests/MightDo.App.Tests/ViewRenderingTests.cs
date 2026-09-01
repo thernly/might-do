@@ -146,9 +146,9 @@ public class ViewRenderingTests : IDisposable
         Assert.NotNull(workspace.Detail);
 
         var pane = Assert.Single(Descendants<TaskDetailView>(window));
-        Assert.Contains(TextsIn(pane), text => text == "Steps");
-        Assert.Contains(TextsIn(pane), text => text == "Notes");
-        Assert.Contains(TextsIn(pane), text => text == "Reminders");
+        Assert.Contains(TextsIn(pane), text => text == "STEPS");
+        Assert.Contains(TextsIn(pane), text => text == "NOTES");
+        Assert.Contains(TextsIn(pane), text => text == "REMINDERS");
     }
 
     [AvaloniaFact]
@@ -253,10 +253,10 @@ public class ViewRenderingTests : IDisposable
         Dispatcher.UIThread.RunJobs();
 
         var texts = TextsIn(window);
-        Assert.Contains("Statuses", texts);
-        Assert.Contains("Categories", texts);
-        Assert.Contains("Tags", texts);
-        Assert.Contains("Import and export", texts);
+        Assert.Contains("STATUSES", texts);
+        Assert.Contains("CATEGORIES", texts);
+        Assert.Contains("TAGS", texts);
+        Assert.Contains("IMPORT AND EXPORT", texts);
 
         // The glossary's term, not "Stage".
         Assert.Contains(texts, text => text.Contains("Status Types"));

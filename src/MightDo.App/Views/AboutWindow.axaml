@@ -17,9 +17,11 @@
              Source="avares://MightDo.App/Assets/might-do-icon.png" />
 
       <StackPanel Grid.Column="1" Spacing="7">
-        <TextBlock Text="Might Do" FontSize="28" FontWeight="SemiBold" />
-        <TextBlock Name="VersionLabel"
-                   Foreground="{DynamicResource AppTextSecondaryBrush}" />
+        <!-- The one place the poster face is allowed to be the poster
+             face: the wordmark, in Bevan italic, at a size it was drawn
+             for. -->
+        <TextBlock Text="Might Do" Classes="wordmark" FontSize="38" />
+        <TextBlock Name="VersionLabel" Classes="meta" />
         <TextBlock Margin="0,7,0,0"
                    Text="A local-first personal task tracker."
                    TextWrapping="Wrap" />

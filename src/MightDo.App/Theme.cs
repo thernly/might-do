@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using MightDo.Platform;
@@ -44,6 +45,49 @@ public static class Theme
         Follow(application);
         application.RequestedThemeVariant = Resolve(preference);
     }
+
+    /// <summary>Where each design theme's one file lives.</summary>
+    /// <remarks>
+    /// A theme is a whole look — palette, geometry, type and Fluent's own
+    /// control colours — held in a single <c>Styles</c> file, so applying one is
+    /// a single assignment and there is no state in which half of the previous
+    /// theme is still on screen.
+    /// </remarks>
+    public static Uri SourceFor(DesignTheme design) => new(design switch
+    {
+        DesignTheme.SageSlate => "avares://MightDo.App/Themes/SageSlate.axaml",
+        _ => "avares://MightDo.App/Themes/Cyrk66.axaml",
+    });
+
+    /// <summary>
+    /// Wears the given design theme, if there is an application to wear it.
+    /// </summary>
+    /// <remarks>
+    /// The theme replaces the application's single style entry rather than
+    /// being added to it. Adding would leave the old theme underneath, still
+    /// answering for every key the new one happens not to define — and the
+    /// stack would grow by one on each switch, so the tenth choice would be
+    /// painted over nine abandoned ones.
+    /// <para>
+    /// Everything the views read is a <c>DynamicResource</c>, which is what
+    /// makes the swap visible immediately rather than at the next restart.
+    /// </para>
+    /// </remarks>
+    public static void ApplyDesign(DesignTheme design)
+    {
+        if (Application.Current is not { } application) return;
+
+        var include = new StyleInclude(BaseUri) { Source = SourceFor(design) };
+
+        if (application.Styles.Count == 0) application.Styles.Add(include);
+        else application.Styles[0] = include;
+    }
+
+    /// <summary>
+    /// The root every theme URI is resolved against. The sources above are
+    /// absolute <c>avares://</c> URIs, so this only has to be a valid base.
+    /// </summary>
+    private static readonly Uri BaseUri = new("avares://MightDo.App/");
 
     /// <summary>Whichever scheme the operating system is in, defaulting to light.</summary>
     private static ThemeVariant SystemVariant() =>

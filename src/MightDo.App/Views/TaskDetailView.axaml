@@ -19,11 +19,11 @@
 
       <!-- Summary and description. Both commit on losing focus, because each
            commit is a file write into a synced folder. -->
-      <TextBlock Classes="label" Text="Summary" />
+      <TextBlock Classes="label" Text="SUMMARY" />
       <TextBox Text="{Binding Summary, UpdateSourceTrigger=LostFocus}"
                AcceptsReturn="False" />
 
-      <TextBlock Classes="label" Text="Description" />
+      <TextBlock Classes="label" Text="DESCRIPTION" />
       <TextBox Name="DescriptionBox"
                Text="{Binding Description, UpdateSourceTrigger=LostFocus}"
                AcceptsReturn="True" TextWrapping="Wrap" MinHeight="80"
@@ -35,7 +35,7 @@
       <!-- Classification -->
       <Grid ColumnDefinitions="*,8,*" RowDefinitions="Auto,Auto,Auto,Auto">
         <StackPanel Grid.Row="0" Grid.Column="0">
-          <TextBlock Classes="label" Text="Status" />
+          <TextBlock Classes="label" Text="STATUS" />
           <ComboBox Name="StatusBox"
                     ItemsSource="{Binding Statuses}" SelectedItem="{Binding SelectedStatus}"
                     HorizontalAlignment="Stretch">
@@ -48,13 +48,13 @@
         </StackPanel>
 
         <StackPanel Grid.Row="0" Grid.Column="2">
-          <TextBlock Classes="label" Text="Priority" />
+          <TextBlock Classes="label" Text="PRIORITY" />
           <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}"
                     HorizontalAlignment="Stretch" />
         </StackPanel>
 
         <StackPanel Grid.Row="1" Grid.Column="0">
-          <TextBlock Classes="label" Text="Category" />
+          <TextBlock Classes="label" Text="CATEGORY" />
           <ComboBox Name="CategoryBox"
                     ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}"
                     HorizontalAlignment="Stretch">
@@ -72,7 +72,7 @@
              beside and below it. This one is a text box with a calendar
              button, and shrinks. -->
         <StackPanel Grid.Row="1" Grid.Column="2">
-          <TextBlock Classes="label" Text="Due" />
+          <TextBlock Classes="label" Text="DUE" />
           <CalendarDatePicker SelectedDate="{Binding DueDate}"
                               HorizontalAlignment="Stretch"
                               SelectedDateFormat="Custom"
@@ -81,12 +81,12 @@
         </StackPanel>
 
         <StackPanel Grid.Row="2" Grid.Column="0">
-          <TextBlock Classes="label" Text="Estimate (minutes)" />
+          <TextBlock Classes="label" Text="ESTIMATE (MINUTES)" />
           <TextBox Text="{Binding EstimateMinutes, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
 
         <StackPanel Grid.Row="2" Grid.Column="2">
-          <TextBlock Classes="label" Text="Actual (minutes)" />
+          <TextBlock Classes="label" Text="ACTUAL (MINUTES)" />
           <TextBox Text="{Binding TotalTimeMinutes, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
       </Grid>
@@ -97,7 +97,7 @@
       <TextBlock Classes="hint" Text="{Binding CompletedLabel}" Margin="0,4,0,0"
                  IsVisible="{Binding CompletedLabel, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-      <TextBlock Classes="label" Text="Tags (comma separated)" />
+      <TextBlock Classes="label" Text="TAGS (COMMA SEPARATED)" />
       <TextBox Text="{Binding TagNames, UpdateSourceTrigger=LostFocus}">
         <TextBox.KeyBindings>
           <KeyBinding Gesture="Enter" Command="{Binding CommitTagsCommand}" />
@@ -107,7 +107,7 @@
               Margin="0,4,0,0" HorizontalAlignment="Right" />
 
       <!-- Steps -->
-      <TextBlock Classes="section" Text="Steps" />
+      <TextBlock Classes="section" Text="STEPS" />
       <TextBlock Classes="hint"
                  Text="Ticking them all off does not complete the task." />
       <ItemsControl ItemsSource="{Binding Steps}" Margin="0,4,0,0">
@@ -138,13 +138,13 @@
       </Grid>
 
       <!-- Notes -->
-      <TextBlock Classes="section" Text="Notes" />
+      <TextBlock Classes="section" Text="NOTES" />
       <TextBlock Classes="hint"
                  Text="A running commentary. Never rewritten to reflect a later understanding." />
       <ItemsControl ItemsSource="{Binding Notes}" Margin="0,4,0,0">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:NoteViewModel">
-            <Border Padding="8" Margin="0,3" CornerRadius="6"
+            <Border Padding="8" Margin="0,3" CornerRadius="0"
                     Background="{DynamicResource AppSurfaceBrush}">
               <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                 <TextBlock Grid.Row="0" Grid.Column="0" Text="{Binding When}" Classes="hint" />
@@ -164,7 +164,7 @@
               Margin="0,4,0,0" HorizontalAlignment="Right" />
 
       <!-- Reminders -->
-      <TextBlock Classes="section" Text="Reminders" />
+      <TextBlock Classes="section" Text="REMINDERS" />
       <ItemsControl ItemsSource="{Binding Reminders}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ReminderViewModel">
@@ -204,7 +204,7 @@
                  Text="Reminders fire only while might-do is running. Anything missed waits in the banner." />
 
       <!-- Attachments -->
-      <TextBlock Classes="section" Text="Attachments" />
+      <TextBlock Classes="section" Text="ATTACHMENTS" />
       <ItemsControl ItemsSource="{Binding Attachments}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:AttachmentViewModel">
@@ -227,7 +227,7 @@
       <!-- A large file is asked about before it is copied: the workspace is a
            synced folder, so attaching one is an upload as well as a copy. -->
       <Border IsVisible="{Binding IsConfirmingAttachment}" Margin="0,8,0,0"
-              Padding="12" CornerRadius="6"
+              Padding="12" CornerRadius="0"
               Background="{DynamicResource AppSurfaceBrush}">
         <StackPanel Spacing="8">
           <TextBlock TextWrapping="Wrap" Text="{Binding AttachmentConfirmation}" />

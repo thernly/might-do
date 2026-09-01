@@ -959,6 +959,8 @@ public sealed class TaskRowViewModel(MightDoTask task, WorkspaceConfig config)
 
     public bool IsLowPriority { get; } = task.Priority == Priority.Low;
 
+    public bool IsMediumPriority { get; } = task.Priority == Priority.Medium;
+
     public bool IsHighPriority { get; } = task.Priority == Priority.High;
 
     public bool IsCriticalPriority { get; } = task.Priority == Priority.Critical;

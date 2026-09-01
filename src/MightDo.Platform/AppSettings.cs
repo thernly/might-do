@@ -33,6 +33,28 @@ public enum ThemePreference
     Dark,
 }
 
+/// <summary>Which design theme — which whole look — the user has chosen.</summary>
+/// <remarks>
+/// Orthogonal to <see cref="ThemePreference"/>: that picks light or dark, this
+/// picks the design the light and dark are expressed in. Every theme ships
+/// both, so the two choices never conflict and neither constrains the other.
+/// <para>
+/// Persisted by name rather than by ordinal so that adding or reordering themes
+/// later cannot silently repaint an existing installation.
+/// </para>
+/// </remarks>
+[JsonConverter(typeof(JsonStringEnumConverter<DesignTheme>))]
+public enum DesignTheme
+{
+    /// <summary>Poster stock: square, hot pink on night blue, mono captions.</summary>
+    [JsonStringEnumMemberName("cyrk66")]
+    Cyrk66,
+
+    /// <summary>The application's first look: soft corners, warm paper, slate accent.</summary>
+    [JsonStringEnumMemberName("sage-slate")]
+    SageSlate,
+}
+
 /// <summary>
 /// How big the main window was left, and whether it was maximized.
 /// </summary>
@@ -80,6 +102,12 @@ public sealed record AppSettingsData
     /// light, and a synced preference would be wrong on one of them.
     /// </summary>
     public ThemePreference Theme { get; init; } = ThemePreference.Auto;
+
+    /// <summary>
+    /// The design theme, machine-local for the same reason the colour scheme
+    /// is: it is how this person likes to look at this machine.
+    /// </summary>
+    public DesignTheme Design { get; init; } = DesignTheme.Cyrk66;
 
     public double? WindowWidth { get; init; }
 
@@ -449,6 +477,20 @@ public sealed class AppSettings
             if (_data.Theme == theme) return;
 
             Save(_data with { Theme = theme });
+        }
+    }
+
+    /// <summary>The design theme the user has chosen.</summary>
+    public DesignTheme Design => _data.Design;
+
+    /// <summary>Records the design theme. Applying it is the app's business.</summary>
+    public void SetDesign(DesignTheme design)
+    {
+        lock (_gate)
+        {
+            if (_data.Design == design) return;
+
+            Save(_data with { Design = design });
         }
     }
 

@@ -8,29 +8,35 @@
              x:DataType="vm:WorkspaceViewModel">
 
   <UserControl.Styles>
-    <!-- Cards sit on the column surface, so they carry the card brush and a
-         faint shadow that deepens under the pointer. -->
+    <!-- Cards sit flat on the column, the way paper does, and only lift
+         under the pointer. The lift is the design system's printed shadow:
+         a hard ink rectangle 2px off-register, not a blur — which is also
+         why it is the same ink in both themes. A soft drop shadow would
+         say "material" where this system says "poster". -->
     <Style Selector="Border.card">
       <Setter Property="Background" Value="{DynamicResource AppCardBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource AppCardBorderBrush}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="CornerRadius" Value="0" />
       <Setter Property="Padding" Value="10,8" />
       <Setter Property="Margin" Value="0,0,0,6" />
-      <Setter Property="BoxShadow" Value="0 1 2 0 #1F280004" />
     </Style>
     <Style Selector="Border.card:pointerover">
       <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
-      <Setter Property="BoxShadow" Value="0 2 6 0 #2E280004" />
+      <Setter Property="BoxShadow" Value="2 2 0 0 #2D233A" />
     </Style>
     <!-- The card the detail pane is showing. -->
     <Style Selector="Border.card.selected">
       <Setter Property="BorderBrush" Value="{DynamicResource AppAccentBrush}" />
       <Setter Property="BorderThickness" Value="2" />
     </Style>
+    <!-- A column is a slot cut into the page rather than a tray resting
+         on it: sunken ground, hairline keyline, square. -->
     <Style Selector="Border.column">
       <Setter Property="Background" Value="{DynamicResource AppSurfaceBrush}" />
-      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="BorderBrush" Value="{DynamicResource AppBorderBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="0" />
       <Setter Property="Padding" Value="8" />
       <Setter Property="Margin" Value="0,0,10,0" />
       <Setter Property="Width" Value="260" />
@@ -56,9 +62,9 @@
                            Classes.initial="{Binding IsInitialStatus}"
                            Classes.active="{Binding IsActiveStatus}"
                            Classes.final="{Binding IsFinalStatus}" />
-                  <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                  <TextBlock Text="{Binding Name}" FontWeight="Bold" />
                 </StackPanel>
-                <TextBlock Grid.Column="1" Text="{Binding CountLabel}" Classes="hint"
+                <TextBlock Grid.Column="1" Text="{Binding CountLabel}" Classes="meta"
                            VerticalAlignment="Center" />
               </Grid>
 
@@ -76,19 +82,20 @@
                             <StackPanel Orientation="Horizontal" Spacing="5">
                               <Border Classes="chip"
                                       Classes.low="{Binding IsLowPriority}"
+                                      Classes.medium="{Binding IsMediumPriority}"
                                       Classes.high="{Binding IsHighPriority}"
                                       Classes.critical="{Binding IsCriticalPriority}">
-                                <TextBlock Text="{Binding PriorityLabel}" FontSize="11" />
+                                <TextBlock Text="{Binding PriorityLabel}" FontSize="12" />
                               </Border>
                               <Border Classes="chip" IsVisible="{Binding HasCategory}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
                                   <Ellipse Width="7" Height="7" VerticalAlignment="Center"
                                            Fill="{Binding CategoryBrush}" />
-                                  <TextBlock Text="{Binding CategoryName}" FontSize="11" />
+                                  <TextBlock Text="{Binding CategoryName}" FontSize="12" />
                                 </StackPanel>
                               </Border>
                               <Border Classes="chip" IsVisible="{Binding HasSteps}">
-                                <TextBlock Text="{Binding StepsLabel}" FontSize="11" />
+                                <TextBlock Text="{Binding StepsLabel}" FontSize="12" />
                               </Border>
                             </StackPanel>
                             <TextBlock Text="{Binding DueLabel}" Classes="due"
@@ -100,7 +107,7 @@
                     </ItemsControl.ItemTemplate>
                   </ItemsControl>
 
-                  <TextBlock Classes="hint" Text="Drop here" Margin="4,6"
+                  <TextBlock Classes="meta" Text="Drop here" Margin="4,6"
                              IsVisible="{Binding IsEmpty}" />
                 </StackPanel>
               </ScrollViewer>

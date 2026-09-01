@@ -81,13 +81,43 @@ on-disk format. On macOS that is
 
 ## How it looks
 
-Settings has a light theme, a dark one, and Auto, which follows whatever your
-operating system is set to and changes with it — so a machine that goes dark in
-the evening takes might-do with it. Auto is the default.
+Settings offers two independent choices.
 
-That choice is machine-local too, alongside the workspace list rather than in
-the workspace: your laptop can be dark and your desktop light while both are
-showing the same tasks.
+**Theme** is the whole look — palette, corners, type, the lot.
+
+- **Cyrk 66** (the default) is drawn from a 1966 Polish circus poster: square
+  corners everywhere, one hot pink accent on night blue, ink keylines and a hard
+  offset shadow on anything you can press, and small, widely tracked capitals for
+  labels and counts.
+- **Sage & Slate** is the older look: soft corners, warm paper, and a slate
+  accent.
+
+**Colour scheme** is light, dark, or Auto, which follows whatever your operating
+system is set to and changes with it — so a machine that goes dark in the evening
+takes might-do with it. Auto is the default.
+
+Neither choice constrains the other: every theme ships both a light and a dark
+side, and switching theme keeps the scheme you were in. Both are machine-local,
+alongside the workspace list rather than in the workspace, so your laptop can be
+dark and your desktop light while both are showing the same tasks.
+
+Both themes set their text in your desktop's own UI font. Only the Cyrk 66
+wordmark needs a face that is not on a stock machine, and that one is bundled
+under the SIL Open Font License in
+[`src/MightDo.App/Assets/Fonts`](src/MightDo.App/Assets/Fonts/README.md), which
+also explains why neither the kit's monospace caption face nor its text face is
+among them. The poster itself is not distributed with the application — it was
+the reference for the palette and nothing more.
+
+### Adding a theme
+
+One file in `src/MightDo.App/Themes/`, holding the complete look: a `Styles`
+whose resources define the `App*` brushes for both schemes, and whose own rules
+set the geometry, the type and Fluent's control colours. Add a case to
+`Theme.SourceFor`, a member to `DesignTheme`, and a radio button to the settings
+page. `DesignThemeTests` pins the contract — every theme has to answer for every
+key in both schemes — and `PaletteContrastTests` holds every theme to the same
+legibility bar, so a new one cannot ship unreadable.
 
 ## Running it
 
