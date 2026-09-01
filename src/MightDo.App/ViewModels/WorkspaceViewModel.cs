@@ -974,7 +974,14 @@ public sealed class TaskRowViewModel(MightDoTask task, WorkspaceConfig config)
     public string TagNames { get; } =
         string.Join(", ", config.TagsByIds(task.TagIds).Select(tag => tag.Name));
 
-    public string DueLabel { get; } = task.DueDate?.ToIso() ?? "";
+    /// <summary>
+    /// The one date the row carries: when it is due, or — once the task has
+    /// landed in a Final status — when it was completed. Matches the board's
+    /// cards; see <see cref="BoardCardViewModel.DateLabel"/>.
+    /// </summary>
+    public string DateLabel { get; } = task.CompletedAt is { } completed
+        ? $"Completed {completed.ToLocalTime():yyyy-MM-dd}"
+        : task.DueDate?.ToIso() ?? "";
 
     public bool IsOverdue { get; } = task.IsOverdue;
 
@@ -989,7 +996,7 @@ public sealed class TaskRowViewModel(MightDoTask task, WorkspaceConfig config)
 
     public bool HasTags { get; } = task.TagIds.Count > 0;
 
-    public bool HasDue { get; } = task.DueDate is not null;
+    public bool HasDate { get; } = task.CompletedAt is not null || task.DueDate is not null;
 }
 
 /// <summary>
