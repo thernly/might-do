@@ -540,10 +540,41 @@ public sealed class WorkspaceSession : IDisposable
             return (WithConfig(snapshot, config), status);
         }, cancellationToken);
 
+    /// <summary>Writes an edited status back.</summary>
+    /// <remarks>
+    /// The one place a status's type can change, and so where the two
+    /// invariants that outlive it are stated: a workspace keeps at least one
+    /// status of each type, and new tasks start in an Initial one. Deleting a
+    /// status already protects both — see
+    /// <see cref="StatusDeletionBlockerFor"/> — and retyping the last
+    /// <c>Ready</c> to <c>Active</c> would otherwise walk out through the other
+    /// door and leave a workspace nothing could be created in.
+    /// </remarks>
     public Task UpdateStatusAsync(Status status, CancellationToken cancellationToken = default) =>
-        ConfigAsync(config => config with
+        ConfigAsync(config =>
         {
-            Statuses = [.. config.Statuses.Select(s => s.Id == status.Id ? status : s)],
+            var existing = config.StatusById(status.Id);
+            if (existing is not null && existing.Type != status.Type)
+            {
+                if (!config.Statuses.Any(s => s.Type == existing.Type && s.Id != status.Id))
+                {
+                    throw new InvalidOperationException(
+                        $"This is the only {existing.Type.Label()} status, and every "
+                        + "workspace needs at least one of each.");
+                }
+
+                if (config.DefaultStatusId == status.Id && status.Type != StatusType.Initial)
+                {
+                    throw new InvalidOperationException(
+                        "New tasks start in this status, so it has to stay Initial. "
+                        + "Make another Initial status the default first.");
+                }
+            }
+
+            return config with
+            {
+                Statuses = [.. config.Statuses.Select(s => s.Id == status.Id ? status : s)],
+            };
         }, cancellationToken);
 
     /// <summary>Reorders statuses, which is also the board's column order.</summary>

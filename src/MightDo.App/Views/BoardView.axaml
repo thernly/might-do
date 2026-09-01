@@ -3,6 +3,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
              xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+             xmlns:conv="clr-namespace:MightDo.App.Converters"
              mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="600"
              x:Class="MightDo.App.Views.BoardView"
              x:DataType="vm:WorkspaceViewModel">
@@ -89,8 +90,14 @@
                               </Border>
                               <Border Classes="chip" IsVisible="{Binding HasCategory}">
                                 <StackPanel Orientation="Horizontal" Spacing="4">
-                                  <Ellipse Width="7" Height="7" VerticalAlignment="Center"
-                                           Fill="{Binding CategoryBrush}" />
+                                  <Ellipse Width="7" Height="7" VerticalAlignment="Center">
+                                    <Ellipse.Fill>
+                                      <MultiBinding Converter="{x:Static conv:CategoryBrushConverter.Instance}">
+                                        <Binding Path="CategoryColor" />
+                                        <Binding Path="ActualThemeVariant" RelativeSource="{RelativeSource Self}" />
+                                      </MultiBinding>
+                                    </Ellipse.Fill>
+                                  </Ellipse>
                                   <TextBlock Text="{Binding CategoryName}" FontSize="12" />
                                 </StackPanel>
                               </Border>

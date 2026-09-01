@@ -3,6 +3,8 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:MightDo.App.ViewModels"
+        xmlns:conv="clr-namespace:MightDo.App.Converters"
+        xmlns:domain="clr-namespace:MightDo.Core.Domain;assembly=MightDo.Core"
         xmlns:platform="clr-namespace:MightDo.Platform;assembly=MightDo.Platform"
         mc:Ignorable="d" d:DesignWidth="720" d:DesignHeight="760"
         x:Class="MightDo.App.Views.SettingsWindow"
@@ -13,6 +15,25 @@
         WindowStartupLocation="CenterOwner"
         Background="{DynamicResource AppWindowBrush}"
         Foreground="{DynamicResource AppTextBrush}">
+
+  <Window.Resources>
+    <!-- A category's colour is picked by name with the colour shown beside it:
+         the swatch is what the user recognises in a list, the name is what they
+         can say out loud. Neither is a set of hex digits. -->
+    <DataTemplate x:Key="CategoryColorItem" x:DataType="domain:CategoryColor">
+      <StackPanel Orientation="Horizontal" Spacing="8">
+        <Border Width="12" Height="12" CornerRadius="0" VerticalAlignment="Center">
+          <Border.Background>
+            <MultiBinding Converter="{x:Static conv:CategoryBrushConverter.Instance}">
+              <Binding Path="Value" />
+              <Binding Path="ActualThemeVariant" RelativeSource="{RelativeSource Self}" />
+            </MultiBinding>
+          </Border.Background>
+        </Border>
+        <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+      </StackPanel>
+    </DataTemplate>
+  </Window.Resources>
 
   <Window.Styles>
     <!-- Settings headings are the application's caption role at page
@@ -204,15 +225,11 @@
                                   CommandParameter="{Binding}" />
                     </TextBox.KeyBindings>
                   </TextBox>
-                  <TextBox Grid.Column="1" Margin="6,0,0,0" Width="110"
-                           VerticalAlignment="Center"
-                           Text="{Binding ColorHex, UpdateSourceTrigger=LostFocus}">
-                    <TextBox.KeyBindings>
-                      <KeyBinding Gesture="Enter"
-                                  Command="{Binding $parent[ItemsControl].((vm:SettingsViewModel)DataContext).SetCategoryColorCommand}"
-                                  CommandParameter="{Binding}" />
-                    </TextBox.KeyBindings>
-                  </TextBox>
+                  <ComboBox Grid.Column="1" Margin="6,0,0,0" Width="130"
+                            VerticalAlignment="Center"
+                            ItemsSource="{Binding ColorOptions}"
+                            SelectedItem="{Binding SelectedColor}"
+                            ItemTemplate="{StaticResource CategoryColorItem}" />
                   <TextBlock Grid.Column="2" Classes="hint" Margin="8,0"
                              VerticalAlignment="Center" Text="{Binding TaskCountLabel}" />
                   <Button Grid.Column="3" Classes="tiny" Content="Delete"
@@ -253,8 +270,10 @@
               <KeyBinding Gesture="Enter" Command="{Binding AddCategoryCommand}" />
             </TextBox.KeyBindings>
           </TextBox>
-          <TextBox Grid.Column="1" Margin="6,0,0,0" Width="110"
-                   PlaceholderText="AARRGGBB" Text="{Binding NewCategoryColor}" />
+          <ComboBox Grid.Column="1" Margin="6,0,0,0" Width="130"
+                    ItemsSource="{Binding CategoryColors}"
+                    SelectedItem="{Binding NewCategoryColor}"
+                    ItemTemplate="{StaticResource CategoryColorItem}" />
           <Button Grid.Column="2" Margin="6,0,0,0" Content="Add"
                   Command="{Binding AddCategoryCommand}" />
         </Grid>

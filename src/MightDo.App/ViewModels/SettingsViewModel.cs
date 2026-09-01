@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MightDo.Core.Domain;
@@ -54,8 +53,7 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] private string _newStatusName = "";
     [ObservableProperty] private StatusType _newStatusType = StatusType.Active;
     [ObservableProperty] private string _newCategoryName = "";
-    [ObservableProperty]
-    private string _newCategoryColor = Category.ColorAt(0).ToString("X8", CultureInfo.InvariantCulture);
+    [ObservableProperty] private CategoryColor _newCategoryColor = Category.Palette[0];
     [ObservableProperty] private string _newTagName = "";
     [ObservableProperty] private string? _error;
 
@@ -127,6 +125,9 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
     public ObservableCollection<CategoryOption> CategoryReassignOptions { get; } = [];
 
     public IReadOnlyList<StatusType> StatusTypes { get; } = Enum.GetValues<StatusType>();
+
+    /// <summary>The colours a new category may be given.</summary>
+    public IReadOnlyList<CategoryColor> CategoryColors { get; } = Category.Palette;
 
     public bool IsConfirmingStatusDelete => StatusPendingDelete is not null;
     public bool IsConfirmingCategoryDelete => CategoryPendingDelete is not null;
@@ -225,16 +226,27 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         await _session.UpdateStatusAsync(status with { Name = name });
     });
 
+    /// <summary>Retypes a status, or puts the drop-down back if the workspace refuses.</summary>
+    /// <remarks>
+    /// A refusal is the ordinary case here, not the exotic one — the last
+    /// Initial status cannot stop being Initial — and a combo box left showing
+    /// the type the user asked for would then be the only thing on screen
+    /// claiming the change happened.
+    /// </remarks>
     [RelayCommand]
-    private Task SetStatusTypeAsync(StatusRowViewModel? row) => Guarded(async () =>
+    private async Task SetStatusTypeAsync(StatusRowViewModel? row)
     {
         if (_loading || row is null) return;
 
         var status = _session.Snapshot.Config.StatusById(row.Id);
         if (status is null || status.Type == row.Type) return;
 
-        await _session.UpdateStatusAsync(status with { Type = row.Type });
-    });
+        await Guarded(() => _session.UpdateStatusAsync(status with { Type = row.Type }));
+
+        // Putting it back re-enters this command, which then finds nothing to
+        // do and stops.
+        row.Type = _session.Snapshot.Config.StatusById(row.Id)?.Type ?? row.Type;
+    }
 
     [RelayCommand]
     private Task SetStatusHiddenAsync(StatusRowViewModel? row) => Guarded(async () =>
@@ -315,14 +327,8 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         var name = NewCategoryName.Trim();
         if (name.Length == 0) return;
 
-        if (!TryParseColor(NewCategoryColor, out var color))
-        {
-            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
-            return;
-        }
-
         NewCategoryName = "";
-        await _session.AddCategoryAsync(name, color);
+        await _session.AddCategoryAsync(name, NewCategoryColor.Value);
     });
 
     [RelayCommand]
@@ -337,24 +343,20 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         await _session.UpdateCategoryAsync(category with { Name = name });
     });
 
+    /// <summary>Recolours a category, or puts the swatch back if the write fails.</summary>
     [RelayCommand]
-    private Task SetCategoryColorAsync(CategoryRowViewModel? row) => Guarded(async () =>
+    private async Task SetCategoryColorAsync(CategoryRowViewModel? row)
     {
         if (_loading || row is null) return;
 
         var category = _session.Snapshot.Config.CategoryById(row.Id);
-        if (category is null) return;
+        if (category is null || category.Color == row.SelectedColor.Value) return;
 
-        if (!TryParseColor(row.ColorHex, out var color))
-        {
-            Error = "A colour is eight hex digits, alpha first — FF4F6D7A.";
-            return;
-        }
+        await Guarded(() => _session.UpdateCategoryAsync(
+            category with { Color = row.SelectedColor.Value }));
 
-        if (category.Color == color) return;
-
-        await _session.UpdateCategoryAsync(category with { Color = color });
-    });
+        row.ShowColor(_session.Snapshot.Config.CategoryById(row.Id)?.Color);
+    }
 
     [RelayCommand]
     private void BeginDeleteCategory(CategoryRowViewModel? row)
@@ -663,10 +665,14 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
                 status,
                 isDefault: status.Id == config.DefaultStatusId,
                 taskCount: snapshot.TasksUsingStatus(status.Id),
-                blocker: _session.StatusDeletionBlockerFor(status.Id))));
+                blocker: _session.StatusDeletionBlockerFor(status.Id),
+                typeChosen: row => SetStatusTypeCommand.Execute(row))));
 
             Replace(Categories, config.Categories.Select(category =>
-                new CategoryRowViewModel(category, snapshot.TasksUsingCategory(category.Id))));
+                new CategoryRowViewModel(
+                    category,
+                    snapshot.TasksUsingCategory(category.Id),
+                    row => SetCategoryColorCommand.Execute(row))));
 
             Replace(Tags, config.Tags.Select(tag =>
                 new TagRowViewModel(tag, snapshot.TasksUsingTag(tag.Id))));
@@ -727,27 +733,6 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
         }
     }
 
-    /// <summary>
-    /// Eight hex digits, alpha first — exactly what the message asks for.
-    /// </summary>
-    /// <remarks>
-    /// The length is checked as well as the digits: a shorter string parses
-    /// happily, so <c>"F"</c> would be accepted as fully transparent black and
-    /// the user would get a colour dot they cannot see and no reason why.
-    /// </remarks>
-    private static bool TryParseColor(string value, out uint color)
-    {
-        color = 0;
-        var digits = value.Trim().TrimStart('#');
-
-        return digits.Length == 8
-               && uint.TryParse(
-                   digits,
-                   NumberStyles.HexNumber,
-                   CultureInfo.InvariantCulture,
-                   out color);
-    }
-
     private static void Replace<T>(ObservableCollection<T> target, IEnumerable<T> items)
     {
         target.Clear();
@@ -773,12 +758,30 @@ public sealed partial class SettingsViewModel : ViewModelBase, IDisposable
 
 public sealed partial class StatusRowViewModel : ObservableObject
 {
+    private readonly Action<StatusRowViewModel>? _typeChosen;
+
     [ObservableProperty] private string _name;
-    [ObservableProperty] private StatusType _type;
     [ObservableProperty] private bool _hiddenFromBoard;
 
+    /// <summary>
+    /// Which of the three types this status is, chosen from a drop-down.
+    /// </summary>
+    /// <remarks>
+    /// Saved the moment it changes rather than on losing focus, as the name is:
+    /// picking from a closed list of three is the whole gesture.
+    /// </remarks>
+    [ObservableProperty] private StatusType _type;
+
+    /// <param name="typeChosen">
+    /// Called when the user picks a different type. Null in a row nobody can
+    /// edit, as the designer's copy of this page is.
+    /// </param>
     public StatusRowViewModel(
-        Status status, bool isDefault, int taskCount, StatusDeletionBlocker blocker)
+        Status status,
+        bool isDefault,
+        int taskCount,
+        StatusDeletionBlocker blocker,
+        Action<StatusRowViewModel>? typeChosen = null)
     {
         Id = status.Id;
         _name = status.Name;
@@ -797,6 +800,15 @@ public sealed partial class StatusRowViewModel : ObservableObject
                 $"This is the only {status.Type.Label()} status, and every workspace needs at least one of each.",
             _ => "That status no longer exists.",
         };
+
+        // Last, so building the row is not itself a change to save.
+        _typeChosen = typeChosen;
+    }
+
+    partial void OnTypeChanged(StatusType value)
+    {
+        _typeChosen?.Invoke(this);
+        OnPropertyChanged(nameof(CanMakeDefault));
     }
 
     public string Id { get; }
@@ -811,15 +823,62 @@ public sealed partial class StatusRowViewModel : ObservableObject
 
 public sealed partial class CategoryRowViewModel : ObservableObject
 {
-    [ObservableProperty] private string _name;
-    [ObservableProperty] private string _colorHex;
+    private readonly Action<CategoryRowViewModel>? _colorChosen;
 
-    public CategoryRowViewModel(Category category, int taskCount)
+    [ObservableProperty] private string _name;
+
+    /// <summary>
+    /// The colour this category is drawn in, chosen from <see cref="ColorOptions"/>.
+    /// </summary>
+    /// <remarks>
+    /// Saved the moment it changes rather than on losing focus, as the name is:
+    /// picking from a list is the whole gesture, and there is nothing further
+    /// for the user to finish typing.
+    /// </remarks>
+    [ObservableProperty] private CategoryColor _selectedColor;
+
+    /// <param name="colorChosen">
+    /// Called when the user picks a different colour. Null in a row nobody can
+    /// edit, as the designer's copy of this page is.
+    /// </param>
+    public CategoryRowViewModel(
+        Category category, int taskCount, Action<CategoryRowViewModel>? colorChosen = null)
     {
         Id = category.Id;
         _name = category.Name;
-        _colorHex = category.Color.ToString("X8", CultureInfo.InvariantCulture);
         TaskCount = taskCount;
+
+        // A colour the palette has never offered still has to appear in the
+        // list, or selecting nothing would silently repaint the category the
+        // moment the user touched any other field.
+        var current = Category.PaletteEntry(category.Color);
+        ColorOptions = current is null
+            // Painted as stored in both schemes: nobody knows what this colour
+            // was meant to be, so nobody gets to reinterpret it on night.
+            ? [.. Category.Palette, new CategoryColor("Custom", category.Color, category.Color)]
+            : Category.Palette;
+        _selectedColor = current ?? ColorOptions[^1];
+
+        // Last, so building the row is not itself a change to save.
+        _colorChosen = colorChosen;
+    }
+
+    /// <summary>The colours offered for this category.</summary>
+    public IReadOnlyList<CategoryColor> ColorOptions { get; }
+
+    partial void OnSelectedColorChanged(CategoryColor value) => _colorChosen?.Invoke(this);
+
+    /// <summary>
+    /// Shows the colour the workspace actually holds, after a change it refused
+    /// or could not write. A colour it no longer holds leaves the row alone —
+    /// the category has been deleted and the row is on its way out.
+    /// </summary>
+    public void ShowColor(uint? color)
+    {
+        if (color is not { } stored || stored == SelectedColor.Value) return;
+
+        SelectedColor = ColorOptions.FirstOrDefault(option => option.Value == stored)
+                        ?? SelectedColor;
     }
 
     public string Id { get; }

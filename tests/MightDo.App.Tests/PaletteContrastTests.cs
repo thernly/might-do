@@ -5,6 +5,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
 
+using MightDo.Core.Domain;
 using MightDo.Platform;
 
 namespace MightDo.App.Tests;
@@ -347,6 +348,100 @@ public class PaletteContrastTests : IDisposable
     private static int Spread(Color colour) =>
         Math.Max(colour.R, Math.Max(colour.G, colour.B))
         - Math.Min(colour.R, Math.Min(colour.G, colour.B));
+
+    /// <summary>
+    /// The distance a twelve-colour set can actually hold. Lower than
+    /// <see cref="Separable"/> on purpose: twelve muted colours at one
+    /// lightness cannot all be ten apart, and the six that existing workspaces
+    /// already store are fixed points the other six have to be placed around.
+    /// This is the most the set can reach, measured rather than hoped for, and
+    /// it is the floor the next person moving a hue has to keep.
+    /// </summary>
+    private const double SeparableInATwelve = 9.5;
+
+    /// <summary>Every category colour, in the rendering the scheme calls for.</summary>
+    public static TheoryData<string> CategoryColours()
+    {
+        var data = new TheoryData<string>();
+        foreach (var colour in Category.Palette) data.Add(colour.Name);
+        return data;
+    }
+
+    [AvaloniaTheory]
+    [MemberData(nameof(CategoryColours))]
+    public void EveryCategoryDotStandsOffTheChipItSitsIn(string name)
+    {
+        // The dot is 8px and wordless, like a status dot: it has to be seen,
+        // not read. A category colour is workspace data rather than a theme
+        // token, so the theme cannot fix one that vanishes — which is exactly
+        // why the palette has two renderings, and why both are checked here.
+        var colour = Category.Palette.Single(c => c.Name == name);
+
+        foreach (var design in Designs)
+        foreach (var variant in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+        {
+            Wearing(design);
+
+            var dot = Color.FromUInt32(colour.For(variant == ThemeVariant.Dark));
+            var ratio = Contrast(dot, Colour("AppChipBrush", variant));
+
+            Assert.True(
+                ratio >= Distinguishable,
+                $"{name} is {ratio:F2}:1 on a chip in {design} {variant}, "
+                + $"under the {Distinguishable}:1 it needs.");
+        }
+    }
+
+    [AvaloniaFact]
+    public void EveryCategoryColourIsADifferentColourFromEveryOther()
+    {
+        // Twelve dots are only twelve categories if the reader can tell which
+        // is which down a list. Contrast is the wrong measure — two equally
+        // light tints of different hues sit near 1:1 and are obviously
+        // different colours — so this asks the perceptual distance, in both
+        // renderings, since a set that separates on paper can collapse on
+        // night.
+        foreach (var dark in new[] { false, true })
+        foreach (var (first, second) in Pairs(Category.Palette))
+        {
+            var apart = Distance(
+                Color.FromUInt32(first.For(dark)), Color.FromUInt32(second.For(dark)));
+
+            Assert.True(
+                apart >= SeparableInATwelve,
+                $"{first.Name} and {second.Name} are {apart:F1} apart "
+                + $"{(dark ? "on dark" : "on light")}, under the {SeparableInATwelve} they need.");
+        }
+    }
+
+    /// <summary>
+    /// The colours a workspace may already hold, which the palette may not drop
+    /// or repaint: a category picked as Slate two years ago is still Slate.
+    /// </summary>
+    [AvaloniaTheory]
+    [InlineData("Slate", 0xFF4F6D7Au)]
+    [InlineData("Clay", 0xFF7A5C4Fu)]
+    [InlineData("Moss", 0xFF5C7A4Fu)]
+    [InlineData("Plum", 0xFF6D4F7Au)]
+    [InlineData("Rose", 0xFF7A4F5Cu)]
+    [InlineData("Teal", 0xFF4F7A6Du)]
+    public void TheColoursWorkspacesAlreadyHoldAreStillInThePalette(string name, uint stored)
+    {
+        var entry = Category.PaletteEntry(stored);
+
+        Assert.NotNull(entry);
+        Assert.Equal(name, entry.Name);
+        Assert.Equal(stored, entry.Value);
+    }
+
+    private static IEnumerable<(CategoryColor, CategoryColor)> Pairs(
+        IReadOnlyList<CategoryColor> colours)
+    {
+        for (var i = 0; i < colours.Count; i++)
+        {
+            for (var j = i + 1; j < colours.Count; j++) yield return (colours[i], colours[j]);
+        }
+    }
 
     private static Color Colour(string key, ThemeVariant variant)
     {
