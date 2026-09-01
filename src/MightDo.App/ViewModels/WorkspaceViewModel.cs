@@ -1,6 +1,4 @@
 using System.Collections.ObjectModel;
-using Avalonia.Media;
-using Avalonia.Media.Immutable;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -967,9 +965,13 @@ public sealed class TaskRowViewModel(MightDoTask task, WorkspaceConfig config)
 
     public string? CategoryName { get; } = config.CategoryById(task.CategoryId)?.Name;
 
-    /// <summary>The category's stored colour, shown as a dot in its chip.</summary>
-    public IBrush CategoryBrush { get; } =
-        new ImmutableSolidColorBrush(config.CategoryById(task.CategoryId)?.Color ?? 0);
+    /// <summary>
+    /// The category's stored colour, shown as a dot in its chip. The scheme
+    /// decides how it is painted — see
+    /// <see cref="MightDo.App.Converters.CategoryBrushConverter"/> — so the
+    /// stored value is what travels, not a brush.
+    /// </summary>
+    public uint? CategoryColor { get; } = config.CategoryById(task.CategoryId)?.Color;
 
     public string TagNames { get; } =
         string.Join(", ", config.TagsByIds(task.TagIds).Select(tag => tag.Name));

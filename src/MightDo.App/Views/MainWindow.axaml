@@ -446,8 +446,14 @@
                     </Border>
                     <Border Classes="chip" IsVisible="{Binding HasCategory}">
                       <StackPanel Orientation="Horizontal" Spacing="5">
-                        <Ellipse Width="8" Height="8" VerticalAlignment="Center"
-                                 Fill="{Binding CategoryBrush}" />
+                        <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+                          <Ellipse.Fill>
+                            <MultiBinding Converter="{x:Static conv:CategoryBrushConverter.Instance}">
+                              <Binding Path="CategoryColor" />
+                              <Binding Path="ActualThemeVariant" RelativeSource="{RelativeSource Self}" />
+                            </MultiBinding>
+                          </Ellipse.Fill>
+                        </Ellipse>
                         <TextBlock Text="{Binding CategoryName}" FontSize="12" />
                       </StackPanel>
                     </Border>

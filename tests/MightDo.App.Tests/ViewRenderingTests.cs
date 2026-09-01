@@ -1,5 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Styling;
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -114,6 +117,59 @@ public class ViewRenderingTests : IDisposable
 
         Assert.Contains(TextsIn(window), text => text == "Visible in the list");
         Assert.DoesNotContain(TextsIn(window), text => text.Contains("Choose a folder"));
+    }
+
+    /// <summary>
+    /// The category dot is workspace data, not a theme token, so nothing about
+    /// the theme machinery repaints it on its own — a converter is not re-run
+    /// because something it never looked at changed. It is bound to the
+    /// control's own ActualThemeVariant so that it is, and this is the test
+    /// that says so.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task ACategoryDotIsRepaintedWhenTheSchemeChanges()
+    {
+        var workspace = await OpenWorkspaceAsync();
+        var window = new MainWindow
+        {
+            DataContext = new MainViewModel(Settings(), new NoPicker(), new NoPicker())
+            {
+                Workspace = workspace,
+            },
+        };
+        window.Show();
+
+        var moss = Category.Palette.Single(colour => colour.Name == "Moss");
+        var settings = workspace.CreateSettingsViewModel();
+        _disposables.Add(settings);
+        settings.NewCategoryName = "Home";
+        settings.NewCategoryColor = moss;
+        await settings.AddCategoryCommand.ExecuteAsync(null!);
+
+        workspace.NewTaskSummary = "Has a category";
+        await workspace.CreateTaskCommand.ExecuteAsync(null!);
+        var row = workspace.Tasks.Single();
+        workspace.SelectedTask = row;
+        Dispatcher.UIThread.RunJobs();
+        workspace.Detail!.SelectedCategory =
+            workspace.Detail.Categories.First(option => option.Name == "Home");
+
+        // The pane writes the category in the background, and the row carrying
+        // the dot is rebuilt from what was written.
+        await workspace.Detail.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+
+        var dot = Descendants<Ellipse>(window)
+            .Single(ellipse =>
+                ellipse.DataContext is TaskRowViewModel && !ellipse.Classes.Contains("statusdot"));
+
+        window.RequestedThemeVariant = ThemeVariant.Light;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(Color.FromUInt32(moss.Value), ((ISolidColorBrush)dot.Fill!).Color);
+
+        window.RequestedThemeVariant = ThemeVariant.Dark;
+        Dispatcher.UIThread.RunJobs();
+        Assert.Equal(Color.FromUInt32(moss.OnDark), ((ISolidColorBrush)dot.Fill!).Color);
     }
 
     // ---- the detail pane ---------------------------------------------------

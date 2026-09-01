@@ -853,7 +853,9 @@ public sealed partial class CategoryRowViewModel : ObservableObject
         // moment the user touched any other field.
         var current = Category.PaletteEntry(category.Color);
         ColorOptions = current is null
-            ? [.. Category.Palette, new CategoryColor("Custom", category.Color)]
+            // Painted as stored in both schemes: nobody knows what this colour
+            // was meant to be, so nobody gets to reinterpret it on night.
+            ? [.. Category.Palette, new CategoryColor("Custom", category.Color, category.Color)]
             : Category.Palette;
         _selectedColor = current ?? ColorOptions[^1];
 
