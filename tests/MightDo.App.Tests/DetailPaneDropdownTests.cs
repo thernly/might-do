@@ -5,6 +5,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MightDo.App.ViewModels;
 using MightDo.App.Views;
+using MightDo.Core.Domain;
+using MightDo.Core.Session;
 using MightDo.Core.Storage;
 using MightDo.Platform;
 
@@ -26,6 +28,7 @@ public class DetailPaneDropdownTests : IDisposable
         Path.GetTempPath(), "mightdo-dropdown-" + Guid.NewGuid().ToString("N")[..8])).FullName;
 
     private readonly List<IDisposable> _disposables = [];
+    private TaskStore _store = null!;
 
     public void Dispose()
     {
@@ -132,6 +135,79 @@ public class DetailPaneDropdownTests : IDisposable
         Assert.Equal("No category", NameOf(Box(window, "CategoryBox").SelectedItem));
     }
 
+    [AvaloniaFact]
+    public async Task AnIncompleteDueDateDoesNotEscapeTheControl()
+    {
+        var (window, workspace) = await OpenAsync();
+        SelectRow(window, workspace);
+        var picker = window.GetVisualDescendants()
+            .OfType<CalendarDatePicker>()
+            .First(control => control.PlaceholderText == "yyyy-mm-dd");
+
+        // CalendarDatePicker raises DateValidationError when text cannot be
+        // parsed. Unless the view explicitly suppresses its exception, leaving a
+        // half-typed date can throw directly from the UI event that commits it.
+        var thrown = Record.Exception(() =>
+        {
+            picker.Focus();
+            picker.Text = "2026-02-";
+            Box(window, "StatusBox").Focus();
+            Dispatcher.UIThread.RunJobs();
+        });
+
+        Assert.Null(thrown);
+        Assert.Null(workspace.Detail!.DueDate);
+    }
+
+    [AvaloniaFact]
+    public async Task ClassificationEditsRemainSafeWhileRescansRebuildThePane()
+    {
+        var (window, workspace) = await OpenAsync("Edited task", "External marker");
+        var editedId = workspace.Tasks.First(row => row.Summary == "Edited task").Id;
+        var markerId = workspace.Tasks.First(row => row.Summary == "External marker").Id;
+        workspace.SelectTaskById(editedId);
+        Dispatcher.UIThread.RunJobs();
+
+        using var external = await WorkspaceSession.OpenAsync(new TaskStore(
+            new Core.Storage.Workspace(_store.Workspace.Root)));
+
+        for (var iteration = 0; iteration < 12; iteration++)
+        {
+            PickNext(Box(window, "StatusBox"));
+            PickNext(Box(window, "PriorityBox"));
+            PickNext(Box(window, "CategoryBox"));
+            DatePicker(window).SelectedDate = new DateTime(2026, 1, iteration + 1);
+
+            // A different process changes another task while these four saves
+            // are queued. The following rescan must replace the snapshot and
+            // refresh all four controls without echoing a binding change back or
+            // letting an exception escape onto the dispatcher.
+            var marker = external.Snapshot.TaskById(markerId)!;
+            await external.EditTaskAsync(
+                marker,
+                task => task with { Description = $"external revision {iteration}" },
+                TestContext.Current.CancellationToken);
+
+            await Task.Run(workspace.RefreshInBackground);
+            await Task.WhenAll(
+                workspace.Detail!.PendingSave,
+                workspace.PendingBackgroundWork);
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        await SettleAsync(workspace);
+        var detail = workspace.Detail!;
+        var persisted = (await _store.LoadAsync(TestContext.Current.CancellationToken))
+            .Tasks.Single(task => task.Id == editedId);
+
+        Assert.Null(detail.SaveError);
+        Assert.Null(workspace.Banner);
+        Assert.Equal(detail.SelectedStatus!.Id, persisted.StatusId);
+        Assert.Equal(detail.SelectedPriority, persisted.Priority);
+        Assert.Equal(detail.SelectedCategory!.Id, persisted.CategoryId);
+        Assert.Equal(new CalendarDate(2026, 1, 12), persisted.DueDate);
+    }
+
     // ---- helpers -----------------------------------------------------------
 
     /// <summary>
@@ -154,6 +230,12 @@ public class DetailPaneDropdownTests : IDisposable
         return name;
     }
 
+    private static void PickNext(ComboBox box)
+    {
+        box.SelectedIndex = (box.SelectedIndex + 1) % box.ItemCount;
+        Dispatcher.UIThread.RunJobs();
+    }
+
     private static string NameOf(object? option) => option switch
     {
         StatusOption status => status.Name,
@@ -165,6 +247,10 @@ public class DetailPaneDropdownTests : IDisposable
         window.GetVisualDescendants().OfType<ComboBox>()
             .Where(box => box.IsEffectivelyVisible)
             .First(box => box.Name == name);
+
+    private static CalendarDatePicker DatePicker(Window window) =>
+        window.GetVisualDescendants().OfType<CalendarDatePicker>()
+            .First(picker => picker.Name == "DueDateBox");
 
     private static void SelectRow(Window window, WorkspaceViewModel workspace)
     {
@@ -188,9 +274,9 @@ public class DetailPaneDropdownTests : IDisposable
         if (summaries.Length == 0) summaries = ["Only task"];
 
         var settings = AppSettings.Load(Path.Combine(_root, "settings.json"));
-        var store = new TaskStore(new Core.Storage.Workspace(
+        _store = new TaskStore(new Core.Storage.Workspace(
             Directory.CreateDirectory(Path.Combine(_root, "ws")).FullName));
-        var workspace = await WorkspaceViewModel.OpenAsync(store, settings, new NoPicker());
+        var workspace = await WorkspaceViewModel.OpenAsync(_store, settings, new NoPicker());
         _disposables.Add(workspace);
 
         var window = new MainWindow

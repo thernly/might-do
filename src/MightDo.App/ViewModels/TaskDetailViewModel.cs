@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using MightDo.Core.Domain;
@@ -272,7 +273,10 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         var task = Current;
         if (task is null || task.StatusId == value.Id) return;
 
-        _pending.Add(Report(_session.MoveToStatusAsync(task, value.Id)));
+        _pending.Add(Report(
+            () => _session.MoveToStatusAsync(task, value.Id),
+            nameof(OnSelectedStatusChanged),
+            task.Id));
     }
 
     [RelayCommand]
@@ -451,14 +455,17 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// than vanishing.
     /// </para>
     /// </remarks>
-    private void Save(Func<MightDoTask, MightDoTask> edit)
+    private void Save(
+        Func<MightDoTask, MightDoTask> edit,
+        [CallerMemberName] string operation = "")
     {
         if (_loading) return;
 
         var task = Current;
         if (task is null) return;
 
-        _pending.Add(Report(_session.EditTaskAsync(task, edit)));
+        _pending.Add(Report(
+            () => _session.EditTaskAsync(task, edit), operation, task.Id));
     }
 
     /// <summary>
@@ -479,10 +486,10 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// rebuilt by an event raised on whichever thread finished a rescan.
     /// </para>
     /// </remarks>
-    private Task Report(Task write) => Report(() => write);
-
-    private async Task Report(Func<Task> write)
+    private async Task Report(Func<Task> write, string operation, string taskId)
     {
+        using var context = CrashDiagnostics.Begin(operation, taskId);
+
         try
         {
             await write();
@@ -502,7 +509,8 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     /// Runs a command that writes to the workspace, reporting rather than
     /// throwing. See <see cref="Report"/>.
     /// </summary>
-    private Task Guarded(Func<Task> work) => _pending.Add(Report(work));
+    private Task Guarded(Func<Task> work, [CallerMemberName] string operation = "") =>
+        _pending.Add(Report(work, operation, TaskId));
 
     /// <summary>
     /// Copies a file in, saying how far it has got and staying cancellable.

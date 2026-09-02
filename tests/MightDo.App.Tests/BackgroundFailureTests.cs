@@ -1,5 +1,9 @@
+using System.Reflection;
 using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
 using MightDo.App.ViewModels;
+using MightDo.Core.Query;
+using MightDo.Core.Session;
 using MightDo.Core.Storage;
 using MightDo.Platform;
 
@@ -153,6 +157,44 @@ public class BackgroundFailureTests : IDisposable
 
         // Shutting down is what the user asked for, not something to report.
         Assert.Null(workspace.Banner);
+    }
+
+    /// <summary>
+    /// A watcher rescan posts its projection to the dispatcher. If projection
+    /// throws there, the task that loaded the workspace has already completed and
+    /// there is no awaiting caller to receive it; without the projection boundary
+    /// the exception terminates the process.
+    /// </summary>
+    [AvaloniaFact]
+    public async Task APostedProjectionFailureIsReportedInsteadOfEscapingTheDispatcher()
+    {
+        var folder = WorkspaceFolder();
+        await OpenableWorkspaceAsync(folder);
+
+        var main = Shell();
+        await main.OpenAsync(folder);
+        var workspace = main.Workspace!;
+
+        // Put an impossible value directly in the generated backing field. Going
+        // through the property would project immediately; the scenario under test
+        // is the later projection posted by a background workspace change.
+        var sort = typeof(WorkspaceViewModel).GetField(
+            "_sort", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        sort.SetValue(workspace, (TaskSort)int.MaxValue);
+
+        using (var external = await WorkspaceSession.OpenAsync(
+                   new TaskStore(new Workspace(folder))))
+        {
+            await external.CreateTaskAsync("Arrived from another machine");
+            await external.CreateTaskAsync("Another external task");
+        }
+
+        await Task.Run(workspace.RefreshInBackground);
+        await workspace.PendingBackgroundWork;
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.NotNull(workspace.Banner);
+        Assert.Contains("could not be displayed", workspace.Banner);
     }
 
     private sealed class NoPicker : IFolderPicker, IFilePicker
