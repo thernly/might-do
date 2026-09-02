@@ -198,6 +198,20 @@ public class TaskDetailViewModelTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task EditingAPaneAfterItsTaskWasDeletedDoesNotResurrectIt()
+    {
+        await _session.TrashTaskAsync(_task, TestContext.Current.CancellationToken);
+
+        var thrown = Record.Exception(() => _vm.Summary = "Do not bring this back");
+        await Settle();
+
+        Assert.Null(thrown);
+        Assert.Null(_session.Snapshot.TaskById(_task.Id));
+        Assert.False(File.Exists(_session.Workspace.TaskFile(_task.Id)));
+        Assert.True(File.Exists(_session.Workspace.TrashedTaskFile(_task.Id)));
+    }
+
+    [Fact]
     public async Task AddingAStepDoesNotCompleteTheTask()
     {
         await _vm.AddStepCommand.ExecuteAsync(null!);

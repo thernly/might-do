@@ -9,6 +9,10 @@
   <ItemGroup>
     <Folder Include="Models\" />
     <AvaloniaResource Include="Assets\**" />
+
+    <!-- The headless app configures diagnostics to write under the test temp
+         folder instead of the running user's real application-data folder. -->
+    <InternalsVisibleTo Include="MightDo.App.Tests" />
   </ItemGroup>
 
   <ItemGroup>

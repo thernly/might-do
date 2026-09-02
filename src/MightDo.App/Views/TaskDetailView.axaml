@@ -49,7 +49,8 @@
 
         <StackPanel Grid.Row="0" Grid.Column="2">
           <TextBlock Classes="label" Text="PRIORITY" />
-          <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}"
+          <ComboBox Name="PriorityBox"
+                    ItemsSource="{Binding Priorities}" SelectedItem="{Binding SelectedPriority}"
                     HorizontalAlignment="Stretch" />
         </StackPanel>
 
@@ -73,7 +74,8 @@
              button, and shrinks. -->
         <StackPanel Grid.Row="1" Grid.Column="2">
           <TextBlock Classes="label" Text="DUE" />
-          <CalendarDatePicker SelectedDate="{Binding DueDate}"
+          <CalendarDatePicker Name="DueDateBox"
+                              SelectedDate="{Binding DueDate}"
                               HorizontalAlignment="Stretch"
                               SelectedDateFormat="Custom"
                               CustomDateFormatString="yyyy-MM-dd"

@@ -18,6 +18,8 @@ public partial class App : Application
 
     public override void OnFrameworkInitializationCompleted()
     {
+        CrashDiagnostics.InstallDispatcherHandler();
+
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             // Composition root. The window is created first so the folder picker

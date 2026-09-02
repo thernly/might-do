@@ -58,6 +58,12 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     /// </remarks>
     private string? _backgroundBanner;
 
+    /// <summary>
+    /// A successful reload must not immediately erase the banner raised by the
+    /// projection it caused. The next projection that succeeds clears the flag.
+    /// </summary>
+    private bool _projectionFailed;
+
     private bool _disposed;
 
     [ObservableProperty]
@@ -131,7 +137,8 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
         _watcher.Start();
 
         _reminders = services.Reminders(session);
-        _reminders.Fired += (_, _) => OnUiThread(Project);
+        _reminders.Fired += (_, _) => OnUiThread(() => ProjectAfterBackgroundChange(
+            "reminder projection"));
         _reminders.Failed += (_, error) => Report(error, "Reminders could not be updated");
         _reminders.Start(services.ReminderInterval);
 
@@ -658,6 +665,7 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
 
     private void ClearBackgroundBanner()
     {
+        if (_projectionFailed) return;
         if (_backgroundBanner is null) return;
         if (Banner == _backgroundBanner) Banner = null;
         _backgroundBanner = null;
@@ -749,7 +757,32 @@ public sealed partial class WorkspaceViewModel : ViewModelBase, IDisposable
     }, "This task could not be moved to the trash");
 
     private void OnWorkspaceChanged(object? sender, WorkspaceChangedEventArgs e) =>
-        OnUiThread(Project);
+        OnUiThread(() => ProjectAfterBackgroundChange("workspace change projection"));
+
+    /// <summary>
+    /// Reprojects a change that may have been posted from a background producer.
+    /// </summary>
+    /// <remarks>
+    /// A posted delegate has no caller to receive an exception. Keep a managed
+    /// stack in the crash log and put the failure in the existing background
+    /// banner instead of letting the dispatcher terminate the process.
+    /// </remarks>
+    private void ProjectAfterBackgroundChange(string operation)
+    {
+        using var context = CrashDiagnostics.Begin(operation, _selectedTaskId);
+
+        try
+        {
+            Project();
+            _projectionFailed = false;
+        }
+        catch (Exception error)
+        {
+            _projectionFailed = true;
+            CrashDiagnostics.Record(error, "WorkspaceViewModel.Project");
+            Report(error, "This workspace could not be displayed");
+        }
+    }
 
     /// <summary>
     /// Rebuilds everything the view shows from the current snapshot and query.

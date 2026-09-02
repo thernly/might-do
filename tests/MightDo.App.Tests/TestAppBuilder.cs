@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Headless;
 using MightDo.App;
+using MightDo.Platform;
 
 [assembly: AvaloniaTestApplication(typeof(MightDo.App.Tests.TestAppBuilder))]
 
@@ -19,8 +20,13 @@ namespace MightDo.App.Tests;
 /// </remarks>
 public static class TestAppBuilder
 {
-    public static AppBuilder BuildAvaloniaApp() =>
-        AppBuilder.Configure<App>()
+    public static AppBuilder BuildAvaloniaApp()
+    {
+        CrashDiagnostics.ConfigureLog(new ManagedCrashLog(Path.Combine(
+            Path.GetTempPath(), $"might-do-headless-crashes-{Environment.ProcessId}.log")));
+
+        return AppBuilder.Configure<App>()
             .UseHeadless(new AvaloniaHeadlessPlatformOptions())
             .WithInterFont();
+    }
 }
