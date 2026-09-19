@@ -20,7 +20,8 @@ typed `Initial`, `Active` or `Final` — a closed set the application reasons
 about. Several statuses can share a type, so `Backlog` and `Ready` are both
 `Initial`, and `Done` and `Abandoned` are both `Final`.
 
-Entering any `Final` status stamps the completion date; leaving one clears it.
+Entering any `Final` status stamps the completion date; its calendar day can be
+corrected afterwards, while leaving the Final status clears it.
 Deleting a status in use is blocked until you say where its tasks should go.
 
 ## Where your data lives

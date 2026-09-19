@@ -209,7 +209,7 @@ public sealed record ImportPlan
         // The one place a completion date is taken from outside the app, and
         // only where it is consistent with the status the task is landing in.
         return config.IsFinal(row.StatusId) && row.CompletedAt is { } completed
-            ? task.WithImportedCompletion(completed)
+            ? task.WithCompletion(completed)
             : task;
     }
 

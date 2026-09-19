@@ -101,7 +101,7 @@ One task per file, named `<id>.json`. Key order below is the on-disk order.
 | `tagIds` | string[] | Max 10 |
 | `priority` | string | `low` \| `medium` \| `high` \| `critical` |
 | `dueDate` | string? | **Calendar day**, `yyyy-MM-dd` — see below |
-| `completedAt` | timestamp? | Set by the app on entering a `final` status, cleared on leaving one |
+| `completedAt` | timestamp? | Stamped on entering a `final` status; its local calendar day may be corrected; cleared on leaving one |
 | `estimateMinutes` | int? | Whole minutes |
 | `totalTimeMinutes` | int? | Whole minutes, entered by hand |
 | `boardRank` | string | Fractional index — see below |

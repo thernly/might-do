@@ -70,6 +70,26 @@ public class DetailPaneLayoutTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task TheCompletionDateFieldFitsItsColumn()
+    {
+        var (pane, detail) = await OpenPaneAsync();
+        var final = detail.Statuses.First(status => status.Name == "Done");
+        detail.SelectedStatus = final;
+        await detail.PendingSave;
+        Dispatcher.UIThread.RunJobs();
+        Relayout(pane);
+
+        var completion = pane.GetVisualDescendants()
+            .OfType<CalendarDatePicker>()
+            .First(picker => picker.Name == "CompletionDateBox");
+
+        Assert.True(
+            completion.Bounds.Width <= pane.Bounds.Width / 2,
+            $"the completion date field is {completion.Bounds.Width:F0}px wide in a "
+            + $"{pane.Bounds.Width / 2:F0}px column");
+    }
+
+    [AvaloniaFact]
     public async Task ThePaneStillFitsWithAllItsSectionsPopulated()
     {
         // Empty collections hide the widest rows. A reminder in particular
