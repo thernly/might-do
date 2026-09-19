@@ -49,6 +49,8 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     [ObservableProperty] private Priority _selectedPriority;
     [ObservableProperty] private CategoryOption? _selectedCategory;
     [ObservableProperty] private DateTime? _dueDate;
+    [ObservableProperty] private DateTime? _completionDate;
+    [ObservableProperty] private bool _isCompletionDateVisible;
     [ObservableProperty] private string _estimateMinutes = "";
     [ObservableProperty] private string _totalTimeMinutes = "";
     [ObservableProperty] private string _tagNames = "";
@@ -56,7 +58,6 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
     [ObservableProperty] private string _newNoteBody = "";
     [ObservableProperty] private DateTime? _newReminderDate = DateTime.Today;
     [ObservableProperty] private TimeSpan? _newReminderTime = new TimeSpan(9, 0, 0);
-    [ObservableProperty] private string? _completedLabel;
     [ObservableProperty] private string _varianceLabel = "";
 
     /// <summary>Set when a save failed, so the pane can say so.</summary>
@@ -193,15 +194,11 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
             DueDate = task.DueDate is { } due
                 ? new DateTime(due.Year, due.Month, due.Day, 0, 0, 0, DateTimeKind.Unspecified)
                 : null;
+            CompletionDate = task.CompletedAt?.ToLocalTime().Date;
+            IsCompletionDateVisible = config.IsFinal(task.StatusId);
             EstimateMinutes = task.EstimateMinutes?.ToString(CultureInfo.InvariantCulture) ?? "";
             TotalTimeMinutes = task.TotalTimeMinutes?.ToString(CultureInfo.InvariantCulture) ?? "";
             TagNames = string.Join(", ", config.TagsByIds(task.TagIds).Select(tag => tag.Name));
-
-            // The completion date is the application's, not the user's: shown,
-            // never edited. See ADR-0002.
-            CompletedLabel = task.CompletedAt is { } completed
-                ? $"Completed {completed.ToLocalTime():g}"
-                : null;
 
             VarianceLabel = task.EstimateVariance is { } variance
                 ? variance == 0
@@ -254,6 +251,49 @@ public sealed partial class TaskDetailViewModel : ViewModelBase
         // some zones.
         DueDate = value is { } date ? new CalendarDate(date.Year, date.Month, date.Day) : null,
     });
+
+    /// <summary>
+    /// Changes the local calendar day while retaining the stamped local time of
+    /// day. Completion itself remains owned by the task's Final status.
+    /// </summary>
+    partial void OnCompletionDateChanged(DateTime? value)
+    {
+        if (_loading) return;
+
+        var task = Current;
+        if (task?.CompletedAt is not { } completed) return;
+
+        // CalendarDatePicker is clearable, but a Final task is not allowed to
+        // lose its completion. Put the value back without echoing a save.
+        if (value is null)
+        {
+            _loading = true;
+            try
+            {
+                CompletionDate = completed.ToLocalTime().Date;
+            }
+            finally
+            {
+                _loading = false;
+            }
+            return;
+        }
+
+        var localCompletion = completed.ToLocalTime();
+        var local = new DateTime(
+            value.Value.Year,
+            value.Value.Month,
+            value.Value.Day,
+            0,
+            0,
+            0,
+            DateTimeKind.Local).Add(localCompletion.TimeOfDay);
+
+        _pending.Add(Report(
+            () => _session.SetCompletionDateAsync(task, local.ToUniversalTime()),
+            nameof(OnCompletionDateChanged),
+            task.Id));
+    }
 
     partial void OnEstimateMinutesChanged(string value) =>
         Save(task => task with { EstimateMinutes = ParseMinutes(value) });

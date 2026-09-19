@@ -273,6 +273,33 @@ public sealed class WorkspaceSession : IDisposable
             return (WithTask(snapshot, updated), updated);
         }, cancellationToken);
 
+    /// <summary>Corrects the completion moment of a task in a Final status.</summary>
+    /// <remarks>
+    /// The value cannot be cleared here: moving out of the Final status is what
+    /// clears completion. Validation is performed against the session's current
+    /// task so a queued edit cannot write a completion date after another edit
+    /// has reopened it.
+    /// </remarks>
+    public Task<MightDoTask> SetCompletionDateAsync(
+        MightDoTask task,
+        DateTime completedAt,
+        CancellationToken cancellationToken = default) =>
+        MutateAsync(async snapshot =>
+        {
+            var current = Current(snapshot, task);
+            if (!snapshot.Config.IsFinal(current.StatusId))
+            {
+                throw new InvalidOperationException(
+                    "Only a task in a Final status can have its completion date edited.");
+            }
+
+            var edited = current.WithCompletion(completedAt);
+            if (edited.HasSameContentAs(current)) return (snapshot, current);
+
+            var updated = await WriteAsync(edited, TaskChange.Edit, cancellationToken);
+            return (WithTask(snapshot, updated), updated);
+        }, cancellationToken);
+
     /// <summary>
     /// Places a task in a column between two neighbours. Pass null for either to
     /// drop at the top or bottom.

@@ -160,6 +160,63 @@ public class DetailPaneDropdownTests : IDisposable
     }
 
     [AvaloniaFact]
+    public async Task CompletionDateAppearsForFinalTasksAndUpdatesTheListDate()
+    {
+        var (window, workspace) = await OpenAsync();
+        workspace.IncludeCompleted = true;
+        SelectRow(window, workspace);
+        var picker = CompletionDatePicker(window);
+        Assert.False(picker.IsEffectivelyVisible);
+
+        var status = Box(window, "StatusBox");
+        status.SelectedItem = status.Items
+            .OfType<StatusOption>()
+            .First(option => option.Name == "Done");
+        await SettleAsync(workspace);
+        window.Measure(window.ClientSize);
+        window.Arrange(new Rect(window.ClientSize));
+        Dispatcher.UIThread.RunJobs();
+
+        Assert.True(picker.IsEffectivelyVisible);
+        Assert.NotNull(picker.SelectedDate);
+
+        var selected = picker.SelectedDate!.Value.AddDays(-4);
+        picker.SelectedDate = selected;
+        await SettleAsync(workspace);
+
+        Assert.Equal(selected.Date, workspace.Detail!.CompletionDate);
+        Assert.Equal(
+            $"Completed {selected:yyyy-MM-dd}",
+            workspace.Tasks.Single().DateLabel);
+    }
+
+    [AvaloniaFact]
+    public async Task AnIncompleteCompletionDateDoesNotEscapeOrClearTheControl()
+    {
+        var (window, workspace) = await OpenAsync();
+        workspace.IncludeCompleted = true;
+        SelectRow(window, workspace);
+        var status = Box(window, "StatusBox");
+        status.SelectedItem = status.Items
+            .OfType<StatusOption>()
+            .First(option => option.Name == "Done");
+        await SettleAsync(workspace);
+        var picker = CompletionDatePicker(window);
+        var completion = workspace.Detail!.CompletionDate;
+
+        var thrown = Record.Exception(() =>
+        {
+            picker.Focus();
+            picker.Text = "2026-02-";
+            status.Focus();
+            Dispatcher.UIThread.RunJobs();
+        });
+
+        Assert.Null(thrown);
+        Assert.Equal(completion, workspace.Detail.CompletionDate);
+    }
+
+    [AvaloniaFact]
     public async Task ClassificationEditsRemainSafeWhileRescansRebuildThePane()
     {
         var (window, workspace) = await OpenAsync("Edited task", "External marker");
@@ -251,6 +308,10 @@ public class DetailPaneDropdownTests : IDisposable
     private static CalendarDatePicker DatePicker(Window window) =>
         window.GetVisualDescendants().OfType<CalendarDatePicker>()
             .First(picker => picker.Name == "DueDateBox");
+
+    private static CalendarDatePicker CompletionDatePicker(Window window) =>
+        window.GetVisualDescendants().OfType<CalendarDatePicker>()
+            .First(picker => picker.Name == "CompletionDateBox");
 
     private static void SelectRow(Window window, WorkspaceViewModel workspace)
     {

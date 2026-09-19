@@ -62,15 +62,16 @@ public sealed record MightDoTask
 
     /// <summary>
     /// The moment the task entered a status of type <see cref="StatusType.Final"/>.
-    /// Set by the application, never by the user, and cleared if it leaves one.
+    /// Stamped by the application, optionally corrected by the user, and cleared
+    /// if the task leaves a Final status.
     /// </summary>
     /// <remarks>
-    /// Settable only through <see cref="WithStatus"/>, which is what makes the
-    /// rule in ADR-0002 an invariant rather than a convention every caller has
-    /// to remember. Deserialization still sets it directly — a file can arrive
-    /// from a sync conflict with a completion date that disagrees with its
-    /// status, and refusing to represent that would lose the user's data rather
-    /// than surface it.
+    /// Settable only through <see cref="WithStatus"/> and the internal validated
+    /// completion path, which keeps the rule in ADR-0002 out of general record
+    /// updates. Deserialization still sets it directly — a file can arrive from
+    /// a sync conflict with a completion date that disagrees with its status,
+    /// and refusing to represent that would lose the user's data rather than
+    /// surface it.
     /// </remarks>
     [JsonInclude]
     public DateTime? CompletedAt
@@ -233,25 +234,25 @@ public sealed record MightDoTask
     /// lightweight convenience; refusing an edit outright over the eleventh one
     /// would be a worse experience than quietly keeping the first ten.
     /// </remarks>
-    /// <summary>
-    /// Sets a completion date that came from outside this application.
-    /// </summary>
-    /// <remarks>
-    /// The exception to <see cref="WithStatus"/> owning the completion date, and
-    /// deliberately the only one. A task imported straight into a Final status
-    /// has to be able to carry the moment it was finished in the tool it came
-    /// from, and stamping <i>now</i> instead would quietly rewrite the user's
-    /// history on the way in.
-    /// <para>
-    /// Internal, so the rule stays a rule: the only caller is the import, next
-    /// to the check that the target status is Final. See ADR-0005.
-    /// </para>
-    /// </remarks>
-    internal MightDoTask WithImportedCompletion(DateTime? completedAt) =>
-        this with { CompletedAt = completedAt };
-
     public MightDoTask WithTags(IEnumerable<string> tagIds) =>
         this with { TagIds = CapTags(tagIds) };
+
+    /// <summary>
+    /// Sets a completion moment after the caller has established that the task
+    /// belongs to a Final status.
+    /// </summary>
+    /// <remarks>
+    /// Used by the session when the user corrects a completion date and by CSV
+    /// creation when a task arrives already completed. Keeping it internal
+    /// leaves those callers responsible for the Final-status invariant instead
+    /// of making the property generally settable.
+    /// <para>
+    /// The value is canonicalised to UTC as well as to the precision the
+    /// workspace can store.
+    /// </para>
+    /// </remarks>
+    internal MightDoTask WithCompletion(DateTime completedAt) =>
+        this with { CompletedAt = completedAt.ToUniversalTime() };
 
     /// <summary>
     /// Whether this holds the same values as <paramref name="other"/>.

@@ -91,13 +91,21 @@
           <TextBlock Classes="label" Text="ACTUAL (MINUTES)" />
           <TextBox Text="{Binding TotalTimeMinutes, UpdateSourceTrigger=LostFocus}" />
         </StackPanel>
+
+        <StackPanel Grid.Row="3" Grid.Column="2"
+                    IsVisible="{Binding IsCompletionDateVisible}">
+          <TextBlock Classes="label" Text="COMPLETED" />
+          <CalendarDatePicker Name="CompletionDateBox"
+                              SelectedDate="{Binding CompletionDate}"
+                              HorizontalAlignment="Stretch"
+                              SelectedDateFormat="Custom"
+                              CustomDateFormatString="yyyy-MM-dd"
+                              PlaceholderText="yyyy-mm-dd" />
+        </StackPanel>
       </Grid>
 
       <TextBlock Classes="hint" Text="{Binding VarianceLabel}" Margin="0,4,0,0"
                  IsVisible="{Binding VarianceLabel, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" />
-
-      <TextBlock Classes="hint" Text="{Binding CompletedLabel}" Margin="0,4,0,0"
-                 IsVisible="{Binding CompletedLabel, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
       <TextBlock Classes="label" Text="TAGS (COMMA SEPARATED)" />
       <TextBox Text="{Binding TagNames, UpdateSourceTrigger=LostFocus}">

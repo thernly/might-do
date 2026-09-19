@@ -209,6 +209,44 @@ public class WorkspaceSessionTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CompletionDateCanBeCorrectedForAFinalTask()
+    {
+        var task = await _session.CreateTaskAsync("Finished yesterday");
+        task = await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Final).Id);
+        var corrected = new DateTime(2026, 8, 18, 14, 22, 9, DateTimeKind.Utc).AddTicks(7);
+
+        var updated = await _session.SetCompletionDateAsync(task, corrected);
+
+        Assert.Equal(Instants.AtStoredPrecision(corrected), updated.CompletedAt);
+        Assert.Equal(DateTimeKind.Utc, updated.CompletedAt!.Value.Kind);
+    }
+
+    [Fact]
+    public async Task CompletionDateCannotBeSetForANonFinalTask()
+    {
+        var task = await _session.CreateTaskAsync("Still working");
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _session.SetCompletionDateAsync(task, DateTime.UtcNow.AddDays(-1)));
+
+        Assert.Null(Reload(task).CompletedAt);
+    }
+
+    [Fact]
+    public async Task ACompletionEditBuiltFromAStaleRecordPreservesAnotherFieldEdit()
+    {
+        var task = await _session.CreateTaskAsync("Finished");
+        task = await _session.MoveToStatusAsync(task, StatusOfType(StatusType.Final).Id);
+        await _session.EditTaskAsync(task, current => current with { Description = "Kept" });
+
+        var corrected = task.CompletedAt!.Value.AddDays(-1);
+        await _session.SetCompletionDateAsync(task, corrected);
+
+        Assert.Equal("Kept", Reload(task).Description);
+        Assert.Equal(corrected, Reload(task).CompletedAt);
+    }
+
+    [Fact]
     public async Task MovingStatusWithoutARankKeepsTheBoardPosition()
     {
         // The kind of thing a null-means-unset sentinel gets backwards: a

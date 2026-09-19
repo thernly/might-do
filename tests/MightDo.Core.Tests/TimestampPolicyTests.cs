@@ -37,7 +37,7 @@ public class TimestampPolicyTests : IAsyncLifetime
     }
 
     public static TheoryData<string> UserEdits =>
-        ["summary", "note", "step", "tags", "status", "board", "reminder", "attachment"];
+        ["summary", "note", "step", "tags", "status", "completion", "board", "reminder", "attachment"];
 
     [Theory]
     [MemberData(nameof(UserEdits))]
@@ -119,6 +119,20 @@ public class TimestampPolicyTests : IAsyncLifetime
         Assert.Equal(_time.GetUtcNow().UtcDateTime, after.CompletedAt);
     }
 
+    [Fact]
+    public async Task SettingCompletionToItsCurrentValueWritesNothing()
+    {
+        var task = await Seeded();
+        var final = _session.Snapshot.Config.Statuses.First(s => s.Type == StatusType.Final);
+        task = await _session.MoveToStatusAsync(task, final.Id);
+        var before = task.UpdatedAt;
+        _time.Advance(TimeSpan.FromHours(1));
+
+        await _session.SetCompletionDateAsync(task, task.CompletedAt!.Value);
+
+        Assert.Equal(before, _session.Snapshot.TaskById(task.Id)!.UpdatedAt);
+    }
+
     private async Task<MightDoTask> Seeded()
     {
         var task = await _session.CreateTaskAsync("Ring the dentist");
@@ -146,6 +160,12 @@ public class TimestampPolicyTests : IAsyncLifetime
                 break;
             case "status":
                 await _session.MoveToStatusAsync(task, active.Id);
+                break;
+            case "completion":
+                var final = _session.Snapshot.Config.Statuses.First(s => s.Type == StatusType.Final);
+                var completed = await _session.MoveToStatusAsync(task, final.Id);
+                await _session.SetCompletionDateAsync(
+                    completed, completed.CompletedAt!.Value.AddDays(-1));
                 break;
             case "board":
                 // Below another card rather than back where it was: dropping a

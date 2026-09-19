@@ -134,6 +134,22 @@ public class WriteFailureTests : IAsyncLifetime
         Assert.Null(detail.SaveError);
     }
 
+    [Fact]
+    public async Task EditingCompletionOnAnUnwritableTaskIsReportedRatherThanThrown()
+    {
+        var final = _session.Snapshot.Config.Statuses.First(s => s.Type == StatusType.Final);
+        _task = await _session.MoveToStatusAsync(
+            _task, final.Id, cancellationToken: TestContext.Current.CancellationToken);
+        var detail = Detail();
+        BlockWritesTo(_task);
+
+        detail.CompletionDate = detail.CompletionDate!.Value.AddDays(-1);
+        await detail.PendingSave;
+
+        Assert.NotNull(detail.SaveError);
+        Assert.Contains("could not be saved", detail.SaveError);
+    }
+
     // ---- the workspace -----------------------------------------------------
 
     [AvaloniaFact]

@@ -108,8 +108,9 @@ of day — a task is due on the 21st, not at 17:00 on the 21st.
 _Avoid_: Deadline, target date, do date
 
 **Completion Date**:
-The moment a task entered a status of type `Final`. Set by the application, not
-the user, and cleared if the task leaves that status.
+The moment a task entered a status of type `Final`. Stamped by the application,
+with its calendar day editable afterwards, and cleared if the task leaves that
+status.
 _Avoid_: Done date, closed date, finished date
 
 ### Getting tasks in and out

@@ -55,7 +55,8 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         Assert.Equal(_task.Id, _vm.TaskId);
         Assert.Equal(Priority.Medium, _vm.SelectedPriority);
         Assert.Null(_vm.DueDate);
-        Assert.Null(_vm.CompletedLabel);
+        Assert.Null(_vm.CompletionDate);
+        Assert.False(_vm.IsCompletionDateVisible);
     }
 
     [Fact]
@@ -131,6 +132,74 @@ public class TaskDetailViewModelTests : IAsyncLifetime
         await Settle();
 
         Assert.Null(Current.CompletedAt);
+    }
+
+    [Fact]
+    public async Task EditingCompletionChangesOnlyItsLocalCalendarDay()
+    {
+        var done = StatusOfType(StatusType.Final);
+        _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
+        await Settle();
+        _vm.Refresh(Current);
+        var originalLocal = Current.CompletedAt!.Value.ToLocalTime();
+        var selected = originalLocal.Date.AddDays(-3);
+
+        _vm.CompletionDate = selected;
+        await Settle();
+
+        var expectedLocal = new DateTime(
+            selected.Year, selected.Month, selected.Day, 0, 0, 0, DateTimeKind.Local)
+            .Add(originalLocal.TimeOfDay);
+        Assert.Equal(expectedLocal.ToUniversalTime(), Current.CompletedAt);
+    }
+
+    [Fact]
+    public async Task ClearingCompletionRestoresItWithoutWriting()
+    {
+        var done = StatusOfType(StatusType.Final);
+        _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
+        await Settle();
+        _vm.Refresh(Current);
+        var completion = Current.CompletedAt;
+        var updated = Current.UpdatedAt;
+
+        _vm.CompletionDate = null;
+        await Settle();
+
+        Assert.Equal(completion, Current.CompletedAt);
+        Assert.Equal(completion!.Value.ToLocalTime().Date, _vm.CompletionDate);
+        Assert.Equal(updated, Current.UpdatedAt);
+    }
+
+    [Fact]
+    public async Task CompletionEditorIsVisibleOnlyForAFinalStatus()
+    {
+        Assert.False(_vm.IsCompletionDateVisible);
+
+        var done = StatusOfType(StatusType.Final);
+        _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
+        await Settle();
+        _vm.Refresh(Current);
+
+        Assert.True(_vm.IsCompletionDateVisible);
+        Assert.NotNull(_vm.CompletionDate);
+    }
+
+    [Fact]
+    public async Task ACompletionEditAndAnotherQuickEditBothLand()
+    {
+        var done = StatusOfType(StatusType.Final);
+        _vm.SelectedStatus = new StatusOption(done.Id, done.Name);
+        await Settle();
+        _vm.Refresh(Current);
+        var selected = _vm.CompletionDate!.Value.AddDays(-2);
+
+        _vm.CompletionDate = selected;
+        _vm.Summary = "Corrected after finishing";
+        await Settle();
+
+        Assert.Equal(selected.Date, Current.CompletedAt!.Value.ToLocalTime().Date);
+        Assert.Equal("Corrected after finishing", Current.Summary);
     }
 
     [Fact]

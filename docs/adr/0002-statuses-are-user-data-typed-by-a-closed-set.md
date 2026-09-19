@@ -19,8 +19,9 @@ Shipped`.
 - Several statuses may share a type, and this is the normal case: `Backlog` and
   `Ready` are both `Initial`; `Done` and `Abandoned` are both `Final`. Code must
   never assume a type maps to one status.
-- Completion date is derived from *type*, not from a particular status, and is
-  cleared if a task moves back out of a `Final` status.
+- Completion is derived from *type*, not from a particular status. Its calendar
+  day may be corrected after the automatic stamp, and it is cleared if a task
+  moves back out of a `Final` status.
 - There is no "the final status" and no "the done status". Which `Final` status a
   task lands in is a deliberate user choice — distinguishing `Done` from
   `Abandoned` is the point of allowing more than one.
