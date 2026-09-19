@@ -37,6 +37,9 @@ finding*.md
 assess*.md
 task*.md
 plan-*.md
+todo*.md
+crash*.md
+crash*.txt
 
 # distribution files
 dist/
