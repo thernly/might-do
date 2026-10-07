@@ -149,6 +149,20 @@ This compiles the .NET 10 app for the current machine. Use the platform-specific
 commands below to produce deployable output for a target OS or build a native
 app bundle or installer.
 
+### Automatic versioning
+
+[Nerdbank.GitVersioning](https://dotnet.github.io/Nerdbank.GitVersioning/)
+stamps every build with the base version in `version.json`, a build number
+derived from Git history, and the source commit ID. The `1.1` series produces
+versions such as `1.1.23`; the About window shows that number, and crash reports
+include the commit ID. Rebuilding the same commit keeps the same version;
+uncommitted edits do not advance the build number.
+
+To start a new minor or major series, change `version` in `version.json` and
+commit it. Commit the initial versioning configuration before preparing a
+release: Nerdbank uses its history to calculate the build number. CI fetches
+the full Git history so local and CI builds agree.
+
 ### macOS
 
 ```sh
@@ -224,24 +238,30 @@ Until all of that is in place, builds are for the machine that made them.
 
 ### Releasing from GitHub
 
-To ship a release, create a version tag and push it to GitHub:
+To ship a release, start from a clean, committed checkout. Restore dependencies,
+ask Nerdbank for the release version, and tag that commit:
 
 ```sh
-git tag v1.2.3
-git push origin v1.2.3
+dotnet restore MightDo.slnx
+VERSION=$(dotnet msbuild src/MightDo.App/MightDo.App.csproj -nologo -t:GetBuildVersion -getProperty:NuGetPackageVersion -p:PublicRelease=true)
+git tag "v$VERSION"
+git push origin "v$VERSION"
 ```
 
-Git tags use the `v` prefix, but the assembly version is set from the same tag
-with the leading `v` stripped, so the app reports `1.2.3` while the release tag
-remains `v1.2.3`.
+Git tags use the `v` prefix. Nerdbank calculates the version from `version.json`
+and Git history; the tag marks the release rather than overriding its version.
+CI rejects a tag that does not match the computed version. The app, published
+assemblies, and macOS bundle metadata use the same generated version.
 
 The CI workflow will run the normal build and test jobs, then publish release
 artifacts for Linux, Windows and macOS and attach them to the GitHub Release
 for that tag. The release notes are generated automatically from the commits in
 that tag range.
 
-If you need to publish a release candidate or a follow-up fix, use a matching
-version tag such as `v1.2.3-rc1` or `v1.2.4`.
+For a follow-up fix, commit the fix and repeat these commands; the build number
+advances automatically. For a prerelease, add a suffix such as `-rc` to the
+base version in `version.json` and commit it before calculating the tag. The
+same commands and CI workflow also support those prerelease tags.
 
 ### Linux
 

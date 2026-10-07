@@ -86,6 +86,9 @@ sips -s format icns "$ICON_PNG" --out "$ICON_ICNS" >/dev/null
 echo "Publishing $APP_PROJECT for $RID"
 dotnet publish "$APP_PROJECT" -c Release -r "$RID" --self-contained false -o "$PUBLISH_DIR"
 
+# Use the same numeric version as the app's Nerdbank-generated build metadata.
+BUNDLE_VERSION=$(dotnet msbuild "$APP_PROJECT" -nologo -t:GetBuildVersion -getProperty:BuildVersionSimple -p:Configuration=Release -p:RuntimeIdentifier="$RID")
+
 # Bundle layout:
 # - Contents/MacOS: executable + dependent binaries
 # - Contents/Resources: icons and other resources
@@ -110,9 +113,9 @@ cat > "$BUNDLE_DIR/Contents/Info.plist" <<EOF
   <key>CFBundleIdentifier</key>
   <string>com.might-do.app</string>
   <key>CFBundleVersion</key>
-  <string>1.0</string>
+  <string>$BUNDLE_VERSION</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$BUNDLE_VERSION</string>
   <key>LSMinimumSystemVersion</key>
   <string>10.15</string>
   <key>CFBundleIconFile</key>
@@ -176,6 +179,7 @@ sha256:    $(cut -d' ' -f1 < "$CHECKSUM_PATH")
 commit:    $(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)
 clean:     $([[ -z "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]] && echo yes || echo "no - built from a modified tree")
 rid:       $RID
+version:   $BUNDLE_VERSION
 built:     $(date -u +%Y-%m-%dT%H:%M:%SZ)
 signed:    ${SIGN_IDENTITY:-no}
 notarized: ${NOTARY_PROFILE:+yes}${NOTARY_PROFILE:-no}

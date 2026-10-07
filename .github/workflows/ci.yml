@@ -26,6 +26,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -63,6 +65,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-dotnet@v6
         with:
@@ -71,19 +75,25 @@ jobs:
       - name: Restore
         run: dotnet restore MightDo.slnx
 
+      - name: Validate release tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION=$(dotnet msbuild src/MightDo.App/MightDo.App.csproj -nologo -t:GetBuildVersion -getProperty:NuGetPackageVersion -p:PublicRelease=true)
+          if [[ "$GITHUB_REF_NAME" != "v$VERSION" ]]; then
+            echo "Release tag $GITHUB_REF_NAME does not match the computed version v$VERSION."
+            exit 1
+          fi
+
       - name: Publish Linux/Windows
         if: runner.os != 'macOS'
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
           dotnet publish src/MightDo.App/MightDo.App.csproj \
             -c Release \
             -r ${{ matrix.rid }} \
             --self-contained true \
-            -p:Version="$VERSION" \
-            -p:AssemblyVersion="$VERSION" \
-            -p:FileVersion="$VERSION" \
             -o publish/${{ matrix.artifact_name }}
 
       - name: Publish macOS bundle
@@ -91,15 +101,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="${GITHUB_REF_NAME#v}"
           brew install create-dmg
-          dotnet publish src/MightDo.App/MightDo.App.csproj \
-            -c Release \
-            -r osx-arm64 \
-            --self-contained false \
-            -p:Version="$VERSION" \
-            -p:AssemblyVersion="$VERSION" \
-            -p:FileVersion="$VERSION"
           ./tools/package-macos-release.sh arm64
 
       - name: Upload Linux/Windows artifact

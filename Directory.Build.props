@@ -10,14 +10,15 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <Version Condition="'$(Version)' == ''">0.0.0-local</Version>
-    <AssemblyVersion Condition="'$(AssemblyVersion)' == ''">0.0.0.0</AssemblyVersion>
-    <FileVersion Condition="'$(FileVersion)' == ''">0.0.0.0</FileVersion>
-    <InformationalVersion>$(Version)+$(SourceRevisionId)</InformationalVersion>
+    <GitVersionBaseDirectory>$(MSBuildThisFileDirectory)</GitVersionBaseDirectory>
 
     <!-- The port is written against a documented on-disk format; a warning
          about a possible null or an unused result is worth stopping for. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Nerdbank.GitVersioning" PrivateAssets="all" />
+  </ItemGroup>
 
 </Project>
