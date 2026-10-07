@@ -13,19 +13,15 @@
     <PackageVersion Include="Avalonia" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Desktop" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Fonts.Inter" Version="12.1.3" />
-    <PackageVersion Include="Avalonia.Headless.XUnit" Version="12.1.3" />
+    <PackageVersion Include="Avalonia.Headless" Version="12.1.3" />
     <PackageVersion Include="Avalonia.Themes.Fluent" Version="12.1.3" />
     <PackageVersion Include="AvaloniaUI.DiagnosticsSupport" Version="2.2.3" />
     <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageVersion Include="coverlet.collector" Version="10.1.0" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.10.0" />
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.10.1" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.0" />
-    <!-- Avalonia.Headless.XUnit 12.1.1 calls xUnit 3.x discovery APIs that
-         were removed in xUnit 4. Keep these aligned until Avalonia supports
-         the new discovery API. -->
-    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="xunit.v3" Version="4.0.1" />
   </ItemGroup>
 
 </Project>

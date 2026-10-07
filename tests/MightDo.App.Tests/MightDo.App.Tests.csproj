@@ -12,7 +12,7 @@
     on a dispatcher.
   -->
   <ItemGroup>
-    <PackageReference Include="Avalonia.Headless.XUnit" />
+    <PackageReference Include="Avalonia.Headless" />
     <PackageReference Include="coverlet.collector" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
