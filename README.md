@@ -170,8 +170,13 @@ versions such as `1.1.23`; the About window shows that number, and crash reports
 include the commit ID. Rebuilding the same commit keeps the same version;
 uncommitted edits do not advance the build number.
 
+The build number counts commits, not releases, so release numbers are not
+consecutive: two releases ten commits apart go from `1.1.2` to `1.1.12`.
+
 To start a new minor or major series, change `version` in `version.json` and
-commit it. CI fetches the full Git history so local and CI builds agree.
+commit it. That commit is the first of the series, so `1.2` starts at `1.2.1`
+rather than `1.2.0`. CI fetches the full Git history so local and CI builds
+agree.
 
 ### macOS
 
@@ -285,7 +290,9 @@ are generated automatically from the commits in that tag range.
 For a follow-up fix, commit the fix and repeat these commands; the build number
 advances automatically. For a prerelease, add a suffix such as `-rc` to the
 base version in `version.json` and commit it before calculating the tag. The
-same commands and CI workflow also support those prerelease tags.
+same commands produce a tag such as `v1.1.4-rc`, and CI marks any release whose
+tag carries a suffix as a prerelease on GitHub. Remove the suffix and commit to
+go back to full releases; the build number carries on rather than resetting.
 
 ## Repository layout
 

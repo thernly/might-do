@@ -160,4 +160,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           files: packaged/*.zip
           generate_release_notes: true
+          # A version with a suffix (v1.1.4-rc) is a prerelease, and should not
+          # be presented as the latest release.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           fail_on_unmatched_files: true
