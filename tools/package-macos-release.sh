@@ -15,10 +15,10 @@ set -euo pipefail
 #
 # Signing is opt-in because it needs an Apple Developer ID this repository does
 # not carry, and a build machine without one still has to be able to produce a
-# bundle to run locally. It is not optional for anything handed to somebody
-# else: an unsigned build asks its user to click past Gatekeeper, which is both
-# the wrong habit to teach and indistinguishable from what a tampered build
-# would ask. Set these to produce a distributable artifact:
+# bundle. Releases are unsigned until one exists. That has a cost for whoever
+# installs them: an unsigned build asks its user to override Gatekeeper, and
+# cannot prove it is the official build rather than a modified one. Set these
+# to produce a signed artifact:
 #
 #   MIGHTDO_SIGN_IDENTITY   "Developer ID Application: Name (TEAMID)"
 #   MIGHTDO_NOTARY_PROFILE  a notarytool keychain profile name (optional; the
@@ -86,6 +86,9 @@ sips -s format icns "$ICON_PNG" --out "$ICON_ICNS" >/dev/null
 echo "Publishing $APP_PROJECT for $RID"
 dotnet publish "$APP_PROJECT" -c Release -r "$RID" --self-contained false -o "$PUBLISH_DIR"
 
+# Use the same numeric version as the app's Nerdbank-generated build metadata.
+BUNDLE_VERSION=$(dotnet msbuild "$APP_PROJECT" -nologo -t:GetBuildVersion -getProperty:BuildVersionSimple -p:Configuration=Release -p:RuntimeIdentifier="$RID")
+
 # Bundle layout:
 # - Contents/MacOS: executable + dependent binaries
 # - Contents/Resources: icons and other resources
@@ -110,9 +113,9 @@ cat > "$BUNDLE_DIR/Contents/Info.plist" <<EOF
   <key>CFBundleIdentifier</key>
   <string>com.might-do.app</string>
   <key>CFBundleVersion</key>
-  <string>1.0</string>
+  <string>$BUNDLE_VERSION</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$BUNDLE_VERSION</string>
   <key>LSMinimumSystemVersion</key>
   <string>10.15</string>
   <key>CFBundleIconFile</key>
@@ -176,6 +179,7 @@ sha256:    $(cut -d' ' -f1 < "$CHECKSUM_PATH")
 commit:    $(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || echo unknown)
 clean:     $([[ -z "$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null)" ]] && echo yes || echo "no - built from a modified tree")
 rid:       $RID
+version:   $BUNDLE_VERSION
 built:     $(date -u +%Y-%m-%dT%H:%M:%SZ)
 signed:    ${SIGN_IDENTITY:-no}
 notarized: ${NOTARY_PROFILE:+yes}${NOTARY_PROFILE:-no}
@@ -187,8 +191,8 @@ echo "Created checksum: $CHECKSUM_PATH"
 
 if [[ -z "$SIGN_IDENTITY" || -z "$NOTARY_PROFILE" ]]; then
   echo
-  echo "WARNING: this build is not signed and notarized, so macOS will refuse"
-  echo "to open it without the user overriding Gatekeeper. That is fine for"
-  echo "your own machine and not fine for anybody else's: set"
-  echo "MIGHTDO_SIGN_IDENTITY and MIGHTDO_NOTARY_PROFILE before distributing."
+  echo "NOTE: this build is not signed and notarized, so macOS will refuse to"
+  echo "open it until the user overrides Gatekeeper. Tell anyone you hand it to"
+  echo "where it came from, and keep the .sha256 and .provenance.txt with it."
+  echo "Set MIGHTDO_SIGN_IDENTITY and MIGHTDO_NOTARY_PROFILE to sign it."
 fi
