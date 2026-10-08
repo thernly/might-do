@@ -15,10 +15,10 @@ set -euo pipefail
 #
 # Signing is opt-in because it needs an Apple Developer ID this repository does
 # not carry, and a build machine without one still has to be able to produce a
-# bundle to run locally. It is not optional for anything handed to somebody
-# else: an unsigned build asks its user to click past Gatekeeper, which is both
-# the wrong habit to teach and indistinguishable from what a tampered build
-# would ask. Set these to produce a distributable artifact:
+# bundle. Releases are unsigned until one exists. That has a cost for whoever
+# installs them: an unsigned build asks its user to override Gatekeeper, and
+# cannot prove it is the official build rather than a modified one. Set these
+# to produce a signed artifact:
 #
 #   MIGHTDO_SIGN_IDENTITY   "Developer ID Application: Name (TEAMID)"
 #   MIGHTDO_NOTARY_PROFILE  a notarytool keychain profile name (optional; the
@@ -191,8 +191,8 @@ echo "Created checksum: $CHECKSUM_PATH"
 
 if [[ -z "$SIGN_IDENTITY" || -z "$NOTARY_PROFILE" ]]; then
   echo
-  echo "WARNING: this build is not signed and notarized, so macOS will refuse"
-  echo "to open it without the user overriding Gatekeeper. That is fine for"
-  echo "your own machine and not fine for anybody else's: set"
-  echo "MIGHTDO_SIGN_IDENTITY and MIGHTDO_NOTARY_PROFILE before distributing."
+  echo "NOTE: this build is not signed and notarized, so macOS will refuse to"
+  echo "open it until the user overrides Gatekeeper. Tell anyone you hand it to"
+  echo "where it came from, and keep the .sha256 and .provenance.txt with it."
+  echo "Set MIGHTDO_SIGN_IDENTITY and MIGHTDO_NOTARY_PROFILE to sign it."
 fi

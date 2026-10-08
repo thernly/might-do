@@ -59,6 +59,18 @@ alone rather than seeding an empty workspace over the top of it. The workspace
 stays in the switcher, because it may come back, and whatever else you have
 is one click away.
 
+The list of workspaces, what you call each one, and how you left each one — the
+view, the sort, the filters — are remembered per machine, not in the folders:
+they sit at different paths on each machine, and a name is not part of the
+on-disk format. That file is `might-do/settings.json` in the platform's
+application-data folder:
+
+| Platform | Path |
+|---|---|
+| macOS | `~/Library/Application Support/might-do/settings.json` |
+| Windows | `%APPDATA%\might-do\settings.json` |
+| Linux | `~/.config/might-do/settings.json` (or under `$XDG_CONFIG_HOME`) |
+
 ### Getting tasks in and out
 
 Settings has an **Import and export** section. Export writes the tasks the list
@@ -73,12 +85,6 @@ it creates. See
 [docs/format/csv-v1.md](docs/format/csv-v1.md) for exactly what survives, and
 [docs/adr/0005](docs/adr/0005-csv-is-interchange-not-backup.md) for why it is
 shaped that way.
-
-The list of workspaces, what you call each one, and how you left each one — the
-view, the sort, the filters — are remembered per machine, not in the folders:
-they sit at different paths on each machine, and a name is not part of the
-on-disk format. On macOS that is
-`~/Library/Application Support/might-do/settings.json`.
 
 ## How it looks
 
@@ -149,6 +155,12 @@ This compiles the .NET 10 app for the current machine. Use the platform-specific
 commands below to produce deployable output for a target OS or build a native
 app bundle or installer.
 
+Those commands publish framework-dependent output, which needs the .NET 10
+runtime on the machine that runs it. Replace `--self-contained false` with
+`--self-contained true` to bundle the runtime instead. CI does that for the
+Linux and Windows release artifacts; the macOS packaging script does not, so
+the macOS bundle and DMG need the runtime installed.
+
 ### Automatic versioning
 
 [Nerdbank.GitVersioning](https://dotnet.github.io/Nerdbank.GitVersioning/)
@@ -159,9 +171,7 @@ include the commit ID. Rebuilding the same commit keeps the same version;
 uncommitted edits do not advance the build number.
 
 To start a new minor or major series, change `version` in `version.json` and
-commit it. Commit the initial versioning configuration before preparing a
-release: Nerdbank uses its history to calculate the build number. CI fetches
-the full Git history so local and CI builds agree.
+commit it. CI fetches the full Git history so local and CI builds agree.
 
 ### macOS
 
@@ -198,8 +208,9 @@ export MIGHTDO_NOTARY_PROFILE=mightdo-notary   # xcrun notarytool store-credenti
 ./tools/package-macos-release.sh
 ```
 
-Without them the build is unsigned, which is fine on your own machine and not
-fine anywhere else — see [Distributing a build](#distributing-a-build).
+Without them the build is unsigned — see
+[Distributing a build](#distributing-a-build) for what that means for anyone
+you hand it to.
 
 ### Windows
 
@@ -211,35 +222,46 @@ dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r win-arm64 --self
 
 Use `win-x64` for 64-bit Windows or `win-arm64` for ARM-based Windows devices.
 The published output is the portable app folder that can then be wrapped in an
-installer or packaged for distribution. It is unsigned; Authenticode-sign the
-executable and any installer before handing it to anybody — see
+installer or packaged for distribution. It is unsigned — see
 [Distributing a build](#distributing-a-build).
+
+### Linux
+
+```sh
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-x64 --self-contained false
+
+dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-arm64 --self-contained false
+```
+
+Use the RID that matches your Linux architecture (`linux-x64` or `linux-arm64`).
 
 ### Distributing a build
 
-A build for your own machine needs none of this. A build for somebody else does,
-and the gap is not cosmetic: an unsigned artifact gives its user no way to tell
-an official build from a modified one, and the only way to open it is to click
-past the warning that would have caught a modified one. Telling people to do
-that as the normal way to install is teaching them to ignore the check.
+Release builds are currently unsigned. Signing is the goal rather than a
+precondition: the macOS packaging script signs and notarizes as soon as it is
+given a Developer ID, and Authenticode signing for Windows is not wired up yet.
 
-Before publishing a release:
+What that costs the person installing: macOS Gatekeeper and Windows SmartScreen
+warn before opening an unsigned build, and they have to override the warning to
+run it. An unsigned artifact also cannot prove it is the official build rather
+than a modified one, so say where a build came from when you hand it over.
 
-- sign and notarize the macOS bundle and DMG (`MIGHTDO_SIGN_IDENTITY`,
-  `MIGHTDO_NOTARY_PROFILE` above), and confirm `stapler validate` passes;
-- Authenticode-sign the Windows executable and installer;
-- publish the `.sha256` checksums and the provenance record alongside the
-  artifacts;
-- build from a clean checkout in a protected CI environment, so the provenance
-  record says which commit produced the bytes and nobody has to take it on
-  trust.
+What helps in the meantime:
 
-Until all of that is in place, builds are for the machine that made them.
+- build from a clean checkout — the GitHub release workflow does — so the
+  provenance record names the commit that produced the bytes;
+- keep the `.sha256` checksum and `.provenance.txt` with the macOS DMG; the
+  release zip carries both;
+- when signing credentials are available, set `MIGHTDO_SIGN_IDENTITY` and
+  `MIGHTDO_NOTARY_PROFILE` (above) and confirm `stapler validate` passes;
+- Authenticode-sign the Windows executable and any installer once a certificate
+  exists.
 
 ### Releasing from GitHub
 
-To ship a release, start from a clean, committed checkout. Restore dependencies,
-ask Nerdbank for the release version, and tag that commit:
+To ship a release, start from a clean, up-to-date checkout of `main`, so the
+build number is the one `main` gives. Restore dependencies, ask Nerdbank for the
+release version, and tag that commit:
 
 ```sh
 dotnet restore MightDo.slnx
@@ -254,26 +276,16 @@ CI rejects a tag that does not match the computed version. The app, published
 assemblies, and macOS bundle metadata use the same generated version.
 
 The CI workflow will run the normal build and test jobs, then publish release
-artifacts for Linux, Windows and macOS and attach them to the GitHub Release
-for that tag. The release notes are generated automatically from the commits in
-that tag range.
+artifacts and attach them to the GitHub Release for that tag as three zips:
+`linux-x64` and `win-x64`, both self-contained, and `macos-arm64`, which holds
+the app bundle and DMG and needs the .NET 10 runtime installed. All three are
+unsigned — see [Distributing a build](#distributing-a-build). The release notes
+are generated automatically from the commits in that tag range.
 
 For a follow-up fix, commit the fix and repeat these commands; the build number
 advances automatically. For a prerelease, add a suffix such as `-rc` to the
 base version in `version.json` and commit it before calculating the tag. The
 same commands and CI workflow also support those prerelease tags.
-
-### Linux
-
-```sh
-dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-x64 --self-contained false
-
-dotnet publish src/MightDo.App/MightDo.App.csproj -c Release -r linux-arm64 --self-contained false
-```
-
-Use the RID that matches your Linux architecture (`linux-x64` or `linux-arm64`).
-If you want a fully self-contained single-binary deployment, replace
-`--self-contained false` with `--self-contained true` and choose the matching RID.
 
 ## Repository layout
 
@@ -289,8 +301,10 @@ If you want a fully self-contained single-binary deployment, replace
 
 ## The format is verified
 
-The app keeps committed fixtures and parity scenarios to verify the on-disk
-format and behaviour automatically:
+might-do was first written in Flutter and then ported to .NET. The Flutter
+implementation has been removed, but the workspace corpus and parity
+expectation it generated are committed, and with the CSV corpus they are what
+the formats and the behaviour are checked against:
 
 - **The format reads both ways.** `fixtures/workspace-v1/` is a corpus that is
   loaded and written back without losing a value; `fixtures/interop/` is what
@@ -299,9 +313,9 @@ format and behaviour automatically:
   byte for byte, the files a foreign tool might hand us, and every documented row
   error — including the round trip that matters most: exporting a workspace and
   importing it back writes nothing at all.
-- **The behaviour matches.** A sixteen-step scenario, and the workspace left
-  after running it, are committed in `fixtures/parity/` and replayed on every
-  test run — down to the board ranks.
+- **The behaviour matches.** The workspace the Flutter implementation was left
+  with after a scripted scenario is committed in `fixtures/parity/`; every test
+  run replays the same scenario and compares — down to the board ranks.
 - **The views load.** Avalonia's headless platform builds the real visual tree
   with no display, so a XAML file naming a type that does not exist fails a test
   rather than a launch.
@@ -311,9 +325,9 @@ dotnet test
 dotnet run --project tools/MightDo.FixtureWriter   # rewrites fixtures/interop
 ```
 
-These expectations can no longer be regenerated — the oracle that produced them
-is gone. Treat a parity or conformance failure as a change in behaviour to
-justify, not a fixture to refresh.
+The Flutter-generated expectations can no longer be regenerated. Treat a parity
+or conformance failure as a change in behaviour to justify, not a fixture to
+refresh.
 
 ## Documentation
 
@@ -328,7 +342,7 @@ justify, not a fixture to refresh.
 
 ## Not in this version
 
-Deliberately deferred, each with a chosen approach already recorded:
+Deliberately deferred:
 recurring tasks (spawn-on-complete when a task reaches a `Final` status), a
 system-tray presence so reminders fire while the app is closed, sync via a
 server, and importing from Microsoft To Do. Code signing is wired into the
@@ -344,4 +358,5 @@ explains why no maintained cross-platform library does this. Today macOS
 notifications appear credited to Script Editor rather than to might-do; fixing
 that requires replacing the `osascript` notifier with a native implementation.
 Windows shows no operating-system notification yet because it likewise needs a
-native implementation tied to a packaged application identity.
+native implementation tied to a packaged application identity. Linux goes
+through `notify-send`.
