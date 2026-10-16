@@ -280,12 +280,18 @@ and Git history; the tag marks the release rather than overriding its version.
 CI rejects a tag that does not match the computed version. The app, published
 assemblies, and macOS bundle metadata use the same generated version.
 
-The CI workflow will run the normal build and test jobs, then publish release
-artifacts and attach them to the GitHub Release for that tag as three zips:
+Routine pushes and pull requests build and test on Linux to keep CI costs
+down. To also build and test on macOS, open **Actions → CI → Run workflow**
+and enable **Build macOS**. A manual run on a branch only builds and tests.
+
+Release tags automatically build and test on both Linux and macOS, then
+publish artifacts and attach them to the GitHub Release as three zips:
 `linux-x64` and `win-x64`, both self-contained, and `macos-arm64`, which holds
-the app bundle and DMG and needs the .NET 10 runtime installed. All three are
-unsigned — see [Distributing a build](#distributing-a-build). The release notes
-are generated automatically from the commits in that tag range.
+the app bundle and DMG and needs the .NET 10 runtime installed. Manual runs
+on release tags also include all three platforms regardless of the checkbox.
+All release artifacts are unsigned — see
+[Distributing a build](#distributing-a-build). Release notes are generated
+automatically from the commits in that tag range.
 
 For a follow-up fix, commit the fix and repeat these commands; the build number
 advances automatically. For a prerelease, add a suffix such as `-rc` to the

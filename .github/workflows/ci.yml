@@ -1,4 +1,4 @@
-# Builds and tests every push and pull request.
+# Builds and tests on Linux by default; macOS runs for release tags or by request.
 #
 # Warnings are errors in this repository, so this is also what enforces that:
 # a build that only ever ran on the author's machine enforced nothing.
@@ -9,18 +9,22 @@ on:
     branches: [main]
     tags: ['v*']
   pull_request:
+  workflow_dispatch:
+    inputs:
+      build_macos:
+        description: Build macOS (release tags always include macOS)
+        type: boolean
+        default: false
 
 jobs:
   build:
-    # Both, because the app is cross-platform and the parts most likely to
-    # differ — file watching, the notification helper, path handling — are
-    # exactly the parts with no way to be checked from one machine.
+    # Keep routine CI on Linux; check macOS for releases or on a manual run.
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: ${{ fromJSON((inputs.build_macos || startsWith(github.ref, 'refs/tags/v')) && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
 
     runs-on: ${{ matrix.os }}
 
@@ -43,7 +47,7 @@ jobs:
         run: dotnet test MightDo.slnx --configuration Release --no-build
 
   publish:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v')
     needs: build
     permissions:
       contents: read
@@ -119,7 +123,7 @@ jobs:
           path: dist
 
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && startsWith(github.ref, 'refs/tags/v')
     needs: publish
     permissions:
       contents: write
