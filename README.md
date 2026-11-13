@@ -4,7 +4,7 @@ A personal task tracker for people who find Microsoft To Do too limited but full
 project-management tools too heavy. Local-first, single-user, no server and no
 account. Runs on macOS, Windows and Linux.
 
-The application is C# on .NET 10 with an Avalonia front end.
+The application is C# on .NET 11 with an Avalonia front end.
 
 ## What a task has
 
@@ -128,7 +128,7 @@ legibility bar, so a new one cannot ship unreadable.
 
 ## Running it
 
-Needs the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+Needs the [.NET 11 SDK](https://dotnet.microsoft.com/download).
 
 ```sh
 dotnet run --project src/MightDo.App
@@ -151,11 +151,11 @@ From the repo root, build the app in Release configuration:
 dotnet build src/MightDo.App/MightDo.App.csproj -c Release
 ```
 
-This compiles the .NET 10 app for the current machine. Use the platform-specific
+This compiles the .NET 11 app for the current machine. Use the platform-specific
 commands below to produce deployable output for a target OS or build a native
 app bundle or installer.
 
-Those commands publish framework-dependent output, which needs the .NET 10
+Those commands publish framework-dependent output, which needs the .NET 11
 runtime on the machine that runs it. Replace `--self-contained false` with
 `--self-contained true` to bundle the runtime instead. CI does that for the
 Linux and Windows release artifacts; the macOS packaging script does not, so
@@ -287,7 +287,7 @@ and enable **Build macOS**. A manual run on a branch only builds and tests.
 Release tags automatically build and test on both Linux and macOS, then
 publish artifacts and attach them to the GitHub Release as three zips:
 `linux-x64` and `win-x64`, both self-contained, and `macos-arm64`, which holds
-the app bundle and DMG and needs the .NET 10 runtime installed. Manual runs
+the app bundle and DMG and needs the .NET 11 runtime installed. Manual runs
 on release tags also include all three platforms regardless of the checkbox.
 All release artifacts are unsigned — see
 [Distributing a build](#distributing-a-build). Release notes are generated
