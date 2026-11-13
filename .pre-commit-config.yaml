@@ -29,11 +29,11 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  # --- 3. .NET 10 formatting and testing ---
+  # --- 3. .NET 11 formatting and testing ---
   - repo: local
     hooks:
       - id: dotnet-format
-        name: Format C# Code (.NET 10 SDK)
+        name: Format C# Code (.NET 11 SDK)
         entry: dotnet format --include
         language: system
         types_or: [c#]

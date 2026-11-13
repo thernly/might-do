@@ -7,7 +7,7 @@
 
   <!--
     xUnit v3 makes each test project an executable backed by Microsoft Testing
-    Platform. .NET 10 requires a solution-wide runner choice, so all test
+    Platform. Since .NET 10 the SDK requires a solution-wide runner choice, so all test
     projects use v3 even though only this one needs AvaloniaFact to run tests
     on a dispatcher.
   -->
